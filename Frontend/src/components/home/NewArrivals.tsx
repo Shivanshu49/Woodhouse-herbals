@@ -1,0 +1,23 @@
+import { SectionHeader } from '@/components/ui/SectionHeader';
+import { ProductCard } from '@/components/product/ProductCard';
+import { homepage } from '@/data/homepage';
+
+export function NewArrivals() {
+  if (homepage.newArrivals.length === 0) return null;
+  return (
+    <section className="section container-wide">
+      <SectionHeader
+        eyebrow="Just landed"
+        title="New arrivals"
+        subtitle="Fresh from our formulation lab — herbal innovations for the next chapter of your routine."
+        ctaLabel="See what's new"
+        ctaHref="/shop?sort=new"
+      />
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-5 lg:gap-6">
+        {homepage.newArrivals.map((p) => (
+          <ProductCard key={p.id} product={p} />
+        ))}
+      </div>
+    </section>
+  );
+}

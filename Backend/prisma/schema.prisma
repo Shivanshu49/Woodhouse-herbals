@@ -1,0 +1,466 @@
+// Wood House Herbals — Prisma schema
+// Source of truth for the commerce database.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ────────────────────────────────────────────────────────────────
+// Catalog
+// ────────────────────────────────────────────────────────────────
+
+enum ProductCategory {
+  FACE_WASH
+  SERUM
+  CREAM
+  SCRUB
+  HAIR_OIL
+  SHAMPOO
+  COMBO
+  MASK
+  TONER
+}
+
+enum SkinType {
+  OILY
+  DRY
+  COMBINATION
+  SENSITIVE
+  NORMAL
+  ALL
+}
+
+enum ConcernType {
+  SKIN
+  HAIR
+}
+
+model Concern {
+  id          String        @id @default(cuid())
+  slug        String        @unique
+  title       String
+  description String?
+  type        ConcernType
+  imageUrl    String?
+  accent      String?
+  sortOrder   Int           @default(0)
+  products    ProductConcern[]
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+}
+
+model Category {
+  id        String          @id @default(cuid())
+  slug      String          @unique
+  name      String
+  category  ProductCategory
+  imageUrl  String?
+  sortOrder Int             @default(0)
+  products  Product[]
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+}
+
+model Product {
+  id                 String           @id @default(cuid())
+  slug               String           @unique
+  sku                String           @unique
+  name               String
+  shortDescription   String
+  longDescription    String           @db.Text
+  category           ProductCategory
+  size               String?
+  isCombo            Boolean          @default(false)
+  // Money in paise (minor units)
+  priceMinor         Int
+  compareAtPriceMinor Int?
+  rating             Float            @default(0)
+  reviewCount        Int              @default(0)
+  inStock            Boolean          @default(true)
+  stockQty           Int              @default(0)
+  thumbnailUrl       String
+  thumbnailAlt       String
+  gallery            ProductImage[]
+  benefits           String[]
+  howToUse           String[]
+  ingredients        Ingredient[]
+  badges             ProductBadge[]
+  skinTypes          SkinType[]
+  concerns           ProductConcern[]
+  reviews            Review[]
+  cartLines          CartLine[]
+  orderItems         OrderItem[]
+  recommendations    Recommendation[] @relation("RecForSource")
+  recommendedBy      Recommendation[] @relation("RecForTarget")
+  categoryRef        Category?        @relation(fields: [categoryRefId], references: [id])
+  categoryRefId      String?
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+
+  @@index([category])
+  @@index([rating])
+  @@index([priceMinor])
+}
+
+model ProductImage {
+  id        String  @id @default(cuid())
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  productId String
+  url       String
+  alt       String
+  width     Int?
+  height    Int?
+  sortOrder Int     @default(0)
+}
+
+model Ingredient {
+  id        String  @id @default(cuid())
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  productId String
+  name      String
+  benefit   String
+  iconUrl   String?
+  sortOrder Int     @default(0)
+}
+
+enum BadgeTone {
+  BESTSELLER
+  NEW
+  SALE
+  LIMITED
+}
+
+model ProductBadge {
+  id        String    @id @default(cuid())
+  product   Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  productId String
+  label     String
+  tone      BadgeTone
+}
+
+model ProductConcern {
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  productId String
+  concern   Concern @relation(fields: [concernId], references: [id], onDelete: Cascade)
+  concernId String
+
+  @@id([productId, concernId])
+}
+
+model Recommendation {
+  id           String  @id @default(cuid())
+  sourceProduct  Product @relation("RecForSource", fields: [sourceProductId], references: [id], onDelete: Cascade)
+  sourceProductId String
+  targetProduct  Product @relation("RecForTarget", fields: [targetProductId], references: [id], onDelete: Cascade)
+  targetProductId String
+  score          Float   @default(0)
+
+  @@unique([sourceProductId, targetProductId])
+}
+
+// ────────────────────────────────────────────────────────────────
+// Identity / customers
+// ────────────────────────────────────────────────────────────────
+
+enum UserRole {
+  CUSTOMER
+  STAFF
+  ADMIN
+}
+
+model User {
+  id                  String     @id @default(cuid())
+  email               String     @unique
+  passwordHash        String
+  fullName            String
+  phone               String?
+  role                UserRole   @default(CUSTOMER)
+  skinType            SkinType?
+  primaryConcerns     String[]
+  // Email verification
+  emailVerified       Boolean    @default(false)
+  emailVerifiedAt     DateTime?
+  // Brute-force / lockout
+  failedLoginAttempts Int        @default(0)
+  lockedUntil         DateTime?
+  lastLoginAt         DateTime?
+  lastLoginIp         String?
+  // Password rotation tracking
+  passwordChangedAt   DateTime?
+  // Relations
+  addresses           Address[]
+  carts               Cart[]
+  orders              Order[]
+  reviews             Review[]
+  refreshTokens       RefreshToken[]
+  emailTokens         EmailVerificationToken[]
+  resetTokens         PasswordResetToken[]
+  authEvents          AuthEvent[]
+  wishlistItems       WishlistItem[]
+  createdAt           DateTime   @default(now())
+  updatedAt           DateTime   @updatedAt
+}
+
+model RefreshToken {
+  id        String    @id @default(cuid())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String
+  // SHA-256 of the random token; the raw token only lives in the user's cookie.
+  tokenHash String    @unique
+  // Family id lets us detect reuse-after-rotation and revoke the whole chain.
+  familyId  String
+  // When this token is rotated, we record the replacement so a replayed
+  // already-rotated token can be detected and the family forcibly revoked.
+  replacedById String?
+  expiresAt DateTime
+  revokedAt DateTime?
+  ip        String?
+  userAgent String?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+  @@index([familyId])
+}
+
+model EmailVerificationToken {
+  id        String    @id @default(cuid())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  consumedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+}
+
+model PasswordResetToken {
+  id         String    @id @default(cuid())
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId     String
+  tokenHash  String    @unique
+  expiresAt  DateTime
+  consumedAt DateTime?
+  ip         String?
+  createdAt  DateTime  @default(now())
+
+  @@index([userId])
+}
+
+enum AuthEventType {
+  REGISTER
+  LOGIN_SUCCESS
+  LOGIN_FAILURE
+  LOGOUT
+  REFRESH_SUCCESS
+  REFRESH_REUSE_DETECTED
+  PASSWORD_CHANGED
+  PASSWORD_RESET_REQUESTED
+  PASSWORD_RESET_COMPLETED
+  EMAIL_VERIFIED
+  ACCOUNT_LOCKED
+}
+
+model AuthEvent {
+  id        String        @id @default(cuid())
+  user      User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
+  userId    String?
+  type      AuthEventType
+  ip        String?
+  userAgent String?
+  // Free-form context — never include credentials, just metadata such as
+  // failure reason or the email that was attempted (for unmatched logins).
+  meta      Json?
+  createdAt DateTime      @default(now())
+
+  @@index([userId, createdAt])
+  @@index([type, createdAt])
+  @@index([ip, createdAt])
+}
+
+model Address {
+  id        String  @id @default(cuid())
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String
+  fullName  String
+  phone     String
+  line1     String
+  line2     String?
+  city      String
+  state     String
+  pincode   String
+  country   String  @default("IN")
+  isDefault Boolean @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model WishlistItem {
+  id        String   @id @default(cuid())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String
+  productId String
+  createdAt DateTime @default(now())
+
+  @@unique([userId, productId])
+}
+
+// ────────────────────────────────────────────────────────────────
+// Cart & orders
+// ────────────────────────────────────────────────────────────────
+
+model Cart {
+  id        String     @id @default(cuid())
+  user      User?      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String?
+  // Guest carts identified by session id
+  sessionId String?    @unique
+  lines     CartLine[]
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+}
+
+model CartLine {
+  id            String  @id @default(cuid())
+  cart          Cart    @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  cartId        String
+  product       Product @relation(fields: [productId], references: [id])
+  productId     String
+  quantity      Int
+  unitPriceMinor Int
+
+  @@unique([cartId, productId])
+}
+
+enum OrderStatus {
+  PENDING
+  PAID
+  PROCESSING
+  SHIPPED
+  DELIVERED
+  CANCELLED
+  REFUNDED
+}
+
+enum PaymentStatus {
+  INITIATED
+  SUCCESS
+  FAILED
+  REFUNDED
+}
+
+model Order {
+  id             String        @id @default(cuid())
+  number         String        @unique
+  user           User?         @relation(fields: [userId], references: [id])
+  userId         String?
+  // Cart session id at checkout — used by the PhonePe success handler to
+  // clear the right cart and by audit logs to correlate the buyer device.
+  cartSessionId  String?
+  status         OrderStatus   @default(PENDING)
+  subtotalMinor  Int
+  discountMinor  Int           @default(0)
+  shippingMinor  Int           @default(0)
+  totalMinor     Int
+  items          OrderItem[]
+  // Shipping address snapshot at order time
+  shippingFullName String
+  shippingPhone    String
+  shippingLine1    String
+  shippingLine2    String?
+  shippingCity     String
+  shippingState    String
+  shippingPincode  String
+  shippingCountry  String      @default("IN")
+  payments       Payment[]
+  placedAt       DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+}
+
+model OrderItem {
+  id             String  @id @default(cuid())
+  order          Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  orderId        String
+  product        Product @relation(fields: [productId], references: [id])
+  productId      String
+  name           String
+  thumbnailUrl   String
+  quantity       Int
+  unitPriceMinor Int
+  lineTotalMinor Int
+
+  // Indexed: best-seller queries and "users who bought X" lookups.
+  @@index([productId])
+  @@index([orderId])
+}
+
+model Payment {
+  id              String        @id @default(cuid())
+  order           Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  orderId         String
+  provider        String        @default("phonepe")
+  providerTxnId   String?       @unique
+  amountMinor     Int
+  status          PaymentStatus @default(INITIATED)
+  rawResponse     Json?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+}
+
+// ────────────────────────────────────────────────────────────────
+// Reviews
+// ────────────────────────────────────────────────────────────────
+
+model Review {
+  id               String   @id @default(cuid())
+  product          Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  productId        String
+  user             User?    @relation(fields: [userId], references: [id])
+  userId           String?
+  authorName       String
+  rating           Int
+  title            String
+  body             String   @db.Text
+  verifiedPurchase Boolean  @default(false)
+  approved         Boolean  @default(false)
+  createdAt        DateTime @default(now())
+
+  @@index([productId, approved])
+  // Listing approved reviews by newest first hits this index instead of
+  // a sort-on-disk after the [productId, approved] filter.
+  @@index([productId, createdAt])
+}
+
+// ────────────────────────────────────────────────────────────────
+// Storefront promotional content
+// ────────────────────────────────────────────────────────────────
+
+model OfferStripItem {
+  id        String  @id @default(cuid())
+  headline  String
+  code      String?
+  href      String  @default("/shop")
+  sortOrder Int     @default(0)
+  active    Boolean @default(true)
+}
+
+model HeroBanner {
+  id        String  @id @default(cuid())
+  eyebrow   String
+  title     String
+  subtitle  String
+  ctaLabel  String
+  ctaHref   String
+  imageUrl  String
+  accent    String?
+  active    Boolean @default(true)
+  startsAt  DateTime?
+  endsAt    DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}

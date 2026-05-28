@@ -133,3 +133,7 @@ Frontend types live under [`Frontend/src/types/`](Frontend/src/types/). Backend 
 
 - [`docs/architecture.md`](docs/architecture.md) — system design & build order
 - [`docs/SECURITY.md`](docs/SECURITY.md) — threat model, controls, incident response
+
+---
+
+Licensed under the [MIT License](./LICENSE).

@@ -9,6 +9,7 @@ import { createHash, randomUUID, timingSafeEqual } from 'node:crypto';
 import { InventoryReason, OrderStatus, PaymentStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { InventoryService } from '../inventory/inventory.service';
+import { WebhookEventsService } from '../../common/security/webhook-events.service';
 import { env } from '../../common/config/env';
 
 const PAY_ENDPOINT = '/pg/v1/pay';
@@ -46,6 +47,7 @@ export class PhonepeService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly inventory: InventoryService,
+    private readonly webhooks: WebhookEventsService,
   ) {}
 
   async initiate(input: InitiateInput) {
@@ -139,7 +141,10 @@ export class PhonepeService {
    * and only an INITIATED payment can move to SUCCESS/FAILED. On SUCCESS,
    * the order's cart is cleared. On FAILED, decremented stock is restored.
    */
-  async handleCallback(rawBody: string): Promise<{ ok: true; state: string }> {
+  async handleCallback(
+    rawBody: string,
+    signature: string,
+  ): Promise<{ ok: true; state: string; replayed?: boolean }> {
     let outer: { response?: string };
     try {
       outer = JSON.parse(rawBody);
@@ -160,54 +165,87 @@ export class PhonepeService {
       throw new BadRequestException('Missing transaction state');
     }
 
-    const payment = await this.prisma.payment.findUnique({
-      where: { providerTxnId: decoded.merchantTransactionId },
-      include: { order: { include: { items: true } } },
+    // Persist + claim the webhook for at-most-once processing.
+    // Idempotency key = provider transaction id. A re-delivered webhook
+    // with the same id short-circuits below.
+    const claim = await this.webhooks.record({
+      provider: 'phonepe',
+      eventType: `payment.${decoded.state.toLowerCase()}`,
+      idempotencyKey: `phonepe:${decoded.merchantTransactionId}`,
+      signature,
+      rawBody,
+      payload: decoded as unknown as Prisma.InputJsonValue,
     });
-    if (!payment) throw new NotFoundException('Payment not found');
-
-    if (
-      payment.status === PaymentStatus.SUCCESS ||
-      payment.status === PaymentStatus.FAILED ||
-      payment.status === PaymentStatus.REFUNDED
-    ) {
+    if (!claim.shouldProcess) {
       this.logger.log(
         JSON.stringify({
-          scope: 'phonepe:callback:duplicate',
+          scope: 'phonepe:callback:replayed',
+          eventId: claim.eventId,
           txn: decoded.merchantTransactionId,
-          existing: payment.status,
         }),
       );
+      return { ok: true, state: decoded.state, replayed: true };
+    }
+
+    try {
+      const payment = await this.prisma.payment.findUnique({
+        where: { providerTxnId: decoded.merchantTransactionId },
+        include: { order: { include: { items: true } } },
+      });
+      if (!payment) throw new NotFoundException('Payment not found');
+
+      if (
+        payment.status === PaymentStatus.SUCCESS ||
+        payment.status === PaymentStatus.FAILED ||
+        payment.status === PaymentStatus.REFUNDED
+      ) {
+        this.logger.log(
+          JSON.stringify({
+            scope: 'phonepe:callback:terminal_already',
+            txn: decoded.merchantTransactionId,
+            existing: payment.status,
+          }),
+        );
+        await this.webhooks.markProcessed(claim.eventId);
+        return { ok: true, state: payment.status };
+      }
+
+      // Amount sanity — PhonePe echoes back the charged amount in paise.
+      if (typeof decoded.amount === 'number' && decoded.amount !== payment.amountMinor) {
+        this.logger.error(
+          JSON.stringify({
+            scope: 'phonepe:callback:amount_mismatch',
+            txn: decoded.merchantTransactionId,
+            expected: payment.amountMinor,
+            got: decoded.amount,
+          }),
+        );
+        await this.markFailed(payment.id, payment.order.id, payment.order.items, decoded);
+        await this.webhooks.markProcessed(claim.eventId);
+        return { ok: true, state: PaymentStatus.FAILED };
+      }
+
+      if (decoded.state === 'COMPLETED') {
+        await this.markSuccess(payment.id, payment.order.id, payment.order.cartSessionId, decoded);
+        await this.webhooks.markProcessed(claim.eventId);
+        return { ok: true, state: PaymentStatus.SUCCESS };
+      }
+      if (decoded.state === 'FAILED') {
+        await this.markFailed(payment.id, payment.order.id, payment.order.items, decoded);
+        await this.webhooks.markProcessed(claim.eventId);
+        return { ok: true, state: PaymentStatus.FAILED };
+      }
+      await this.prisma.payment.update({
+        where: { id: payment.id },
+        data: { rawResponse: decoded as unknown as Prisma.InputJsonValue },
+      });
+      // PENDING — leave the webhook unprocessed so a subsequent terminal
+      // callback can pick it up; just acknowledge to PhonePe.
       return { ok: true, state: payment.status };
+    } catch (err) {
+      await this.webhooks.markFailed(claim.eventId, err);
+      throw err;
     }
-
-    // Amount sanity — PhonePe echoes back the charged amount in paise.
-    if (typeof decoded.amount === 'number' && decoded.amount !== payment.amountMinor) {
-      this.logger.error(
-        JSON.stringify({
-          scope: 'phonepe:callback:amount_mismatch',
-          txn: decoded.merchantTransactionId,
-          expected: payment.amountMinor,
-          got: decoded.amount,
-        }),
-      );
-      await this.markFailed(payment.id, payment.order.id, payment.order.items, decoded);
-      return { ok: true, state: PaymentStatus.FAILED };
-    }
-
-    if (decoded.state === 'COMPLETED') {
-      await this.markSuccess(payment.id, payment.order.id, payment.order.cartSessionId, decoded);
-      return { ok: true, state: PaymentStatus.SUCCESS };
-    }
-    if (decoded.state === 'FAILED') {
-      await this.markFailed(payment.id, payment.order.id, payment.order.items, decoded);
-      return { ok: true, state: PaymentStatus.FAILED };
-    }
-    await this.prisma.payment.update({
-      where: { id: payment.id },
-      data: { rawResponse: decoded as unknown as Prisma.InputJsonValue },
-    });
-    return { ok: true, state: payment.status };
   }
 
   private async markSuccess(

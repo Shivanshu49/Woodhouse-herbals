@@ -38,7 +38,22 @@ export class OrdersService {
    * - The order is created in PENDING. The cart is NOT cleared here —
    *   PhonePe callback will clear it on PAID, or restore stock on FAILED.
    */
-  async createFromCart(sessionId: string, userId: string | undefined, dto: CreateOrderDto) {
+  async createFromCart(
+    sessionId: string,
+    userId: string | undefined,
+    dto: CreateOrderDto,
+    idempotencyKey?: string,
+  ) {
+    // Network retries can re-send POST /api/orders. If the client provided
+    // an Idempotency-Key, replay the previous result instead of creating
+    // duplicate orders and double-decrementing stock.
+    if (idempotencyKey) {
+      const existing = await this.prisma.order.findUnique({
+        where: { idempotencyKey },
+        include: { items: true },
+      });
+      if (existing) return existing;
+    }
     const cart = await this.carts.getOrCreate(sessionId);
     if (!cart.lines.length) throw new BadRequestException('Cart is empty');
 
@@ -90,6 +105,7 @@ export class OrdersService {
           number,
           userId,
           cartSessionId: sessionId,
+          idempotencyKey,
           status: 'PENDING',
           subtotalMinor: subtotal,
           discountMinor: 0,

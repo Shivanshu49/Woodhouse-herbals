@@ -57,6 +57,6 @@ export class PhonepeController {
     const verified = this.phonepe.verifySignature(raw, signature);
     if (!verified) throw new BadRequestException('Signature mismatch');
 
-    return this.phonepe.handleCallback(raw);
+    return this.phonepe.handleCallback(raw, signature);
   }
 }

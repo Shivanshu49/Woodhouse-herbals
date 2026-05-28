@@ -13,9 +13,10 @@
  * These tests assert that verification is byte-exact and constant-time.
  */
 
-import test from 'node:test';
+import test, { beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
+import { resetEnvCacheForTests } from '../../common/config/env';
 import { PhonepeService } from './phonepe.service';
 
 const SALT_KEY = 'test-salt-key';
@@ -34,35 +35,39 @@ function signature(body: string): string {
   return `${createHash('sha256').update(body + SALT_KEY).digest('hex')}###${SALT_INDEX}`;
 }
 
-test('verifySignature: accepts a correctly signed body', () => {
+// Reset the memoized env cache before every test so that the
+// process.env.* mutations below are picked up by env.PHONEPE_*.
+beforeEach(() => {
   process.env.PHONEPE_SALT_KEY = SALT_KEY;
   process.env.PHONEPE_SALT_INDEX = SALT_INDEX;
-  const svc = makeService();
+  // env.ts requires DATABASE_URL + JWT secrets to be set before its Zod
+  // schema will validate — even though verifySignature doesn't read them.
+  // The proxy lazily loads the whole schema on the FIRST read of any key,
+  // so we have to satisfy the entire validator.
+  process.env.DATABASE_URL ??= 'postgresql://x:x@localhost:5432/x';
+  process.env.JWT_ACCESS_SECRET ??= 'test_access_secret_long_enough';
+  process.env.JWT_REFRESH_SECRET ??= 'test_refresh_secret_long_enough';
+  resetEnvCacheForTests();
+});
 
+test('verifySignature: accepts a correctly signed body', () => {
+  const svc = makeService();
   const body = '{"response":"eyJtZXJjaGFudFRyYW5zYWN0aW9uSWQiOiJBQkMifQ=="}';
   assert.equal(svc.verifySignature(body, signature(body)), true);
 });
 
 test('verifySignature: rejects a tampered body', () => {
-  process.env.PHONEPE_SALT_KEY = SALT_KEY;
-  process.env.PHONEPE_SALT_INDEX = SALT_INDEX;
   const svc = makeService();
-
   const original = '{"response":"eyJzdGF0ZSI6IkNPTVBMRVRFRCJ9"}';
   const tampered = '{"response":"eyJzdGF0ZSI6IkZBSUxFRCJ9"}';
-  // Signature was minted for the original, but caller supplies the tampered body.
   assert.equal(svc.verifySignature(tampered, signature(original)), false);
 });
 
 test('verifySignature: rejects a re-serialised body (the original bug)', () => {
-  process.env.PHONEPE_SALT_KEY = SALT_KEY;
-  process.env.PHONEPE_SALT_INDEX = SALT_INDEX;
   const svc = makeService();
-
   // PhonePe might send: '{"a":1,"b":2}' — sign that.
   const wire = '{"a":1,"b":2}';
   const sig = signature(wire);
-
   // After express.json parses + JSON.stringify re-serialises, key order may
   // change or whitespace may be normalised. The HMAC must not match.
   const reserialised = '{"b":2,"a":1}';
@@ -72,15 +77,11 @@ test('verifySignature: rejects a re-serialised body (the original bug)', () => {
 });
 
 test('verifySignature: rejects an empty signature', () => {
-  process.env.PHONEPE_SALT_KEY = SALT_KEY;
-  process.env.PHONEPE_SALT_INDEX = SALT_INDEX;
   const svc = makeService();
   assert.equal(svc.verifySignature('{"x":1}', ''), false);
 });
 
 test('verifySignature: length-mismatched signatures fail constant-time', () => {
-  process.env.PHONEPE_SALT_KEY = SALT_KEY;
-  process.env.PHONEPE_SALT_INDEX = SALT_INDEX;
   const svc = makeService();
   // timingSafeEqual would throw on mismatched lengths; we want false instead.
   assert.equal(svc.verifySignature('{"x":1}', 'short###1'), false);

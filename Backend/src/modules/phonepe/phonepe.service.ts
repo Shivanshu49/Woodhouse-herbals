@@ -10,7 +10,7 @@ import { InventoryReason, OrderStatus, PaymentStatus, Prisma } from '@prisma/cli
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { InventoryService } from '../inventory/inventory.service';
 import { WebhookEventsService } from '../../common/security/webhook-events.service';
-import { env } from '../../common/config/env';
+import { DEV_FALLBACKS, env } from '../../common/config/env';
 
 const PAY_ENDPOINT = '/pg/v1/pay';
 
@@ -50,6 +50,21 @@ export class PhonepeService {
     private readonly webhooks: WebhookEventsService,
   ) {}
 
+  /**
+   * Single point of credential access for PhonePe. In production the
+   * validator in env.ts already refuses to boot without these set; here
+   * we narrow the type from `string | undefined` to `string` and apply
+   * the dev fallbacks visibly. Webhook signing/verification reads via
+   * this helper so dev and prod follow the exact same code path.
+   */
+  private credentials(): { merchantId: string; saltKey: string; saltIndex: string } {
+    return {
+      merchantId: env.PHONEPE_MERCHANT_ID ?? DEV_FALLBACKS.PHONEPE_MERCHANT_ID,
+      saltKey: env.PHONEPE_SALT_KEY ?? DEV_FALLBACKS.PHONEPE_SALT_KEY,
+      saltIndex: env.PHONEPE_SALT_INDEX, // schema gives this a default
+    };
+  }
+
   async initiate(input: InitiateInput) {
     const order = await this.prisma.order.findUnique({
       where: { number: input.orderNumber },
@@ -70,9 +85,7 @@ export class PhonepeService {
       throw new ConflictException(`Order is already ${order.status.toLowerCase()}`);
     }
 
-    const merchantId = process.env.PHONEPE_MERCHANT_ID ?? 'PGTESTPAYUAT';
-    const saltKey = process.env.PHONEPE_SALT_KEY ?? 'dev-salt';
-    const saltIndex = process.env.PHONEPE_SALT_INDEX ?? '1';
+    const { merchantId, saltKey, saltIndex } = this.credentials();
 
     const merchantTxnId = `WH${Date.now()}${randomUUID().slice(0, 6)}`;
     const webOrigin = env.WEB_ORIGIN.split(',')[0]!;
@@ -127,8 +140,7 @@ export class PhonepeService {
    * Caller MUST pass the raw body — re-serialised JSON will fail.
    */
   verifySignature(rawBody: string, signature: string): boolean {
-    const saltKey = process.env.PHONEPE_SALT_KEY ?? 'dev-salt';
-    const saltIndex = process.env.PHONEPE_SALT_INDEX ?? '1';
+    const { saltKey, saltIndex } = this.credentials();
     const expected = `${createHash('sha256').update(rawBody + saltKey).digest('hex')}###${saltIndex}`;
     const a = Buffer.from(expected);
     const b = Buffer.from(signature);

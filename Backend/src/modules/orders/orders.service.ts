@@ -104,8 +104,10 @@ export class OrdersService {
               const p = byId.get(l.productId)!;
               return {
                 productId: p.id,
-                name: p.name,
-                thumbnailUrl: p.thumbnailUrl,
+                // Immutable snapshots — survive future product edits/deletes.
+                productNameSnapshot: p.name,
+                productImageSnapshot: p.thumbnailUrl,
+                skuSnapshot: p.sku,
                 quantity: l.quantity,
                 unitPriceMinor: p.priceMinor,
                 lineTotalMinor: p.priceMinor * l.quantity,

@@ -19,6 +19,8 @@ import { InventoryModule } from './modules/inventory/inventory.module';
 import { ReviewsModule } from './modules/reviews/reviews.module';
 import { SearchModule } from './modules/search/search.module';
 import { HomepageModule } from './modules/homepage/homepage.module';
+import { CouponsModule } from './modules/coupons/coupons.module';
+import { ShipmentsModule } from './modules/shipments/shipments.module';
 
 @Module({
   imports: [
@@ -41,6 +43,8 @@ import { HomepageModule } from './modules/homepage/homepage.module';
     ReviewsModule,
     SearchModule,
     HomepageModule,
+    CouponsModule,
+    ShipmentsModule,
   ],
   controllers: [HealthController],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],

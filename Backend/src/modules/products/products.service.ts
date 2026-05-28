@@ -3,6 +3,7 @@ import { Prisma, ProductCategory } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { ListProductsDto, ProductSort } from './dto/list-products.dto';
 import { toMoney } from '../../common/utils/money';
+import { excludeDeleted } from '../../common/prisma/soft-delete';
 
 @Injectable()
 export class ProductsService {
@@ -37,15 +38,16 @@ export class ProductsService {
     const page = dto.page ?? 1;
     const perPage = dto.perPage ?? 24;
 
+    const safeWhere = excludeDeleted(where);
     const [items, total] = await Promise.all([
       this.prisma.product.findMany({
-        where,
+        where: safeWhere,
         orderBy,
         skip: (page - 1) * perPage,
         take: perPage,
         include: { badges: true, concerns: { include: { concern: true } } },
       }),
-      this.prisma.product.count({ where }),
+      this.prisma.product.count({ where: safeWhere }),
     ]);
 
     return {
@@ -58,8 +60,10 @@ export class ProductsService {
   }
 
   async findBySlug(slug: string) {
-    const product = await this.prisma.product.findUnique({
-      where: { slug },
+    const product = await this.prisma.product.findFirst({
+      // Soft-delete-aware: deleted products are 404 even though they still
+      // exist for historical orders.
+      where: excludeDeleted({ slug }),
       include: {
         badges: true,
         gallery: { orderBy: { sortOrder: 'asc' } },
@@ -70,13 +74,13 @@ export class ProductsService {
     if (!product) throw new NotFoundException(`Product ${slug} not found`);
 
     const recommended = await this.prisma.product.findMany({
-      where: {
+      where: excludeDeleted({
         slug: { not: slug },
         OR: [
           { category: product.category },
           { concerns: { some: { concernId: { in: product.concerns.map((c) => c.concernId) } } } },
         ],
-      },
+      }),
       take: 4,
       include: { badges: true, concerns: { include: { concern: true } } },
     });

@@ -6,9 +6,10 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { randomBytes } from 'node:crypto';
-import { UserRole } from '@prisma/client';
+import { InventoryReason, UserRole } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { CartService } from '../cart/cart.service';
+import { InventoryService } from '../inventory/inventory.service';
 import { CreateOrderDto } from './dto/order.dto';
 
 interface OwnershipContext {
@@ -19,7 +20,11 @@ interface OwnershipContext {
 
 @Injectable()
 export class OrdersService {
-  constructor(private readonly prisma: PrismaService, private readonly carts: CartService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly carts: CartService,
+    private readonly inventory: InventoryService,
+  ) {}
 
   /**
    * Create an order from the current cart.
@@ -67,18 +72,17 @@ export class OrdersService {
       .toUpperCase()}`;
 
     const order = await this.prisma.$transaction(async (tx) => {
-      // Conditional decrement per line. updateMany returns count===0 if the
-      // stockQty >= qty predicate failed at commit time (race), in which
-      // case we abort the whole transaction and Postgres rolls back any
-      // already-applied decrements.
+      // Decrement stock via InventoryService so each change leaves an
+      // immutable audit row in the same transaction.
       for (const line of cart.lines as Array<{ productId: string; quantity: number }>) {
-        const result = await tx.product.updateMany({
-          where: { id: line.productId, stockQty: { gte: line.quantity } },
-          data: { stockQty: { decrement: line.quantity } },
+        await this.inventory.adjust({
+          productId: line.productId,
+          delta: -line.quantity,
+          reason: InventoryReason.ORDER_RESERVED,
+          actorId: userId ?? null,
+          reference: number,
+          tx,
         });
-        if (result.count !== 1) {
-          throw new ConflictException('Stock changed while ordering — please try again');
-        }
       }
 
       return tx.order.create({

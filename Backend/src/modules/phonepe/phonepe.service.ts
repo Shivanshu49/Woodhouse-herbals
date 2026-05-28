@@ -6,8 +6,9 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { createHash, randomUUID, timingSafeEqual } from 'node:crypto';
-import { OrderStatus, PaymentStatus, Prisma } from '@prisma/client';
+import { InventoryReason, OrderStatus, PaymentStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { InventoryService } from '../inventory/inventory.service';
 import { env } from '../../common/config/env';
 
 const PAY_ENDPOINT = '/pg/v1/pay';
@@ -42,7 +43,10 @@ interface DecodedCallback {
 export class PhonepeService {
   private readonly logger = new Logger(PhonepeService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly inventory: InventoryService,
+  ) {}
 
   async initiate(input: InitiateInput) {
     const order = await this.prisma.order.findUnique({
@@ -258,10 +262,14 @@ export class PhonepeService {
         data: { status: OrderStatus.CANCELLED },
       });
 
+      // Restore stock through InventoryService so each return is audited.
       for (const item of items) {
-        await tx.product.update({
-          where: { id: item.productId },
-          data: { stockQty: { increment: item.quantity } },
+        await this.inventory.adjust({
+          productId: item.productId,
+          delta: item.quantity,
+          reason: InventoryReason.ORDER_CANCELLED,
+          reference: orderId,
+          tx,
         });
       }
     });

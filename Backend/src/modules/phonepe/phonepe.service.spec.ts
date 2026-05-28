@@ -21,10 +21,12 @@ const SALT_KEY = 'test-salt-key';
 const SALT_INDEX = '1';
 
 function makeService(): PhonepeService {
-  // We only exercise verifySignature, which doesn't touch Prisma. The stub
-  // is shaped just enough to satisfy the constructor.
+  // We only exercise verifySignature, which touches neither Prisma nor
+  // the inventory service. The stubs are shaped just enough to satisfy
+  // the constructor.
   const prismaStub = {} as never;
-  return new PhonepeService(prismaStub);
+  const inventoryStub = {} as never;
+  return new PhonepeService(prismaStub, inventoryStub);
 }
 
 function signature(body: string): string {

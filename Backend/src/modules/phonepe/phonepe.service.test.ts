@@ -4,7 +4,8 @@
  * Uses Node's built-in `node:test` runner so we can ship a regression test
  * without dragging in Jest. Run with:
  *
- *   npx tsx --test src/modules/phonepe/phonepe.service.spec.ts
+ *   npm test                                                    # full suite
+ *   npx tsx --test src/modules/phonepe/phonepe.service.test.ts  # just this file
  *
  * The bug that motivated these tests: the previous controller re-serialised
  * `req.body` via `JSON.stringify` before computing the HMAC. PhonePe signs

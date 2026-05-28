@@ -15,7 +15,7 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:seed": "tsx prisma/seed.ts",
-    "test": "tsx --test --test-reporter=spec \"src/**/*.spec.ts\""
+    "test": "node --import tsx --test --test-reporter=spec $(find src -name '*.test.ts' -type f | sort)"
   },
   "dependencies": {
     "@nestjs/common": "^10.3.10",

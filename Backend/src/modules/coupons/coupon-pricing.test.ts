@@ -1,6 +1,7 @@
 /**
  * Pure unit tests for coupon discount math. No Prisma, no IO.
- * Run with: `npx tsx --test src/modules/coupons/coupon-pricing.spec.ts`
+ * Run with: `npm test` (auto-discovered under src/) or
+ *           `npx tsx --test src/modules/coupons/coupon-pricing.test.ts`
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';

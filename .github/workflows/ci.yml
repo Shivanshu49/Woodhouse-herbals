@@ -1,0 +1,136 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Cancel stale runs on the same ref so a fast follow-up commit
+# does not queue behind a build that is about to be superseded.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ────────────────────────────────────────────────────────────
+  # Frontend — Next.js storefront
+  # ────────────────────────────────────────────────────────────
+  frontend-check:
+    name: frontend · install · lint · build
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    defaults:
+      run:
+        working-directory: Frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: Frontend/package-lock.json
+      - name: Install
+        run: npm ci --no-audit --no-fund
+      - name: Lint (soft fail until the rules settle)
+        run: npm run lint || true
+      - name: Build
+        env:
+          NEXT_PUBLIC_API_URL: https://api.example.invalid
+          NEXT_PUBLIC_AI_URL: https://ai.example.invalid
+          NEXT_PUBLIC_SITE_URL: https://woodhouseherbals.example.invalid
+        run: npm run build
+
+  # ────────────────────────────────────────────────────────────
+  # Backend — NestJS API, Prisma against a service-container Postgres
+  # ────────────────────────────────────────────────────────────
+  backend-check:
+    name: backend · prisma · build · test
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    defaults:
+      run:
+        working-directory: Backend
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: woodhouse
+          POSTGRES_PASSWORD: woodhouse_dev
+          POSTGRES_DB: woodhouse
+        ports: [5432:5432]
+        options: >-
+          --health-cmd="pg_isready -U woodhouse -d woodhouse"
+          --health-interval=5s
+          --health-timeout=3s
+          --health-retries=10
+      redis:
+        image: redis:7-alpine
+        ports: [6379:6379]
+        options: >-
+          --health-cmd="redis-cli ping"
+          --health-interval=5s
+          --health-timeout=3s
+          --health-retries=10
+
+    env:
+      DATABASE_URL: postgresql://woodhouse:woodhouse_dev@localhost:5432/woodhouse?schema=public
+      REDIS_URL: redis://localhost:6379
+      NODE_ENV: development
+      # Long-enough non-default secrets so env validation passes.
+      JWT_ACCESS_SECRET: ci_access_secret_at_least_eight_chars
+      JWT_REFRESH_SECRET: ci_refresh_secret_at_least_eight_chars
+      WEB_ORIGIN: http://localhost:3000
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: Backend/package-lock.json
+      - name: Install
+        run: npm ci --no-audit --no-fund
+      - name: Prisma generate
+        run: npx prisma generate
+      - name: Prisma migrate deploy
+        run: npx prisma migrate deploy
+      - name: Build
+        run: npm run build
+      - name: Test (node:test via tsx)
+        run: npm test
+
+  # ────────────────────────────────────────────────────────────
+  # AI service — FastAPI
+  # ────────────────────────────────────────────────────────────
+  ai-check:
+    name: ai · install · pytest · smoke import
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: AI-Service
+
+    env:
+      # Keep these defined-but-empty so module-level config code (Pydantic
+      # Settings) can boot without env-var-not-found errors.
+      ANTHROPIC_API_KEY: ""
+      ALLOWED_ORIGINS: http://localhost:3000
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: AI-Service/requirements.txt
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest
+      - name: Pytest (soft until the suite lands)
+        run: python -m pytest -q --no-header || true
+      - name: Smoke import
+        run: python -c "import app.main; print(app.main.app.title)"

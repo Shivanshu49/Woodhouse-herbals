@@ -15,7 +15,7 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:seed": "tsx prisma/seed.ts",
-    "test": "tsx --test src/**/*.spec.ts"
+    "test": "tsx --test --test-reporter=spec \"src/**/*.spec.ts\""
   },
   "dependencies": {
     "@nestjs/common": "^10.3.10",

@@ -37,23 +37,45 @@
 ## 3. Backend
 
 NestJS modules:
-- `auth` — JWT (httpOnly cookies), register/login/refresh, password reset
-- `products` — listing, detail, filters, search
-- `categories` — categories & concerns taxonomy
-- `cart` — guest + user carts
-- `orders` — order lifecycle, status transitions
-- `customers` — profile, addresses, wishlist
-- `phonepe` — checkout init, webhook, verification
-- `inventory` — stock & low-stock alerts
-- `reviews` — moderated reviews
-- `common/admin` — admin-only endpoints, RBAC guard
+- `auth`       — JWT cookies, refresh rotation w/ reuse detection, email
+                 verification, password reset, account lockout, `AuthEvent` log
+- `products`   — listing + detail + soft-delete-aware filters
+- `categories` — taxonomy (`Category`, `Concern`), both soft-deletable
+- `cart`       — guest + user carts; cart claim on login
+- `orders`     — atomic stock decrement + price revalidation + idempotency-key
+                 replay protection; immutable `OrderItem` snapshots
+- `customers`  — profile, addresses (with optional GSTIN), wishlist (real FK
+                 to Product)
+- `coupons`    — PERCENT / FLAT, min-cart, max-uses, per-user cap, category
+                 restriction; atomic redeem inside the order tx
+- `shipments`  — courier / tracking with `ShipmentEvent` timeline; auto-rolls
+                 order status PAID → PROCESSING → SHIPPED → DELIVERED
+- `inventory`  — single-funnel `adjust()` with `InventoryMovement` audit log
+- `phonepe`    — raw-body HMAC, server-side amount, idempotent webhook
+                 persisted to `WebhookEvent`
+- `reviews`    — moderated, soft-deletable; `verifiedPurchase` derived
+                 server-side from order history
+- `search`     — Meilisearch (or Prisma `ILIKE` fallback)
+- `homepage`   — single-payload composer for the storefront
+- `common/security` — guards (Jwt, Roles), `AuthEvent` + `WebhookEvent`
+                       writers, request-logging interceptor
 
 Cross-cutting:
-- Prisma + PostgreSQL
-- Redis + BullMQ for background jobs (emails, search reindex, low-stock alerts)
-- Resend for transactional email
-- Meilisearch for search/autocomplete
-- Cloudflare R2 for assets
+- Prisma + PostgreSQL 16; explicit `excludeDeleted` helper for the four
+  soft-deletable models (Product, User, Review, Category).
+- Redis + BullMQ for background jobs (emails, search reindex, low-stock alerts).
+- Resend for transactional email (dev no-op).
+- Meilisearch for autocomplete + faceted search.
+- Cloudflare R2 for assets — presigned-PUT endpoint planned, env wired.
+
+Cross-cutting safety:
+- Boot-time Zod env validation rejects placeholder secrets in production.
+- Helmet CSP/HSTS, strict CORS allow-list, 256 KB body cap.
+- Per-endpoint throttling (`@Throttle`) layered on top of a 120 req/min
+  global default.
+- Structured request log emits a single JSON line per request; 401/403/429/5xx
+  escalate to warn/error.
+- All money in minor units (paise); `Currency` enum on Product/Order/Payment.
 
 ## 4. AI service
 
@@ -71,11 +93,18 @@ Keeps the AI layer **optional** — the storefront and API run fully without it.
 3. Homepage + shop + product detail with mock data ✅
 4. NestJS scaffolding with Prisma schema + REST endpoints ✅
 5. FastAPI AI scaffold ✅
-6. Wire storefront to API (env-flagged)
-7. PhonePe checkout flow
-8. Admin endpoints
-9. Search (Meilisearch) integration
-10. AI skin/hair flow
+6. Security hardening (auth races, IDOR, secrets, CSP/HSTS, throttling) ✅
+7. PhonePe payment flow (raw-body HMAC, server-side amount, idempotent
+   webhook persisted to WebhookEvent) ✅
+8. Schema overhaul: coupons, shipments, inventory audit, soft delete,
+   OrderItem snapshots, idempotency keys ✅
+9. Service-layer wiring for coupons / shipments / inventory audit ✅
+10. docker-compose local infra + GitHub Actions CI for all three services ✅
+11. Wire storefront to API (env-flagged) — TODO
+12. R2 presigned-upload endpoint for admin product images — TODO
+13. Meilisearch index sync + replace Prisma ILIKE search — TODO
+14. Admin UI for coupon / shipment / order management — TODO
+15. Frontend AI flow end-to-end against `/v1/skin-analysis` — TODO
 
 ## 6. Brand tokens
 

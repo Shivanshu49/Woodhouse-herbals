@@ -5,13 +5,12 @@
 #   - Redis 7        (BullMQ background jobs + rate-limit cache + future sessions)
 #   - Meilisearch    (product autocomplete / fuzzy search)
 #
-# Each service has:
-#   - A named volume so data survives container restarts.
-#   - A healthcheck so `depends_on: service_healthy` waits for it to be ready.
-#   - Ports exposed on localhost only — never expose to 0.0.0.0 in production.
+# All services attach to a single user-defined network `woodhouse_net` so
+# they can address each other by service name from inside Docker — useful
+# when the Backend itself runs as a sibling container later.
 #
 # Usage:
-#   cp .env.docker .env                       # one-time, edit POSTGRES_PASSWORD
+#   cp .env.example .env                      # one-time, edit POSTGRES_PASSWORD
 #   docker compose up -d                      # start everything in the background
 #   docker compose logs -f postgres redis     # tail logs for one or more services
 #   docker compose down                       # stop (volumes survive)
@@ -26,13 +25,13 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-woodhouse}
       POSTGRES_USER: ${POSTGRES_USER:-woodhouse}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-woodhouse_dev}
-      # Locale + collation matter for ILIKE search — pin them.
       LANG: en_US.UTF-8
       POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C.UTF-8"
     ports:
       - "127.0.0.1:5432:5432"
     volumes:
-      - postgres-data:/var/lib/postgresql/data
+      - woodhouse_pg:/var/lib/postgresql/data
+    networks: [woodhouse_net]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-woodhouse} -d ${POSTGRES_DB:-woodhouse}"]
       interval: 5s
@@ -49,7 +48,8 @@ services:
     ports:
       - "127.0.0.1:6379:6379"
     volumes:
-      - redis-data:/data
+      - woodhouse_redis:/data
+    networks: [woodhouse_net]
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -62,25 +62,32 @@ services:
     container_name: woodhouse-meili
     restart: unless-stopped
     environment:
-      # Dev master key — override in production. The Backend reads MEILI_API_KEY.
-      MEILI_MASTER_KEY: ${MEILI_MASTER_KEY:-woodhouse_dev_master_key_change_me}
+      MEILI_MASTER_KEY: ${MEILI_MASTER_KEY:-dev_master_key_change_me}
       MEILI_ENV: ${MEILI_ENV:-development}
       MEILI_NO_ANALYTICS: "true"
     ports:
       - "127.0.0.1:7700:7700"
     volumes:
-      - meili-data:/meili_data
+      - woodhouse_meili:/meili_data
+    networks: [woodhouse_net]
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:7700/health"]
+      # `curl` is preinstalled in the meilisearch image; falls back to a
+      # plain HTTP GET against /health which the server answers as 200 OK.
+      test: ["CMD-SHELL", "curl -fsS http://localhost:7700/health || exit 1"]
       interval: 5s
       timeout: 3s
       retries: 10
       start_period: 5s
 
 volumes:
-  postgres-data:
-    name: woodhouse_postgres_data
-  redis-data:
-    name: woodhouse_redis_data
-  meili-data:
-    name: woodhouse_meili_data
+  woodhouse_pg:
+    name: woodhouse_pg
+  woodhouse_redis:
+    name: woodhouse_redis
+  woodhouse_meili:
+    name: woodhouse_meili
+
+networks:
+  woodhouse_net:
+    name: woodhouse_net
+    driver: bridge

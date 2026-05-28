@@ -31,12 +31,13 @@ Each app folder is **fully independent** — clone, `cd` in, install, run. There
 
 ## Quick start
 
-### 0. Local infra (Postgres + Redis + Meilisearch)
+### 0. Start infrastructure (Postgres + Redis + Meilisearch)
 
 ```bash
-cp .env.docker .env             # one-time, edit POSTGRES_PASSWORD / MEILI_MASTER_KEY
+cp .env.example .env            # one-time, edit POSTGRES_PASSWORD / MEILI_MASTER_KEY
 docker compose up -d            # starts the three stateful services
-docker compose ps               # confirm healthy
+# wait ~10s for Postgres healthcheck to pass
+docker compose ps               # confirm all three are "healthy"
 ```
 
 Ports bound to localhost only:

@@ -93,18 +93,19 @@ Keeps the AI layer **optional** — the storefront and API run fully without it.
 3. Homepage + shop + product detail with mock data ✅
 4. NestJS scaffolding with Prisma schema + REST endpoints ✅
 5. FastAPI AI scaffold ✅
-6. Security hardening (auth races, IDOR, secrets, CSP/HSTS, throttling) ✅
-7. PhonePe payment flow (raw-body HMAC, server-side amount, idempotent
-   webhook persisted to WebhookEvent) ✅
-8. Schema overhaul: coupons, shipments, inventory audit, soft delete,
-   OrderItem snapshots, idempotency keys ✅
-9. Service-layer wiring for coupons / shipments / inventory audit ✅
-10. docker-compose local infra + GitHub Actions CI for all three services ✅
-11. Wire storefront to API (env-flagged) — TODO
-12. R2 presigned-upload endpoint for admin product images — TODO
-13. Meilisearch index sync + replace Prisma ILIKE search — TODO
-14. Admin UI for coupon / shipment / order management — TODO
-15. Frontend AI flow end-to-end against `/v1/skin-analysis` — TODO
+6. Stitch-driven design system tokens locked into Tailwind config
+7. Wire storefront to API (env-flagged, mock fallback retained)
+8. Auth flow end-to-end (JWT cookies, refresh rotation, email verification)
+9. Cart + checkout flow against backend (Zustand → REST)
+10. PhonePe checkout integration (sandbox → callback → webhook → order paid)
+11. Skin/hair quiz (decision tree first, no AI)
+12. AI skin analysis endpoint (Claude vision + instructor + image preprocessing)
+13. Quiz/AI results → product recommendations matched against catalog
+14. Admin endpoints + AdminJS-style UI for products/orders/coupons/inventory
+15. Meilisearch integration for product search/autocomplete
+16. Transactional email via Resend (order confirmation, OTP, password reset)
+17. Production deployment — real PhonePe credentials, custom domain, env wiring
+18. Polish pass — accessibility, performance budgets, mobile QA, Lighthouse > 90
 
 ## 6. Brand tokens
 

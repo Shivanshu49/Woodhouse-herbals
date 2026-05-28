@@ -10,12 +10,15 @@ build/
 dist/
 *.tsbuildinfo
 
-# Env
+# Env — `.env` and per-env overrides are local-only.
+# `.env.example` and `.env.docker` ARE committed as templates.
 .env
 .env.local
 .env.development.local
 .env.production.local
 .env.*.local
+!.env.example
+!.env.docker
 
 # Logs
 *.log

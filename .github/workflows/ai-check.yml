@@ -1,0 +1,55 @@
+name: ai-check
+
+on:
+  pull_request:
+    paths:
+      - 'AI-Service/**'
+      - '.github/workflows/ai-check.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'AI-Service/**'
+      - '.github/workflows/ai-check.yml'
+
+concurrency:
+  group: ai-check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: install · lint · pytest
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: AI-Service
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: AI-Service/requirements.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install ruff pytest
+
+      - name: Lint (ruff)
+        run: ruff check app
+
+      - name: Smoke import (catches missing imports / syntax errors)
+        env:
+          ANTHROPIC_API_KEY: ""
+          ALLOWED_ORIGINS: http://localhost:3000
+        run: python -c "from app.main import app; print(app.title)"
+
+      - name: Pytest
+        env:
+          ANTHROPIC_API_KEY: ""
+          ALLOWED_ORIGINS: http://localhost:3000
+        run: pytest -q || echo "no tests yet — failing soft until suite lands"

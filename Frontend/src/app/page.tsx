@@ -1,6 +1,6 @@
-import { Hero } from '@/components/home/Hero';
+import { Hero } from '@/components/sections/Hero';
+import { BestSellerCarousel } from '@/components/sections/BestSellerCarousel';
 import { TrustStrip } from '@/components/home/TrustStrip';
-import { Bestsellers } from '@/components/home/Bestsellers';
 import { ShopByConcern } from '@/components/home/ShopByConcern';
 import { ComboPacks } from '@/components/home/ComboPacks';
 import { IngredientStory } from '@/components/home/IngredientStory';
@@ -12,8 +12,8 @@ export default function HomePage() {
   return (
     <>
       <Hero />
+      <BestSellerCarousel />
       <TrustStrip />
-      <Bestsellers />
       <ShopByConcern />
       <ComboPacks />
       <IngredientStory />

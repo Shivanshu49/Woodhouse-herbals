@@ -4,29 +4,31 @@ import { concerns } from './concerns';
 
 export const homepage: HomepagePayload = {
   offerStrip: [
-    { headline: 'FLAT 20% OFF on all herbal products — use code GLOW20', code: 'GLOW20', href: '/shop' },
+    { headline: 'AMAZING OFFER · Get extra 20% off on ₹499+ — use code WH20', code: 'WH20', href: '/shop' },
     { headline: 'Free shipping on orders above ₹499', href: '/shop' },
     { headline: 'Cash on delivery available across India', href: '/shop' },
-    { headline: 'Made in India · Cruelty-free · Vegan · GMP certified', href: '/about' },
+    { headline: 'No Sulphate · No Silicone · No Paraben · Made in India', href: '/about' },
   ],
   hero: {
-    eyebrow: 'New season · Glow ritual',
-    title: 'Rooted in nature.\nCrafted for your skin.',
+    eyebrow: 'Skincare essentials',
+    title: 'Glow naturally\nwith Wood House.',
     subtitle:
-      'Modern, herbal skincare powered by Vit C, Niacinamide and time-tested ayurvedic botanicals. Visible results in 2–4 weeks.',
-    ctaLabel: 'Shop the ritual',
+      "Crafted with nature's finest ingredients to deeply nourish, hydrate, and restore your skin's natural glow. Science-backed actives in a herbal base — visible results in 2–4 weeks.",
+    ctaLabel: 'Explore the ritual',
     ctaHref: '/shop',
-    image: 'https://images.unsplash.com/photo-1556228720-195a672e8a03?w=1400&q=80&auto=format&fit=crop',
-    accent: 'Free shipping over ₹499',
+    image: '/products/vitamin-c-face-wash.png',
+    accent: 'Extra 20% OFF · Code WH20',
   },
   bestsellers: productSummaries.filter((p) => p.badges?.some((b) => b.tone === 'bestseller')),
   newArrivals: productSummaries.filter((p) => p.badges?.some((b) => b.tone === 'new')),
   comboPacks: productSummaries.filter((p) => p.category === 'combo'),
   concerns,
   trust: [
-    { icon: 'leaf', title: 'Herbal & natural', subtitle: 'Plant-first formulations' },
-    { icon: 'shield', title: 'Dermatologically tested', subtitle: 'Safe for daily use' },
-    { icon: 'sparkles', title: 'GMP certified', subtitle: 'Made in our own facility' },
-    { icon: 'heart', title: 'Cruelty-free', subtitle: 'Never tested on animals' },
+    { icon: 'leaf',     title: 'All Natural Ingredients', subtitle: 'Plant-first formulations' },
+    { icon: 'heart',    title: 'No Animal Testing',       subtitle: 'Cruelty-free always' },
+    { icon: 'sparkles', title: 'No Harmful Chemicals',    subtitle: 'No SLS · paraben · silicone' },
+    { icon: 'shield',   title: 'Dermatologically Tested', subtitle: 'Safe for daily use' },
+    { icon: 'check',    title: 'FDA Approved',            subtitle: 'GMP-certified facility' },
+    { icon: 'india',    title: 'Made in India',           subtitle: 'Crafted in Maharashtra' },
   ],
 };

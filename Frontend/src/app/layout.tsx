@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from 'next';
-import { Fraunces, Inter } from 'next/font/google';
+import { Fraunces, Inter, Plus_Jakarta_Sans } from 'next/font/google';
 import '@/styles/globals.css';
 import { Providers } from './providers';
 import { Header } from '@/components/layout/Header';
@@ -7,10 +7,11 @@ import { Footer } from '@/components/layout/Footer';
 import { OfferStrip } from '@/components/layout/OfferStrip';
 import { SmartSearch } from '@/components/search/SmartSearch';
 
-const fontSans = Inter({
+const fontSans = Plus_Jakarta_Sans({
   subsets: ['latin'],
   display: 'swap',
   variable: '--font-sans',
+  weight: ['400', '500', '600', '700', '800'],
 });
 
 const fontDisplay = Fraunces({
@@ -18,6 +19,14 @@ const fontDisplay = Fraunces({
   display: 'swap',
   variable: '--font-display',
   axes: ['SOFT', 'opsz'],
+  style: ['normal', 'italic'],
+});
+
+const fontInter = Inter({
+  subsets: ['latin'],
+  display: 'swap',
+  variable: '--font-inter',
+  weight: ['400', '500', '600', '700'],
 });
 
 export const metadata: Metadata = {
@@ -46,14 +55,14 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: '#FAF6EE',
+  themeColor: '#FAF7F2',
   width: 'device-width',
   initialScale: 1,
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${fontSans.variable} ${fontDisplay.variable}`}>
+    <html lang="en" className={`${fontSans.variable} ${fontDisplay.variable} ${fontInter.variable}`}>
       <body>
         <Providers>
           <OfferStrip />

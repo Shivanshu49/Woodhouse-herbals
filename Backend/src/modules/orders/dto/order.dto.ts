@@ -60,4 +60,13 @@ export class CreateOrderDto {
   @IsOptional()
   @IsIn(['IN'])
   country?: 'IN';
+
+  // Optional coupon to apply at checkout. Validated, previewed, and atomically
+  // redeemed inside the order transaction (see OrdersService.createFromCart).
+  @Transform(trim)
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  @Matches(/^[a-z0-9_-]{3,40}$/i, { message: 'Invalid coupon code' })
+  couponCode?: string;
 }

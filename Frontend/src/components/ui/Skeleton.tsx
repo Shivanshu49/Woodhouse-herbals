@@ -4,7 +4,7 @@ export function Skeleton({ className }: { className?: string }) {
   return (
     <div
       className={cn(
-        'animate-pulse rounded-2xl bg-sand-100/70 relative overflow-hidden',
+        'animate-pulse rounded-2xl bg-cream-200/70 relative overflow-hidden',
         className,
       )}
     >

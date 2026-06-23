@@ -34,7 +34,7 @@ export function NewsletterForm() {
         value={email}
         onChange={(e) => setEmail(e.target.value)}
       />
-      <Button type="submit" variant="clay" size="lg" className="shrink-0">
+      <Button type="submit" variant="primary" size="lg" className="shrink-0">
         Subscribe
       </Button>
     </form>

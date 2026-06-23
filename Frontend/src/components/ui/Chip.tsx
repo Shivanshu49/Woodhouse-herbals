@@ -11,10 +11,10 @@ export interface ChipProps {
 
 export function Chip({ active = false, onClick, className, children, as = 'button' }: ChipProps) {
   const cls = cn(
-    'inline-flex items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-sm transition-colors',
+    'inline-flex items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-sm font-medium transition-colors',
     active
-      ? 'border-forest-900 bg-forest-900 text-cream'
-      : 'border-forest-900/15 bg-white/70 text-forest-900 hover:border-forest-900/40 hover:bg-white',
+      ? 'border-brand-500 bg-brand-500 text-white shadow-soft'
+      : 'border-navy-900/12 bg-white text-navy-900 hover:border-brand-500 hover:bg-brand-500/8',
     className,
   );
   if (as === 'span') {

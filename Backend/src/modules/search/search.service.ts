@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { excludeDeleted } from '../../common/prisma/soft-delete';
 
 const TRENDING = ['Vit C serum', 'Hair fall oil', 'Anti-acne combo', 'D-Tan face wash', 'Niacinamide'];
 
@@ -11,6 +12,7 @@ export class SearchService {
     const query = q.trim();
     if (!query) {
       const trending = await this.prisma.product.findMany({
+        where: excludeDeleted(),
         take: 5,
         orderBy: { reviewCount: 'desc' },
         select: { name: true, slug: true, thumbnailUrl: true, priceMinor: true },
@@ -28,12 +30,12 @@ export class SearchService {
     }
 
     const products = await this.prisma.product.findMany({
-      where: {
+      where: excludeDeleted({
         OR: [
           { name: { contains: query, mode: 'insensitive' } },
           { shortDescription: { contains: query, mode: 'insensitive' } },
         ],
-      },
+      }),
       take: 6,
       select: { name: true, slug: true, thumbnailUrl: true, priceMinor: true },
     });

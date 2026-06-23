@@ -1,22 +1,72 @@
 import Link from 'next/link';
 import { cn } from '@/lib/cn';
 
-export function Logo({ className, compact = false }: { className?: string; compact?: boolean }) {
+/**
+ * Wood House wordmark.
+ *
+ * Recreates the brand logo: the words "wood" and "house" set in our display
+ * font (Fraunces) in deep navy, with the "oo" in "wood" rendered as a single
+ * continuous vibrant-green infinity ring — the same motif as the printed logo.
+ *
+ * Variants:
+ *   - default (stacked, packaging-style)
+ *   - compact (single line, navbar-style)
+ *   - light   (cream letters for use on dark surfaces — footer, hero overlays)
+ */
+export function Logo({
+  className,
+  compact = false,
+  light = false,
+}: {
+  className?: string;
+  compact?: boolean;
+  light?: boolean;
+}) {
+  const letterColor = light ? 'text-cream' : 'text-navy-900';
   return (
-    <Link href="/" className={cn('inline-flex items-center gap-2 group', className)} aria-label="Wood House Herbals home">
-      <span className="relative inline-flex h-9 w-9 items-center justify-center rounded-full bg-forest-900 text-cream">
-        <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M12 3c4.5 4 7 8 7 12a7 7 0 1 1-14 0c0-4 2.5-8 7-12z" />
-          <path d="M12 9v12" />
-          <path d="M9 14c1.5-1 4-1 6 0" />
-        </svg>
+    <Link
+      href="/"
+      aria-label="Wood House Herbals home"
+      className={cn('inline-flex items-center gap-2 group', className)}
+    >
+      <span className={cn('font-display font-bold leading-none tracking-tight flex items-baseline', letterColor)}>
+        {compact ? (
+          <span className="inline-flex items-baseline text-[26px] sm:text-[28px]">
+            <span>w</span>
+            <InfinityOO className="mx-[1px] h-[20px] sm:h-[22px] w-auto -translate-y-[2px]" />
+            <span>d</span>
+            <span className="ml-2 text-navy-900/85">house</span>
+          </span>
+        ) : (
+          <span className="flex flex-col">
+            <span className="inline-flex items-baseline text-[28px] sm:text-[34px]">
+              <span>w</span>
+              <InfinityOO className="mx-[1px] h-[22px] sm:h-[26px] w-auto -translate-y-[2px]" />
+              <span>d</span>
+            </span>
+            <span className="text-[28px] sm:text-[34px] -mt-1.5">house</span>
+          </span>
+        )}
       </span>
-      {!compact && (
-        <span className="flex flex-col leading-none">
-          <span className="font-display text-lg sm:text-xl text-forest-900 tracking-tight">Wood House</span>
-          <span className="text-[10px] uppercase tracking-[0.28em] text-ink-muted">Herbals</span>
-        </span>
-      )}
     </Link>
+  );
+}
+
+/**
+ * The signature "oo" — two circles fused into a continuous infinity ring,
+ * stroked in the brand green. Vector-based so it scales cleanly with the
+ * surrounding letterforms.
+ */
+function InfinityOO({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 48 24"
+      fill="none"
+      className={className}
+      aria-hidden="true"
+    >
+      <circle cx="12" cy="12" r="9" stroke="#7AC143" strokeWidth="4.5" />
+      <circle cx="36" cy="12" r="9" stroke="#7AC143" strokeWidth="4.5" />
+    </svg>
   );
 }

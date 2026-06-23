@@ -1,3 +1,5 @@
+import { products } from './products';
+
 export interface BestsellerProduct {
   slug: string;
   name: string;
@@ -10,148 +12,54 @@ export interface BestsellerProduct {
   image: string;
 }
 
-export const bestsellerProducts: BestsellerProduct[] = [
-  {
-    slug: 'vitamin-c-face-wash',
-    name: 'Vitamin-C Hyaluronic',
-    type: 'Face Wash',
-    size: '100ml',
-    ingredientLine: 'With Papaya & Turmeric',
-    price: 349,
-    compareAtPrice: 499,
-    rating: 4.7,
-    image: '/products/vitamin-c-face-wash.png',
-  },
-  {
-    slug: 'derma-revive-face-wash',
-    name: 'Derma Revive',
-    type: 'Face Wash',
-    size: '80g',
-    ingredientLine: 'With Ceramides & Vitamin C',
-    price: 299,
-    compareAtPrice: 449,
-    rating: 4.6,
-    image: '/products/derma-revive-face-wash.png',
-  },
-  {
-    slug: 'neem-face-wash',
-    name: 'Neem Niacinamide',
-    type: 'Face Wash',
-    size: '100ml',
-    ingredientLine: 'With Niacinamide & Neem',
-    price: 279,
-    compareAtPrice: 399,
-    rating: 4.5,
-    image: '/products/neem-face-wash.png',
-  },
-  {
-    slug: 'exfoliating-face-wash',
-    name: 'Salicylic Exfoliating',
-    type: 'Face Wash',
-    size: '100ml',
-    ingredientLine: 'With Salicylic Acid, LHA & Allantoin',
-    price: 329,
-    compareAtPrice: 449,
-    rating: 4.6,
-    image: '/products/exfoliating-face-wash.png',
-  },
-  {
-    slug: 'mens-charcoal-face-scrub',
-    name: "Men's D-Tan",
-    type: 'Face Scrub',
-    size: '100ml',
-    ingredientLine: 'With Bamboo Charcoal, Olive Oil & Walnut',
-    price: 349,
-    compareAtPrice: 499,
-    rating: 4.7,
-    image: '/products/mens-charcoal-face-scrub.png',
-  },
-  {
-    slug: 'rice-water-oats-scrub',
-    name: 'Rice Water & Oats',
-    type: 'De-Tan Face Scrub',
-    size: '100g',
-    ingredientLine: 'With Grapes & Mulberry',
-    price: 299,
-    compareAtPrice: 399,
-    rating: 4.5,
-    image: '/products/rice-water-oats-scrub.png',
-  },
-  {
-    slug: 'vitamin-c-niacinamide-serum',
-    name: 'Vitamin C & Niacinamide',
-    type: 'Face Serum',
-    size: '30ml',
-    ingredientLine: 'Skin Correct 15% + 10%',
-    price: 599,
-    compareAtPrice: 799,
-    rating: 4.8,
-    image: '/products/vitamin-c-niacinamide-serum.png',
-  },
-  {
-    slug: 'green-tea-night-gel',
-    name: 'Green Tea Night Gel',
-    type: 'Night Gel',
-    size: '20g',
-    ingredientLine: 'Glycolic Acid, Licorice & Willow Bark',
-    price: 449,
-    compareAtPrice: 599,
-    rating: 4.5,
-    image: '/products/green-tea-night-gel.png',
-  },
-  {
-    slug: 'super-uv-sunscreen',
-    name: 'Super UV SPF 50',
-    type: 'Sunscreen',
-    size: '50ml',
-    ingredientLine: 'With Hyaluronic Acid & Niacinamide',
-    price: 549,
-    compareAtPrice: 749,
-    rating: 4.7,
-    image: '/products/super-uv-sunscreen.png',
-  },
-  {
-    slug: 'face-cream',
-    name: 'Probiotic Face Cream',
-    type: 'Face Cream',
-    size: '75ml',
-    ingredientLine: 'With Hyaluronic Acid & Rice Water',
-    price: 499,
-    compareAtPrice: 699,
-    rating: 4.6,
-    image: '/products/face-cream.png',
-  },
-  {
-    slug: 'body-butter',
-    name: 'Ashwagandha Body Butter',
-    type: 'Body Butter',
-    size: '100g',
-    ingredientLine: 'With Shea, Mango & Cocoa',
-    price: 449,
-    compareAtPrice: 599,
-    rating: 4.6,
-    image: '/products/body-butter.png',
-  },
-  {
-    slug: '21-herbs-ubtan-scrub',
-    name: '21 Herbs Ubtan',
-    type: 'Face & Body Scrub',
-    size: '100g',
-    ingredientLine: 'With 21 Effective Herbs',
-    price: 379,
-    compareAtPrice: 499,
-    rating: 4.5,
-    image: '/products/21-herbs-ubtan-scrub.png',
-  },
-  {
-    slug: 'bamboo-charcoal-scrub-jar',
-    name: "Men's Charcoal",
-    type: 'Face Scrub Jar',
-    size: '100g',
-    ingredientLine: 'With Olive Oil & Walnut',
-    price: 399,
-    compareAtPrice: 549,
-    rating: 4.6,
-    image: '/products/bamboo-charcoal-scrub-jar.png',
-  },
-];
+const CATEGORY_LABELS: Record<string, string> = {
+  'face-wash': 'Face Wash',
+  serum: 'Face Serum',
+  scrub: 'Face Scrub',
+  cream: 'Face Cream',
+  'hair-oil': 'Hair Oil',
+  shampoo: 'Shampoo',
+  combo: 'Combo Kit',
+};
+
+function prettyCategory(category: string): string {
+  return (
+    CATEGORY_LABELS[category] ??
+    category
+      .split('-')
+      .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+      .join(' ')
+  );
+}
+
+/** Short "With X & Y" line from the first couple of hero ingredients. */
+function ingredientLine(names: string[]): string {
+  const top = names.slice(0, 2).map((n) => n.replace(/\s*\d+%?\s*$/, '').trim());
+  if (top.length >= 2) return `With ${top[0]} & ${top[1]}`;
+  if (top.length === 1) return `With ${top[0]}`;
+  return 'Herbal actives';
+}
+
+/**
+ * Best-seller carousel data, DERIVED from the canonical product catalog.
+ *
+ * Previously this was a hand-authored list with its own slugs and rupee
+ * prices, which drifted from `products.ts` — every carousel link 404'd because
+ * its slugs (e.g. `vitamin-c-face-wash`) didn't exist on any product page.
+ * Deriving from `products` keeps a single source of truth: slugs always
+ * resolve to a real PDP and prices stay in sync. Ordered by review count as a
+ * reasonable "best seller" proxy.
+ */
+export const bestsellerProducts: BestsellerProduct[] = [...products]
+  .sort((a, b) => b.reviewCount - a.reviewCount)
+  .map((p) => ({
+    slug: p.slug,
+    name: p.name,
+    type: prettyCategory(p.category),
+    size: p.size ?? '',
+    ingredientLine: ingredientLine(p.ingredients.map((i) => i.name)),
+    price: Math.round(p.price.amount / 100),
+    compareAtPrice: p.compareAtPrice ? Math.round(p.compareAtPrice.amount / 100) : undefined,
+    rating: p.rating,
+    image: p.thumbnail.url,
+  }));

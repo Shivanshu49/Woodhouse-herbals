@@ -53,20 +53,20 @@ export class OrdersController {
 
   /**
    * Order detail is owner-only. Admins and staff can view any order. Guests
-   * who placed the order can fetch it for the lifetime of their session cookie.
+   * who placed the order can fetch it for the lifetime of their session cookie
+   * (the order's cartSessionId is matched against the wh_sid cookie). This must
+   * be @Public() — guest checkout produces no JWT, so requiring one would lock
+   * guests out of their own confirmation page. The ownership check in
+   * findOwnedByNumber still 404s anyone without a matching session/user.
    */
-  @UseGuards(JwtAuthGuard)
+  @Public()
   @Get(':number')
-  byNumber(
-    @Param('number') number: string,
-    @CurrentUser() user: AuthenticatedUser,
-    @Req() req: Request,
-  ) {
+  byNumber(@Param('number') number: string, @Req() req: Request) {
     if (!ORDER_NUMBER_RE.test(number)) throw new BadRequestException('Invalid order number');
     const sessionId = (req.cookies as Record<string, string> | undefined)?.[SESSION_COOKIE];
     return this.orders.findOwnedByNumber(number, {
-      userId: user.sub,
-      role: user.role,
+      userId: req.user?.sub,
+      role: req.user?.role,
       sessionId,
     });
   }

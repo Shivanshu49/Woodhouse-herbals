@@ -74,6 +74,11 @@ const schema = z.object({
   AUTH_MAX_FAILED_ATTEMPTS: z.coerce.number().int().min(3).max(20).default(5),
   AUTH_LOCKOUT_MINUTES: z.coerce.number().int().min(1).max(1440).default(30),
 
+  // GST rate applied at checkout. Catalog prices are GST-inclusive, so this
+  // only governs the tax component split out for the invoice — it never
+  // changes the customer-facing total. 0 disables the split.
+  GST_RATE_PERCENT: z.coerce.number().min(0).max(28).default(18),
+
   RESEND_API_KEY: z.string().optional(),
   EMAIL_FROM: z.string().email().default('no-reply@woodhouseherbals.com'),
 

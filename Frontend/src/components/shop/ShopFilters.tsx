@@ -96,20 +96,20 @@ export function ShopFilters({ className, onClose, showCloseButton = false }: Pro
   const hasAny = Array.from(params.entries()).filter(([k]) => k !== 'sort').length > 0;
 
   return (
-    <aside className={cn('flex flex-col gap-7', className)}>
+    <aside className={cn('flex flex-col gap-7 rounded-3xl bg-white border border-navy-900/5 shadow-soft p-6', className)}>
       <div className="flex items-center justify-between">
-        <h3 className="font-display text-lg text-forest-900">Filters</h3>
+        <h3 className="font-display text-xl font-semibold text-navy-900">Filters</h3>
         <div className="flex items-center gap-2">
           {hasAny && (
             <button
               onClick={() => router.push('/shop', { scroll: false })}
-              className="text-xs font-medium text-clay-300 hover:text-clay-400"
+              className="text-xs font-bold text-blush hover:text-blush-600 uppercase tracking-wider"
             >
               Reset all
             </button>
           )}
           {showCloseButton && (
-            <button onClick={onClose} aria-label="Close filters" className="rounded-full p-1.5 hover:bg-forest-900/5">
+            <button onClick={onClose} aria-label="Close filters" className="rounded-full p-1.5 hover:bg-brand-500/10">
               <X className="h-4 w-4" />
             </button>
           )}
@@ -178,7 +178,7 @@ export function ShopFilters({ className, onClose, showCloseButton = false }: Pro
 function FilterGroup({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section>
-      <h4 className="mb-3 text-xs font-medium uppercase tracking-wider text-ink-muted">{title}</h4>
+      <h4 className="mb-3 text-[11px] font-bold uppercase tracking-[0.16em] text-navy-900">{title}</h4>
       <div className="flex flex-wrap gap-2">{children}</div>
     </section>
   );

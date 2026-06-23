@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { excludeDeleted } from '../../common/prisma/soft-delete';
 import { AddToCartDto } from './dto/cart.dto';
 import { toMoney } from '../../common/utils/money';
 
@@ -20,7 +21,11 @@ export class CartService {
 
   async addLine(sessionId: string, dto: AddToCartDto) {
     const cart = await this.getOrCreate(sessionId);
-    const product = await this.prisma.product.findUnique({ where: { id: dto.productId } });
+    // findFirst (not findUnique) so the soft-delete filter applies — a
+    // deleted product must not be addable to a cart.
+    const product = await this.prisma.product.findFirst({
+      where: excludeDeleted({ id: dto.productId }),
+    });
     if (!product) throw new NotFoundException('Product not found');
     if (!product.inStock) throw new NotFoundException('Product is out of stock');
 

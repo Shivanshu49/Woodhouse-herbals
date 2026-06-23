@@ -26,9 +26,9 @@ export const homepage: HomepagePayload = {
   trust: [
     { icon: 'leaf',     title: 'All Natural Ingredients', subtitle: 'Plant-first formulations' },
     { icon: 'heart',    title: 'No Animal Testing',       subtitle: 'Cruelty-free always' },
-    { icon: 'sparkles', title: 'No Harmful Chemicals',    subtitle: 'No SLS · paraben · silicone' },
+    { icon: 'sparkles', title: 'No Harmful Chemicals',    subtitle: 'No Sulphates, No Paraben, No Silicone' },
     { icon: 'shield',   title: 'Dermatologically Tested', subtitle: 'Safe for daily use' },
     { icon: 'check',    title: 'FDA Approved',            subtitle: 'GMP-certified facility' },
-    { icon: 'india',    title: 'Made in India',           subtitle: 'Crafted in Maharashtra' },
+    { icon: 'india',    title: 'Clinically crafted in Bharat', subtitle: 'Science of fruits and root extracts' },
   ],
 };

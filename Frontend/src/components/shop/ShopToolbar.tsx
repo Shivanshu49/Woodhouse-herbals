@@ -32,23 +32,23 @@ export function ShopToolbar({ total, onOpenMobileFilters }: Props) {
   return (
     <div className="flex items-center justify-between gap-3 mb-6">
       <p className="text-sm text-ink-muted">
-        <span className="font-medium text-forest-900">{total}</span> product{total === 1 ? '' : 's'}
+        <span className="font-bold text-navy-900">{total}</span> product{total === 1 ? '' : 's'}
       </p>
       <div className="flex items-center gap-2">
         <button
           type="button"
           onClick={onOpenMobileFilters}
-          className="lg:hidden inline-flex items-center gap-2 rounded-full border border-forest-900/15 bg-white px-3.5 py-2 text-sm"
+          className="lg:hidden inline-flex items-center gap-2 rounded-full border border-navy-900/12 bg-white px-3.5 py-2 text-sm font-semibold text-navy-900 hover:border-brand-500 hover:bg-brand-500/8"
         >
           <SlidersHorizontal className="h-4 w-4" />
           Filters
         </button>
-        <label className="inline-flex items-center gap-2 rounded-full border border-forest-900/15 bg-white px-4 py-2 text-sm">
+        <label className="inline-flex items-center gap-2 rounded-full border border-navy-900/12 bg-white px-4 py-2 text-sm font-medium">
           <span className="text-ink-muted">Sort</span>
           <select
             value={sort}
             onChange={(e) => setSort(e.target.value)}
-            className="bg-transparent text-forest-900 focus:outline-none"
+            className="bg-transparent text-navy-900 font-semibold focus:outline-none"
           >
             {SORTS.map((s) => (
               <option key={s.value} value={s.value}>

@@ -43,6 +43,10 @@ venv/
 # Prisma
 apps/api/prisma/migrations/dev.db*
 
+# Raw brand / source assets (large binaries). The web-ready subset lives in
+# Frontend/public — keep the multi-MB source dump out of git history.
+Woodhouse_herbals_image/
+
 # Misc
 coverage/
 .cache/

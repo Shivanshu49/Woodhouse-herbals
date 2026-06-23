@@ -45,13 +45,13 @@ export default function ProductPage({ params }: Props) {
   return (
     <article className="container-wide pt-6 pb-20">
       <nav aria-label="Breadcrumb" className="mb-6 flex items-center gap-1.5 text-xs text-ink-muted">
-        <Link href="/" className="inline-flex items-center gap-1 hover:text-forest-900">
+        <Link href="/" className="inline-flex items-center gap-1 hover:text-brand-700">
           <Home className="h-3 w-3" /> Home
         </Link>
         <ChevronRight className="h-3 w-3" />
-        <Link href="/shop" className="hover:text-forest-900">Shop</Link>
+        <Link href="/shop" className="hover:text-brand-700">Shop</Link>
         <ChevronRight className="h-3 w-3" />
-        <span className="text-forest-900 truncate">{product.name}</span>
+        <span className="text-navy-900 font-semibold truncate">{product.name}</span>
       </nav>
 
       <div className="grid lg:grid-cols-2 gap-10 lg:gap-16">

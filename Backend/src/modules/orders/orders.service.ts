@@ -8,9 +8,13 @@ import {
 import { randomBytes } from 'node:crypto';
 import { InventoryReason, UserRole } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { excludeDeleted } from '../../common/prisma/soft-delete';
+import { env } from '../../common/config/env';
 import { CartService } from '../cart/cart.service';
 import { InventoryService } from '../inventory/inventory.service';
+import { CouponsService } from '../coupons/coupons.service';
 import { CreateOrderDto } from './dto/order.dto';
+import { computeOrderTotals } from './order-pricing';
 
 interface OwnershipContext {
   userId?: string;
@@ -24,6 +28,7 @@ export class OrdersService {
     private readonly prisma: PrismaService,
     private readonly carts: CartService,
     private readonly inventory: InventoryService,
+    private readonly coupons: CouponsService,
   ) {}
 
   /**
@@ -58,8 +63,11 @@ export class OrdersService {
     if (!cart.lines.length) throw new BadRequestException('Cart is empty');
 
     const productIds = cart.lines.map((l: { productId: string }) => l.productId);
+    // Soft-deleted products must not be purchasable even if a stale cart line
+    // still references them — a missing entry here surfaces as "no longer
+    // available" in the validation loop below.
     const products = await this.prisma.product.findMany({
-      where: { id: { in: productIds } },
+      where: excludeDeleted({ id: { in: productIds } }),
     });
     const byId = new Map(products.map((p) => [p.id, p] as const));
 
@@ -80,8 +88,41 @@ export class OrdersService {
       (acc, l) => acc + byId.get(l.productId)!.priceMinor * l.quantity,
       0,
     );
+
+    // Validate + quote the coupon (if any) before touching inventory. The
+    // discount is re-asserted atomically by `redeem` inside the transaction.
+    let discountMinor = 0;
+    let appliedCouponId: string | undefined;
+    let appliedCouponCode: string | undefined;
+    if (dto.couponCode) {
+      const preview = await this.coupons.preview({
+        code: dto.couponCode,
+        userId,
+        lines: (cart.lines as Array<{ productId: string; quantity: number }>).map((l) => {
+          const p = byId.get(l.productId)!;
+          return {
+            productId: p.id,
+            quantity: l.quantity,
+            unitPriceMinor: p.priceMinor,
+            category: p.categoryRefId ?? '',
+          };
+        }),
+      });
+      if (!preview.ok) {
+        throw new BadRequestException(preview.reason ?? 'Coupon cannot be applied');
+      }
+      discountMinor = preview.discountMinor;
+      appliedCouponId = preview.couponId;
+      appliedCouponCode = dto.couponCode.toUpperCase();
+    }
+
     const shipping = subtotal >= 49900 ? 0 : 5900;
-    const total = subtotal + shipping;
+    const totals = computeOrderTotals({
+      subtotalMinor: subtotal,
+      discountMinor,
+      shippingMinor: shipping,
+      gstRatePercent: env.GST_RATE_PERCENT,
+    });
     const number = `WH-${Date.now().toString(36).toUpperCase()}${randomBytes(3)
       .toString('hex')
       .toUpperCase()}`;
@@ -100,17 +141,20 @@ export class OrdersService {
         });
       }
 
-      return tx.order.create({
+      const created = await tx.order.create({
         data: {
           number,
           userId,
           cartSessionId: sessionId,
           idempotencyKey,
           status: 'PENDING',
-          subtotalMinor: subtotal,
-          discountMinor: 0,
-          shippingMinor: shipping,
-          totalMinor: total,
+          subtotalMinor: totals.subtotalMinor,
+          discountMinor: totals.discountMinor,
+          shippingMinor: totals.shippingMinor,
+          taxMinor: totals.taxMinor,
+          totalMinor: totals.totalMinor,
+          appliedCouponId,
+          appliedCouponCode,
           shippingFullName: dto.fullName,
           shippingPhone: dto.phone,
           shippingLine1: dto.line1,
@@ -137,6 +181,20 @@ export class OrdersService {
         },
         include: { items: true },
       });
+
+      // Atomically consume the coupon use inside the same transaction. If the
+      // last use was claimed by a concurrent checkout, redeem throws and the
+      // whole order (including the stock decrements) rolls back.
+      if (appliedCouponId) {
+        await this.coupons.redeem(tx, {
+          couponId: appliedCouponId,
+          userId,
+          orderId: created.id,
+          discountMinor: totals.discountMinor,
+        });
+      }
+
+      return created;
     });
 
     return order;
@@ -158,6 +216,10 @@ export class OrdersService {
     if (isStaff) return order;
 
     if (ctx.userId && order.userId === ctx.userId) return order;
+
+    // Guest checkout: the buyer is identified by the cart session cookie that
+    // was current when the order was placed.
+    if (ctx.sessionId && order.cartSessionId === ctx.sessionId) return order;
 
     throw new NotFoundException('Order not found');
   }

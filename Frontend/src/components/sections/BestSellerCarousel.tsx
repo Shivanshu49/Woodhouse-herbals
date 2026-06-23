@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import useEmblaCarousel from 'embla-carousel-react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { bestsellerProducts } from '@/data/bestsellers';
-import { ProductCard } from '@/components/ui/ProductCard';
+import { BestsellerCard } from '@/components/ui/BestsellerCard';
 
 export function BestSellerCarousel() {
   const [emblaRef, emblaApi] = useEmblaCarousel({
@@ -72,7 +72,7 @@ export function BestSellerCarousel() {
                   key={product.slug}
                   className="flex-[0_0_67%] sm:flex-[0_0_50%] md:flex-[0_0_33.333%] lg:flex-[0_0_25%] xl:flex-[0_0_20%] px-3"
                 >
-                  <ProductCard product={product} />
+                  <BestsellerCard product={product} />
                 </div>
               ))}
             </div>

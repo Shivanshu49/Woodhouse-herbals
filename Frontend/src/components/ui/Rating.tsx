@@ -22,7 +22,7 @@ export function Rating({ value, reviewCount, size = 'sm', showCount = true, clas
               key={i}
               className={cn(
                 starSize,
-                filled || half ? 'text-clay-300 fill-clay-300' : 'text-ink-subtle/40',
+                filled || half ? 'text-citrus fill-citrus' : 'text-ink-subtle/40',
               )}
               strokeWidth={1.5}
             />
@@ -30,9 +30,9 @@ export function Rating({ value, reviewCount, size = 'sm', showCount = true, clas
         })}
       </div>
       {showCount && (
-        <span className="text-xs font-medium text-ink-muted">
+        <span className="text-xs font-semibold text-navy-900">
           {value.toFixed(1)}
-          {reviewCount !== undefined ? ` · ${reviewCount.toLocaleString('en-IN')}` : ''}
+          {reviewCount !== undefined ? <span className="text-ink-muted font-medium">{` · ${reviewCount.toLocaleString('en-IN')}`}</span> : ''}
         </span>
       )}
     </div>

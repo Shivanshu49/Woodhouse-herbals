@@ -27,13 +27,17 @@ export function ShopGrid() {
         <div>
           <ShopToolbar total={items.length} onOpenMobileFilters={() => setMobileOpen(true)} />
           {items.length === 0 ? (
-            <div className="rounded-3xl bg-white border border-dashed border-forest-900/15 p-12 text-center">
-              <Sparkles className="mx-auto h-8 w-8 text-clay-300" />
-              <h3 className="mt-4 font-display text-xl text-forest-900">No products match those filters</h3>
-              <p className="mt-2 text-ink-muted">Try removing a filter or browse our bestsellers instead.</p>
+            <div className="rounded-3xl bg-white border border-dashed border-navy-900/15 p-12 text-center shadow-soft">
+              <Sparkles className="mx-auto h-9 w-9 text-brand-500" />
+              <h3 className="mt-4 font-display text-2xl font-semibold text-navy-900">
+                No products match those filters
+              </h3>
+              <p className="mt-2 text-ink-muted">
+                Try removing a filter or browse our bestsellers instead.
+              </p>
               <Link
                 href="/shop"
-                className="mt-5 inline-flex items-center gap-2 rounded-full bg-forest-900 text-cream px-5 py-2.5 text-sm"
+                className="mt-5 inline-flex items-center gap-2 rounded-full bg-brand-500 text-white px-5 py-2.5 text-sm font-bold hover:bg-brand-600 transition-colors shadow-soft"
               >
                 Browse all products
               </Link>
@@ -60,7 +64,7 @@ export function ShopGrid() {
             <ShopFilters onClose={() => setMobileOpen(false)} showCloseButton />
             <button
               onClick={() => setMobileOpen(false)}
-              className="mt-8 w-full rounded-full bg-forest-900 px-6 py-3 text-sm font-medium text-cream"
+              className="mt-8 w-full rounded-full bg-brand-500 text-white px-6 py-3.5 text-sm font-bold hover:bg-brand-600 transition-colors"
             >
               Show {items.length} products
             </button>

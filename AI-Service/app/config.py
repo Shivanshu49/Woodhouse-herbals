@@ -12,6 +12,10 @@ class Settings(BaseSettings):
     anthropic_model: str = "claude-sonnet-4-6"
     allowed_origins: str = "http://localhost:3000,http://localhost:4000"
     log_level: str = "info"
+    # Only honour the X-Forwarded-For header when the service genuinely runs
+    # behind a trusted reverse proxy. Left False, the client socket address is
+    # always used so a client cannot spoof XFF to evade per-IP rate limits.
+    trust_proxy: bool = False
 
     @property
     def origins(self) -> List[str]:

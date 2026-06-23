@@ -1,7 +1,7 @@
 import { forwardRef, type ButtonHTMLAttributes, type ReactNode } from 'react';
 import { cn } from '@/lib/cn';
 
-type Variant = 'primary' | 'secondary' | 'ghost' | 'outline' | 'clay';
+type Variant = 'primary' | 'secondary' | 'ghost' | 'outline' | 'navy' | 'accent';
 type Size = 'sm' | 'md' | 'lg';
 
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
@@ -13,17 +13,15 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 const baseClasses =
-  'inline-flex items-center justify-center gap-2 font-medium rounded-full transition-all duration-200 ease-out disabled:opacity-50 disabled:cursor-not-allowed select-none active:scale-[0.98]';
+  'inline-flex items-center justify-center gap-2 font-semibold rounded-full transition-all duration-200 ease-out disabled:opacity-50 disabled:cursor-not-allowed select-none active:scale-[0.98]';
 
 const variantClasses: Record<Variant, string> = {
-  primary:
-    'bg-forest-900 text-cream hover:bg-forest-800 shadow-soft hover:shadow-lift',
-  secondary:
-    'bg-cream text-forest-900 border border-forest-900/10 hover:border-forest-900/20 hover:bg-sand-100 shadow-soft',
-  ghost: 'text-forest-900 hover:bg-forest-900/5',
-  outline:
-    'border border-forest-900 text-forest-900 hover:bg-forest-900 hover:text-cream',
-  clay: 'bg-clay-300 text-white hover:bg-clay-400 shadow-soft',
+  primary:   'bg-brand-500 text-white hover:bg-brand-600 shadow-soft hover:shadow-glow',
+  navy:      'bg-navy-900 text-cream hover:bg-navy-800 shadow-soft hover:shadow-lift',
+  secondary: 'bg-cream text-navy-900 border border-navy-900/10 hover:border-navy-900/20 hover:bg-cream-200 shadow-soft',
+  ghost:     'text-navy-900 hover:bg-brand-500/10',
+  outline:   'border-2 border-brand-500 text-brand-700 hover:bg-brand-500 hover:text-white',
+  accent:    'bg-citrus text-navy-900 hover:bg-citrus-600 hover:text-white shadow-soft',
 };
 
 const sizeClasses: Record<Size, string> = {

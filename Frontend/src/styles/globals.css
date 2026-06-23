@@ -4,7 +4,7 @@
 
 @layer base {
   :root {
-    --font-sans: 'Inter', system-ui, sans-serif;
+    --font-sans: 'Plus Jakarta Sans', 'Inter', system-ui, sans-serif;
     --font-display: 'Fraunces', Georgia, serif;
   }
 
@@ -18,30 +18,25 @@
   body {
     @apply bg-cream text-ink font-sans;
     background-image:
-      radial-gradient(60% 40% at 0% 0%, rgba(201, 213, 192, 0.18) 0%, transparent 60%),
-      radial-gradient(50% 35% at 100% 10%, rgba(233, 222, 201, 0.35) 0%, transparent 60%);
+      radial-gradient(50% 35% at 0% 0%, rgba(122, 193, 67, 0.10) 0%, transparent 60%),
+      radial-gradient(45% 30% at 100% 5%, rgba(255, 201, 64, 0.12) 0%, transparent 60%);
     background-attachment: fixed;
   }
 
   ::selection {
-    @apply bg-forest-900 text-cream;
+    @apply bg-brand-500/30 text-navy-900;
   }
 
-  h1,
-  h2,
-  h3,
-  h4 {
-    @apply font-display tracking-tight text-forest-900;
+  h1, h2, h3, h4 {
+    @apply font-display tracking-tight text-navy-900;
   }
 
   *:focus-visible {
-    @apply outline-none ring-2 ring-forest-500 ring-offset-2 ring-offset-cream rounded-lg;
+    @apply outline-none ring-2 ring-brand-500 ring-offset-2 ring-offset-cream rounded-lg;
   }
 
   @media (prefers-reduced-motion: reduce) {
-    *,
-    *::before,
-    *::after {
+    *, *::before, *::after {
       animation-duration: 0.01ms !important;
       animation-iteration-count: 1 !important;
       transition-duration: 0.01ms !important;
@@ -60,20 +55,37 @@
   }
 
   .glass-card {
-    @apply bg-white/80 backdrop-blur-md border border-white/60 shadow-soft;
+    @apply bg-white/85 backdrop-blur-md border border-white/70 shadow-soft;
   }
 
   .section {
     @apply py-14 sm:py-20 lg:py-24;
   }
 
+  /* Editorial eyebrow tag — short hyphenated label, navy text on brand-tinted pill */
   .eyebrow {
-    @apply inline-flex items-center gap-2 text-xs sm:text-sm font-medium uppercase tracking-[0.18em] text-forest-700;
+    @apply inline-flex items-center gap-2 rounded-full bg-brand-500/12 text-navy-900 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em];
   }
-
   .eyebrow::before {
     content: '';
-    @apply inline-block h-px w-6 bg-forest-700;
+    @apply inline-block h-1.5 w-1.5 rounded-full bg-brand-500;
+  }
+
+  /* Primary CTA — vibrant brand-green pill with subtle lift */
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 rounded-full bg-brand-500 text-white font-semibold tracking-tight transition-all shadow-soft hover:bg-brand-600 hover:shadow-glow active:scale-[0.98];
+  }
+
+  .btn-navy {
+    @apply inline-flex items-center justify-center gap-2 rounded-full bg-navy-900 text-cream font-semibold tracking-tight transition-all shadow-soft hover:bg-navy-800 hover:shadow-lift active:scale-[0.98];
+  }
+
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2 rounded-full bg-white text-navy-900 font-semibold border border-navy-900/10 hover:border-navy-900/25 hover:bg-cream-200 transition-all;
+  }
+
+  .chip-soft {
+    @apply inline-flex items-center gap-1 rounded-full bg-brand-500/12 text-brand-700 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wider;
   }
 }
 
@@ -81,21 +93,24 @@
   .text-balance {
     text-wrap: balance;
   }
-
   .no-scrollbar::-webkit-scrollbar {
     display: none;
   }
   .no-scrollbar {
     scrollbar-width: none;
   }
-
   .shimmer {
     background-image: linear-gradient(
       90deg,
-      rgba(255, 255, 255, 0) 0%,
-      rgba(255, 255, 255, 0.6) 50%,
-      rgba(255, 255, 255, 0) 100%
+      rgba(255,255,255,0) 0%,
+      rgba(255,255,255,0.65) 50%,
+      rgba(255,255,255,0) 100%
     );
     background-size: 200% 100%;
+  }
+  /* Soft polka pattern used behind product imagery */
+  .bg-dot-grid {
+    background-image: radial-gradient(rgba(27,63,94,0.08) 1px, transparent 1px);
+    background-size: 18px 18px;
   }
 }

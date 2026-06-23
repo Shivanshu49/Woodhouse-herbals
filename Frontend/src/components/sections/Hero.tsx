@@ -1,49 +1,154 @@
+'use client';
+
+import { useCallback, useEffect, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
+import useEmblaCarousel from 'embla-carousel-react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { cn } from '@/lib/cn';
+
+interface Banner {
+  src: string;
+  alt: string;
+  href: string;
+}
+
+// Brand hero banners (2.5:1) carried over from the live storefront. Marketing
+// copy + "Shop Now" are baked into the artwork, so each slide is just a
+// clickable image linking to the relevant catalogue view.
+const BANNERS: Banner[] = [
+  {
+    src: '/banners/banner-serum.jpg',
+    alt: 'Wood House Vitamin C & Niacinamide face serum — shop now',
+    href: '/shop?category=serum',
+  },
+  {
+    src: '/banners/banner-facewash.jpg',
+    alt: 'Wood House Vitamin C & Salicylic face washes — shop now',
+    href: '/shop?category=face-wash',
+  },
+  {
+    src: '/banners/banner-night-gel.jpg',
+    alt: 'Wood House Green Tea night gel — no more pimples, no more scars',
+    href: '/shop/green-tea-night-repair-gel',
+  },
+  {
+    src: '/banners/banner-sunscreen.jpg',
+    alt: 'Wood House Super UV SPF 50 sunscreen — shop now',
+    href: '/shop',
+  },
+  {
+    src: '/banners/banner-face-washes.jpg',
+    alt: 'Wood House advanced face washes — nature-powered skincare',
+    href: '/shop?category=face-wash',
+  },
+];
+
+const AUTOPLAY_MS = 5000;
 
 export function Hero() {
+  const [emblaRef, emblaApi] = useEmblaCarousel({ loop: true, align: 'start' });
+  const [selected, setSelected] = useState(0);
+  const [paused, setPaused] = useState(false);
+
+  const onSelect = useCallback(() => {
+    if (emblaApi) setSelected(emblaApi.selectedScrollSnap());
+  }, [emblaApi]);
+
+  useEffect(() => {
+    if (!emblaApi) return;
+    onSelect();
+    emblaApi.on('select', onSelect);
+    emblaApi.on('reInit', onSelect);
+    return () => {
+      emblaApi.off('select', onSelect);
+      emblaApi.off('reInit', onSelect);
+    };
+  }, [emblaApi, onSelect]);
+
+  // Dependency-free autoplay: advances every AUTOPLAY_MS, pauses on hover/focus
+  // and honours prefers-reduced-motion.
+  useEffect(() => {
+    if (!emblaApi || paused) return;
+    if (
+      typeof window !== 'undefined' &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    ) {
+      return;
+    }
+    const id = setInterval(() => emblaApi.scrollNext(), AUTOPLAY_MS);
+    return () => clearInterval(id);
+  }, [emblaApi, paused]);
+
   return (
     <section
-      aria-label="Hero"
-      className="relative w-full bg-brand-mint overflow-hidden min-h-[85vh] md:min-h-[75vh]"
+      aria-label="Featured products"
+      aria-roledescription="carousel"
+      className="relative w-full bg-brand-cream"
+      onMouseEnter={() => setPaused(true)}
+      onMouseLeave={() => setPaused(false)}
+      onFocusCapture={() => setPaused(true)}
+      onBlurCapture={() => setPaused(false)}
     >
-      <div className="mx-auto max-w-7xl px-6 md:px-10 h-full">
-        <div className="flex flex-col md:flex-row items-stretch md:items-center min-h-[85vh] md:min-h-[75vh] gap-8 md:gap-4">
-          <div className="md:w-[55%] flex flex-col justify-center py-12 md:py-0 z-10">
-            <h1 className="font-display font-medium text-white text-4xl sm:text-5xl md:text-6xl leading-[1.05] tracking-tight max-w-2xl">
-              Nature&apos;s Power for Radiant Skin
-            </h1>
-            <p className="mt-6 font-display italic font-normal text-white/95 text-lg md:text-xl max-w-xl leading-relaxed">
-              Herbal skincare crafted with ancient wisdom and modern science
-            </p>
-            <div className="mt-10 flex flex-wrap gap-4">
-              <Link
-                href="/shop"
-                className="inline-flex items-center justify-center rounded-full bg-white text-brand-forest font-inter font-semibold px-8 py-3 transition-transform duration-200 hover:scale-105 shadow-sm"
-              >
-                Shop Now
-              </Link>
-              <Link
-                href="/about"
-                className="inline-flex items-center justify-center rounded-full border border-white/90 text-white font-inter font-semibold px-8 py-3 transition-colors duration-200 hover:bg-white/10"
-              >
-                Explore Us
+      <div className="overflow-hidden" ref={emblaRef}>
+        <div className="flex">
+          {BANNERS.map((b, i) => (
+            <div
+              key={b.src}
+              className="relative flex-[0_0_100%] min-w-0"
+              role="group"
+              aria-roledescription="slide"
+              aria-label={`${i + 1} of ${BANNERS.length}`}
+            >
+              <Link href={b.href} aria-label={b.alt} tabIndex={selected === i ? 0 : -1}>
+                <Image
+                  src={b.src}
+                  alt={b.alt}
+                  width={2000}
+                  height={800}
+                  priority={i === 0}
+                  sizes="100vw"
+                  className="w-full h-auto"
+                />
               </Link>
             </div>
-          </div>
-          <div className="relative md:w-[45%] flex-1 min-h-[320px] md:min-h-0 md:self-stretch">
-            <div className="absolute inset-0 md:-right-10 lg:-right-16">
-              <Image
-                src="/hero/hero-models.png"
-                alt="Wood House Herbals lifestyle photography — model holding a Woodhouse skincare product"
-                fill
-                priority
-                sizes="(max-width: 768px) 100vw, 45vw"
-                className="object-cover object-center rounded-3xl md:rounded-l-[3rem] md:rounded-r-none"
-              />
-            </div>
-          </div>
+          ))}
         </div>
+      </div>
+
+      {/* Prev / next — hidden on small screens where the baked-in CTA leads */}
+      <button
+        type="button"
+        onClick={() => emblaApi?.scrollPrev()}
+        aria-label="Previous slide"
+        className="hidden sm:inline-flex absolute left-3 md:left-5 top-1/2 -translate-y-1/2 h-10 w-10 items-center justify-center rounded-full bg-white/70 text-brand-forest backdrop-blur-sm hover:bg-white shadow-sm transition-colors"
+      >
+        <ChevronLeft className="h-5 w-5" />
+      </button>
+      <button
+        type="button"
+        onClick={() => emblaApi?.scrollNext()}
+        aria-label="Next slide"
+        className="hidden sm:inline-flex absolute right-3 md:right-5 top-1/2 -translate-y-1/2 h-10 w-10 items-center justify-center rounded-full bg-white/70 text-brand-forest backdrop-blur-sm hover:bg-white shadow-sm transition-colors"
+      >
+        <ChevronRight className="h-5 w-5" />
+      </button>
+
+      {/* Dots */}
+      <div className="absolute bottom-2 sm:bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-2">
+        {BANNERS.map((b, i) => (
+          <button
+            key={b.src}
+            type="button"
+            onClick={() => emblaApi?.scrollTo(i)}
+            aria-label={`Go to slide ${i + 1}`}
+            aria-current={selected === i}
+            className={cn(
+              'h-2 rounded-full transition-all duration-300',
+              selected === i ? 'w-6 bg-brand-forest' : 'w-2 bg-brand-forest/40 hover:bg-brand-forest/70',
+            )}
+          />
+        ))}
       </div>
     </section>
   );

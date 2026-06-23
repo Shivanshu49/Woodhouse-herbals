@@ -1,0 +1,27 @@
+Project Name: Wood House Herbals – Natural E-commerce Website with Smart Recommendations
+1. Homepage Flow
+- Offer strip above banner (e.g., Flat 20% Off on Herbal Products)
+- Dynamic seasonal banner (summer skincare, winter care, etc.)
+- Bestseller herbal products section
+- Shop by Concern section (Acne, Hair Fall, Dry Skin, Pigmentation, etc.)
+2. Navigation & Features
+- Search icon in header
+- Smart search with product suggestions
+- Personalized product recommendations (based on user interest)
+3. Shop Page Flow
+- Filters based on skin type, hair concerns, and product category
+- Product listing with images, price & ratings
+- Clicking product opens detailed product page
+4. Visual Content
+- Herbal/natural ingredient visuals
+- Skin & hair concern images
+- Before/after results (if available)
+- Product lifestyle images (natural, organic feel)
+5. Smart Features (Optional AI Integration)
+- Skin & hair concern recommendation system
+- Personalized product suggestions
+- Smart search recommendations
+6. User Experience Flow
+User lands on homepage → sees offer strip → explores banner → checks bestseller → selects
+concern → browses shop → filters/searches → views product → gets recommendations →
+completes purchase

@@ -1,9 +1,12 @@
 import { BadRequestException, Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
+import { UserRole } from '@prisma/client';
 import { ReviewsService } from './reviews.service';
 import { CreateReviewDto } from './dto/review.dto';
 import { Public } from '../../common/decorators/public.decorator';
 import { JwtAuthGuard } from '../../common/auth/jwt-auth.guard';
+import { RolesGuard } from '../../common/auth/roles.guard';
+import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { AuthenticatedUser } from '../../common/auth/auth-types';
 
@@ -32,5 +35,26 @@ export class ReviewsController {
   @Post()
   create(@Body() dto: CreateReviewDto, @CurrentUser() user: AuthenticatedUser) {
     return this.reviews.create(user.sub, dto);
+  }
+
+  // ──────────────────────────────────────────────────────────────────
+  // Admin moderation
+  // ──────────────────────────────────────────────────────────────────
+
+  /** The moderation queue: reviews awaiting approval. */
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.STAFF)
+  @Get('pending')
+  pending() {
+    return this.reviews.listPending();
+  }
+
+  /** Approve a review and refresh the product's rating aggregates. */
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.STAFF)
+  @Post(':id/approve')
+  approve(@Param('id') id: string) {
+    if (!ID_RE.test(id)) throw new BadRequestException('Invalid review id');
+    return this.reviews.approve(id);
   }
 }

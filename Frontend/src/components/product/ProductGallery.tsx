@@ -12,7 +12,8 @@ export function ProductGallery({ images }: { images: ProductImage[] }) {
 
   return (
     <div className="flex flex-col sm:flex-row-reverse gap-4">
-      <div className="relative aspect-square w-full overflow-hidden rounded-[2rem] bg-sand-100/60 flex-1">
+      <div className="relative aspect-square w-full overflow-hidden rounded-[2rem] bg-gradient-to-br from-cream via-white to-brand-500/8 flex-1 ring-1 ring-navy-900/5 shadow-soft">
+        <div className="absolute inset-0 bg-dot-grid opacity-50" aria-hidden="true" />
         {current.url && (
           <Image
             src={current.url}
@@ -33,8 +34,8 @@ export function ProductGallery({ images }: { images: ProductImage[] }) {
               className={cn(
                 'relative h-16 w-16 sm:h-20 sm:w-20 shrink-0 overflow-hidden rounded-2xl border transition-all',
                 i === active
-                  ? 'border-forest-900 ring-2 ring-forest-900/20'
-                  : 'border-forest-900/10 hover:border-forest-900/30',
+                  ? 'border-brand-500 ring-2 ring-brand-500/30'
+                  : 'border-navy-900/10 hover:border-brand-500/50',
               )}
               aria-label={`Show image ${i + 1}`}
             >

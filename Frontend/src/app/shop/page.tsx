@@ -10,11 +10,14 @@ export const metadata = {
 export default function ShopPage() {
   return (
     <>
-      <section className="bg-sand-100/50 border-b border-forest-900/5">
-        <div className="container-wide py-10 sm:py-14">
+      <section className="relative isolate overflow-hidden bg-cream border-b border-navy-900/5">
+        <div className="absolute inset-0 -z-10 bg-hero-gradient opacity-90" />
+        <div className="container-wide py-12 sm:py-16 lg:py-20">
           <span className="eyebrow">Catalogue</span>
-          <h1 className="mt-4 text-display-lg text-balance">Every Wood House product</h1>
-          <p className="mt-3 text-ink-muted max-w-2xl">
+          <h1 className="mt-4 text-display-xl text-balance">
+            Every Wood House <span className="italic font-light text-brand-600">product.</span>
+          </h1>
+          <p className="mt-4 text-ink-muted max-w-2xl text-base sm:text-lg leading-relaxed">
             Filter by skin type, hair concern, category, price or rating to find your next ritual essential.
           </p>
         </div>

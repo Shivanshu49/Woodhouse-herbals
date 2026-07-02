@@ -251,10 +251,17 @@ enum UserRole {
 
 model User {
   id                  String     @id @default(cuid())
-  email               String     @unique
-  passwordHash        String
+  // Nullable: phone-OTP accounts start with no email. Unique still enforced
+  // for the rows that have one (Postgres ignores NULLs in unique indexes).
+  email               String?    @unique
+  // Nullable: OTP/Google accounts have no password until the user sets one.
+  passwordHash        String?
   fullName            String
-  phone               String?
+  phone               String?    @unique
+  // Google OIDC subject — set when the account is created via / linked to
+  // "Sign in with Google".
+  googleId            String?    @unique
+  avatarUrl           String?
   role                UserRole   @default(CUSTOMER)
   skinType            SkinType?
   primaryConcerns     String[]
@@ -286,6 +293,22 @@ model User {
   updatedAt           DateTime   @updatedAt
 
   @@index([deletedAt])
+}
+
+// One-time codes for phone-number sign-in. Only the SHA-256 of
+// `${phone}:${code}` is stored; verification is attempt-limited so the
+// 6-digit space cannot be brute-forced online.
+model PhoneOtp {
+  id         String    @id @default(cuid())
+  phone      String
+  codeHash   String
+  expiresAt  DateTime
+  attempts   Int       @default(0)
+  consumedAt DateTime?
+  ip         String?
+  createdAt  DateTime  @default(now())
+
+  @@index([phone, createdAt])
 }
 
 model RefreshToken {

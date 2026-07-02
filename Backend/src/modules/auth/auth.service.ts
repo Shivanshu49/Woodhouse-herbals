@@ -2,12 +2,16 @@ import {
   BadRequestException,
   ConflictException,
   ForbiddenException,
+  HttpException,
+  HttpStatus,
   Injectable,
   Logger,
+  ServiceUnavailableException,
   UnauthorizedException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import { randomUUID } from 'node:crypto';
+import { randomInt, randomUUID } from 'node:crypto';
+import { OAuth2Client } from 'google-auth-library';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { env } from '../../common/config/env';
 import {
@@ -18,6 +22,7 @@ import {
 } from '../../common/utils/passwords';
 import { generateOpaqueToken, hashToken } from '../../common/utils/tokens';
 import { MailService } from '../../common/mail/mail.service';
+import { SmsService } from '../../common/sms/sms.service';
 import { SecurityEventsService } from '../../common/security/security-events.service';
 import type {
   AccessTokenPayload,
@@ -37,6 +42,11 @@ interface IssuedTokens {
   refreshTtlSeconds: number;
 }
 
+/** Keep full numbers out of the audit log: `+91******1234`. */
+function maskForAudit(phone: string): string {
+  return phone.replace(/(\+\d{2})\d{6}(\d{4})/, '$1******$2');
+}
+
 @Injectable()
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
@@ -45,8 +55,12 @@ export class AuthService {
     private readonly prisma: PrismaService,
     private readonly jwt: JwtService,
     private readonly mail: MailService,
+    private readonly sms: SmsService,
     private readonly events: SecurityEventsService,
   ) {}
+
+  // Lazily constructed so the app boots fine without GOOGLE_CLIENT_ID.
+  private googleClient?: OAuth2Client;
 
   // ──────────────────────────────────────────────────────────────────
   // Registration
@@ -69,6 +83,11 @@ export class AuthService {
       throw new ConflictException('If the details are valid, an account will be created.');
     }
 
+    // Without a mail provider the verification link is never delivered, which
+    // would permanently lock email accounts out of login. Outside production
+    // we therefore auto-verify; in production RESEND_API_KEY is expected.
+    const autoVerify = env.NODE_ENV !== 'production' && !env.RESEND_API_KEY;
+
     const passwordHash = await hashPassword(dto.password);
     const user = await this.prisma.user.create({
       data: {
@@ -76,11 +95,12 @@ export class AuthService {
         fullName: dto.fullName,
         passwordHash,
         passwordChangedAt: new Date(),
+        ...(autoVerify ? { emailVerified: true, emailVerifiedAt: new Date() } : {}),
       },
       select: { id: true, email: true, fullName: true, role: true, emailVerified: true },
     });
 
-    await this.sendVerificationEmail(user.id, user.email);
+    if (!autoVerify) await this.sendVerificationEmail(user.id, dto.email);
     await this.events.record({
       userId: user.id,
       type: 'REGISTER',
@@ -123,7 +143,9 @@ export class AuthService {
       throw new ForbiddenException('Account temporarily locked. Try again later.');
     }
 
-    const ok = await verifyPassword(dto.password, user.passwordHash);
+    // Passwordless accounts (phone-OTP / Google) still burn a bcrypt compare
+    // so response timing does not reveal which accounts lack a password.
+    const ok = await verifyPassword(dto.password, user.passwordHash ?? DUMMY_PASSWORD_HASH);
     if (!ok) {
       // Atomic increment — Postgres serialises the update so concurrent
       // failed attempts cannot all read the same starting value and bypass
@@ -154,7 +176,7 @@ export class AuthService {
     }
 
     if (!user.emailVerified) {
-      await this.sendVerificationEmail(user.id, user.email);
+      await this.sendVerificationEmail(user.id, dto.email);
       throw new ForbiddenException('Please verify your email address. We sent you a fresh link.');
     }
 
@@ -178,6 +200,216 @@ export class AuthService {
     });
     return {
       user: { id: user.id, email: user.email, fullName: user.fullName, role: user.role },
+      tokens,
+    };
+  }
+
+  // ──────────────────────────────────────────────────────────────────
+  // Phone OTP sign-in
+  // ──────────────────────────────────────────────────────────────────
+
+  async requestOtp(phone: string, ctx: RequestContext) {
+    if (env.NODE_ENV === 'production' && !this.sms.isConfigured) {
+      throw new ServiceUnavailableException('Phone sign-in is temporarily unavailable.');
+    }
+
+    // Per-phone flood control on top of the per-IP controller throttle, so a
+    // botnet cannot burn one victim's number from many IPs.
+    const windowStart = new Date(Date.now() - 15 * 60 * 1000);
+    const recent = await this.prisma.phoneOtp.count({
+      where: { phone, createdAt: { gt: windowStart } },
+    });
+    if (recent >= env.OTP_REQUESTS_PER_WINDOW) {
+      throw new HttpException(
+        'Too many codes requested for this number. Try again in a few minutes.',
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
+
+    // A fresh code invalidates all previous outstanding ones for the number.
+    await this.prisma.phoneOtp.updateMany({
+      where: { phone, consumedAt: null },
+      data: { consumedAt: new Date() },
+    });
+
+    const code = randomInt(0, 1_000_000).toString().padStart(6, '0');
+    await this.prisma.phoneOtp.create({
+      data: {
+        phone,
+        codeHash: hashToken(`${phone}:${code}`),
+        expiresAt: new Date(Date.now() + env.OTP_TTL_SECONDS * 1000),
+        ip: ctx.ip ?? null,
+      },
+    });
+    await this.sms.sendOtp(phone, code);
+    await this.events.record({
+      type: 'LOGIN_FAILURE',
+      ip: ctx.ip,
+      userAgent: ctx.userAgent,
+      meta: { method: 'phone_otp', stage: 'otp_requested', phone: maskForAudit(phone) },
+    });
+
+    return {
+      ok: true,
+      ttlSeconds: env.OTP_TTL_SECONDS,
+      // Outside production the code is echoed back so the flow works without
+      // an SMS provider. NEVER present in production responses.
+      ...(env.NODE_ENV !== 'production' ? { devCode: code } : {}),
+    };
+  }
+
+  async verifyOtp(dto: { phone: string; code: string; fullName?: string }, ctx: RequestContext) {
+    const invalid = () => new UnauthorizedException('Code is invalid or has expired');
+
+    const otp = await this.prisma.phoneOtp.findFirst({
+      where: { phone: dto.phone, consumedAt: null },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (!otp || otp.expiresAt < new Date()) throw invalid();
+
+    // Attempt counter increments atomically BEFORE the hash compare, so a
+    // brute-force loop burns the code even when every guess is wrong.
+    const bumped = await this.prisma.phoneOtp.update({
+      where: { id: otp.id },
+      data: { attempts: { increment: 1 } },
+      select: { attempts: true },
+    });
+    if (bumped.attempts > env.OTP_MAX_ATTEMPTS) {
+      await this.prisma.phoneOtp.update({
+        where: { id: otp.id },
+        data: { consumedAt: new Date() },
+      });
+      throw new UnauthorizedException('Too many attempts. Request a new code.');
+    }
+
+    if (hashToken(`${dto.phone}:${dto.code}`) !== otp.codeHash) throw invalid();
+
+    // Atomic claim — two parallel requests with the right code cannot both win.
+    const claimed = await this.prisma.phoneOtp.updateMany({
+      where: { id: otp.id, consumedAt: null },
+      data: { consumedAt: new Date() },
+    });
+    if (claimed.count !== 1) throw invalid();
+
+    let user = await this.prisma.user.findUnique({ where: { phone: dto.phone } });
+    if (!user) {
+      user = await this.prisma.user.create({
+        data: {
+          phone: dto.phone,
+          fullName: dto.fullName?.trim() || 'Wood House Customer',
+        },
+      });
+      await this.events.record({
+        userId: user.id,
+        type: 'REGISTER',
+        ip: ctx.ip,
+        userAgent: ctx.userAgent,
+        meta: { method: 'phone_otp' },
+      });
+    }
+
+    return this.completeSocialLogin(user, 'phone_otp', ctx);
+  }
+
+  // ──────────────────────────────────────────────────────────────────
+  // Google sign-in
+  // ──────────────────────────────────────────────────────────────────
+
+  async googleSignIn(credential: string, ctx: RequestContext) {
+    if (!env.GOOGLE_CLIENT_ID) {
+      throw new ServiceUnavailableException('Google sign-in is not configured.');
+    }
+    this.googleClient ??= new OAuth2Client(env.GOOGLE_CLIENT_ID);
+
+    let payload;
+    try {
+      const ticket = await this.googleClient.verifyIdToken({
+        idToken: credential,
+        audience: env.GOOGLE_CLIENT_ID,
+      });
+      payload = ticket.getPayload();
+    } catch {
+      throw new UnauthorizedException('Google sign-in could not be verified.');
+    }
+    if (!payload?.sub || !payload.email || payload.email_verified !== true) {
+      // Unverified Google emails must not link to existing accounts — that
+      // would allow account takeover by registering the victim's address.
+      throw new UnauthorizedException('Google account email is not verified.');
+    }
+    const email = payload.email.toLowerCase();
+
+    let user = await this.prisma.user.findUnique({ where: { googleId: payload.sub } });
+    if (!user) {
+      const byEmail = await this.prisma.user.findUnique({ where: { email } });
+      if (byEmail) {
+        // Link Google to the existing account. Google has verified ownership
+        // of the address, which also settles our own email verification.
+        user = await this.prisma.user.update({
+          where: { id: byEmail.id },
+          data: {
+            googleId: payload.sub,
+            avatarUrl: byEmail.avatarUrl ?? payload.picture ?? null,
+            emailVerified: true,
+            emailVerifiedAt: byEmail.emailVerifiedAt ?? new Date(),
+          },
+        });
+      } else {
+        user = await this.prisma.user.create({
+          data: {
+            email,
+            fullName: payload.name?.trim() || email.split('@')[0],
+            googleId: payload.sub,
+            avatarUrl: payload.picture ?? null,
+            emailVerified: true,
+            emailVerifiedAt: new Date(),
+          },
+        });
+        await this.events.record({
+          userId: user.id,
+          type: 'REGISTER',
+          ip: ctx.ip,
+          userAgent: ctx.userAgent,
+          meta: { method: 'google' },
+        });
+      }
+    }
+
+    return this.completeSocialLogin(user, 'google', ctx);
+  }
+
+  /** Shared tail of the OTP/Google flows: stamp login, issue cookies. */
+  private async completeSocialLogin(
+    user: { id: string; email: string | null; fullName: string; role: AccessTokenPayload['role']; phone: string | null; avatarUrl: string | null },
+    method: 'phone_otp' | 'google',
+    ctx: RequestContext,
+  ) {
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: {
+        failedLoginAttempts: 0,
+        lockedUntil: null,
+        lastLoginAt: new Date(),
+        lastLoginIp: ctx.ip ?? null,
+      },
+    });
+    const tokens = await this.issueTokens(user.id, user.email, user.role, randomUUID(), ctx);
+    await this.claimGuestCart(user.id, ctx.sessionId);
+    await this.events.record({
+      userId: user.id,
+      type: 'LOGIN_SUCCESS',
+      ip: ctx.ip,
+      userAgent: ctx.userAgent,
+      meta: { method },
+    });
+    return {
+      user: {
+        id: user.id,
+        email: user.email,
+        fullName: user.fullName,
+        role: user.role,
+        phone: user.phone,
+        avatarUrl: user.avatarUrl,
+      },
       tokens,
     };
   }
@@ -353,7 +585,7 @@ export class AuthService {
       });
       const url = `${env.WEB_ORIGIN.split(',')[0]}/account/reset?token=${encodeURIComponent(raw)}`;
       const msg = this.mail.buildResetEmail(url);
-      await this.mail.send({ to: user.email, ...msg });
+      await this.mail.send({ to: email, ...msg });
       await this.events.record({
         userId: user.id,
         type: 'PASSWORD_RESET_REQUESTED',
@@ -431,6 +663,12 @@ export class AuthService {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new UnauthorizedException();
 
+    if (!user.passwordHash) {
+      throw new BadRequestException(
+        'This account signs in with OTP or Google and has no password yet. Use “forgot password” to set one.',
+      );
+    }
+
     const ok = await verifyPassword(dto.currentPassword, user.passwordHash);
     if (!ok) {
       await this.events.record({
@@ -484,15 +722,17 @@ export class AuthService {
 
   private async issueTokens(
     userId: string,
-    email: string,
+    email: string | null,
     role: AccessTokenPayload['role'],
     jti: string,
     ctx: RequestContext,
     familyId?: string,
   ): Promise<IssuedTokens> {
-    const accessPayload: AccessTokenPayload = { sub: userId, email, role, jti, kind: 'access' };
+    // Phone-only accounts have no email; the claim is an empty string rather
+    // than null so existing payload consumers keep a plain-string type.
+    const accessPayload: AccessTokenPayload = { sub: userId, email: email ?? '', role, jti, kind: 'access' };
     const fam = familyId ?? randomUUID();
-    const refreshPayload: RefreshTokenPayload = { sub: userId, email, jti, fam, kind: 'refresh' };
+    const refreshPayload: RefreshTokenPayload = { sub: userId, email: email ?? '', jti, fam, kind: 'refresh' };
 
     const accessToken = await this.jwt.signAsync(accessPayload, {
       secret: env.JWT_ACCESS_SECRET,

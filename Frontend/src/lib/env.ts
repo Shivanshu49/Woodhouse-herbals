@@ -18,6 +18,8 @@ interface PublicEnv {
   apiUrl: string;
   aiUrl: string;
   siteUrl: string;
+  /** Google OAuth client id for "Sign in with Google" — null hides the button. */
+  googleClientId: string | null;
 }
 
 function readUrl(name: string, raw: string | undefined, fallback: string): string {
@@ -39,12 +41,14 @@ const raw = {
   apiUrl: process.env.NEXT_PUBLIC_API_URL,
   aiUrl: process.env.NEXT_PUBLIC_AI_URL,
   siteUrl: process.env.NEXT_PUBLIC_SITE_URL,
+  googleClientId: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID,
 };
 
 export const env: PublicEnv = Object.freeze({
   apiUrl: readUrl('NEXT_PUBLIC_API_URL', raw.apiUrl, 'http://localhost:4000'),
   aiUrl: readUrl('NEXT_PUBLIC_AI_URL', raw.aiUrl, 'http://localhost:8001'),
   siteUrl: readUrl('NEXT_PUBLIC_SITE_URL', raw.siteUrl, 'http://localhost:3000'),
+  googleClientId: raw.googleClientId?.trim() || null,
 });
 
 export type { PublicEnv };

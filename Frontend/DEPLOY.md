@@ -40,11 +40,31 @@ one requires a **redeploy/rebuild**, not just a settings save.
 | `NEXT_PUBLIC_API_URL` | Only to wire a live backend | Base URL of the NestJS API (no trailing `/api`). Unset → defaults to `http://localhost:4000`, so the live catalog/search just falls back to mock data. Set this **before** the build that should use it. |
 | `NEXT_PUBLIC_SITE_URL` | Optional | Canonical public site URL. |
 | `NEXT_PUBLIC_AI_URL` | Not used | Placeholder; the AI-Service isn't called by any code yet. |
+| `NEXT_PUBLIC_GOOGLE_CLIENT_ID` | Only for "Sign in with Google" | OAuth **Web** client id from Google Cloud Console → Credentials. The same value must be set as `GOOGLE_CLIENT_ID` on the backend. Unset → the Google button simply doesn't render. Add your Vercel origin (and `http://localhost:3000`) to the client's *Authorized JavaScript origins*. |
 
 > ⚠️ Backend calls use `credentials: 'include'`, and failures are swallowed
 > (silent mock fallback). If you later point `NEXT_PUBLIC_API_URL` at a real
 > backend, that backend's `WEB_ORIGIN` must include this Vercel origin (CORS with
 > credentials) or the catalog will *appear* to work while silently serving mocks.
+
+## Accounts / auth (login, signup, profile)
+
+The `/login`, `/signup` and `/account` pages talk to the NestJS backend, so they
+need `NEXT_PUBLIC_API_URL` pointing at a deployed backend whose `WEB_ORIGIN`
+includes this site's origin. Auth rides on httpOnly cookies:
+
+- **Cookies are `SameSite=strict` in production**, so the backend must be served
+  from the **same site** as the storefront (e.g. `api.woodhouseherbals.com` next
+  to `woodhouseherbals.com`). A `*.vercel.app` frontend with a backend on a
+  different domain will not keep sessions.
+- **Phone OTP SMS** needs `MSG91_AUTH_KEY` + `MSG91_TEMPLATE_ID` on the backend.
+  Without them, dev echoes the code back into the UI ("Dev mode — your code is…")
+  and production returns 503 for phone sign-in.
+- **Google sign-in** needs `GOOGLE_CLIENT_ID` on the backend and
+  `NEXT_PUBLIC_GOOGLE_CLIENT_ID` (same value) here.
+- **Email verification / password reset** emails need `RESEND_API_KEY` on the
+  backend. Without it (dev), new email accounts are auto-verified so the flow
+  stays testable.
 
 ## Gotchas
 

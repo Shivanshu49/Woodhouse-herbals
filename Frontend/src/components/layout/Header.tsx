@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react';
 import { Menu, Search, ShoppingBag, Truck, User, X } from 'lucide-react';
 import { useCartStore } from '@/store/cart';
 import { useUiStore } from '@/store/ui';
+import { useProfile } from '@/hooks/use-auth';
 import { cn } from '@/lib/cn';
 
 const NAV_LINKS = [
@@ -20,6 +21,8 @@ export function Header() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const setSearchOpen = useUiStore((s) => s.setSearchOpen);
   const cartCount = useCartStore((s) => s.lines.reduce((acc, l) => acc + l.quantity, 0));
+  const { data: profile } = useProfile();
+  const signedIn = mounted && Boolean(profile);
 
   useEffect(() => {
     setMounted(true);
@@ -121,11 +124,18 @@ export function Header() {
             )}
           </Link>
           <Link
-            href="/account"
-            aria-label="Account"
-            className="inline-flex h-10 w-10 items-center justify-center rounded-full text-brand-forest hover:bg-brand-cream"
+            href={signedIn ? '/account' : '/login'}
+            aria-label={signedIn ? 'My account' : 'Sign in'}
+            title={signedIn ? `Signed in as ${profile?.fullName}` : 'Sign in'}
+            className="relative inline-flex h-10 w-10 items-center justify-center rounded-full text-brand-forest hover:bg-brand-cream"
           >
             <User className="h-5 w-5" />
+            {signedIn && (
+              <span
+                className="absolute top-1 right-1 h-2 w-2 rounded-full bg-brand-leaf ring-2 ring-white"
+                aria-hidden="true"
+              />
+            )}
           </Link>
         </div>
       </div>

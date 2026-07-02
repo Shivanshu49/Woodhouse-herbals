@@ -15,10 +15,13 @@ import { AuthService } from './auth.service';
 import {
   ChangePasswordDto,
   ForgotPasswordDto,
+  GoogleAuthDto,
   LoginDto,
   RegisterDto,
+  RequestOtpDto,
   ResetPasswordDto,
   VerifyEmailDto,
+  VerifyOtpDto,
 } from './dto/auth.dto';
 import { Public } from '../../common/decorators/public.decorator';
 import { JwtAuthGuard } from '../../common/auth/jwt-auth.guard';
@@ -80,6 +83,43 @@ export class AuthController {
     @Res({ passthrough: true }) res: Response,
   ) {
     const { user, tokens } = await this.auth.login(dto, ctxFromRequest(req));
+    this.setAuthCookies(res, tokens);
+    return { user };
+  }
+
+  // 6 OTP sends / 15 min per IP; the service adds a per-phone window too.
+  @Public()
+  @Throttle({ default: { ttl: 15 * 60 * 1000, limit: 6 } })
+  @Post('otp/request')
+  @HttpCode(200)
+  async requestOtp(@Body() dto: RequestOtpDto, @Req() req: Request) {
+    return this.auth.requestOtp(dto.phone, ctxFromRequest(req));
+  }
+
+  @Public()
+  @Throttle({ default: { ttl: 15 * 60 * 1000, limit: 12 } })
+  @Post('otp/verify')
+  @HttpCode(200)
+  async verifyOtp(
+    @Body() dto: VerifyOtpDto,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const { user, tokens } = await this.auth.verifyOtp(dto, ctxFromRequest(req));
+    this.setAuthCookies(res, tokens);
+    return { user };
+  }
+
+  @Public()
+  @Throttle({ default: { ttl: 15 * 60 * 1000, limit: 10 } })
+  @Post('google')
+  @HttpCode(200)
+  async google(
+    @Body() dto: GoogleAuthDto,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const { user, tokens } = await this.auth.googleSignIn(dto.credential, ctxFromRequest(req));
     this.setAuthCookies(res, tokens);
     return { user };
   }

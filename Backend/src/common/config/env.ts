@@ -82,6 +82,22 @@ const schema = z.object({
   RESEND_API_KEY: z.string().optional(),
   EMAIL_FROM: z.string().email().default('no-reply@woodhouseherbals.com'),
 
+  // Phone-OTP SMS delivery via MSG91. Optional in dev (the OTP is logged and
+  // echoed back to the client instead); without them in prod the OTP
+  // endpoints return 503 rather than silently swallowing codes.
+  MSG91_AUTH_KEY: z.string().optional(),
+  MSG91_TEMPLATE_ID: z.string().optional(),
+
+  // OAuth client id for "Sign in with Google" (ID-token verification
+  // audience). The same value is exposed to the frontend as
+  // NEXT_PUBLIC_GOOGLE_CLIENT_ID. Optional — endpoint 503s when unset.
+  GOOGLE_CLIENT_ID: z.string().optional(),
+
+  // Phone OTP policy
+  OTP_TTL_SECONDS: z.coerce.number().int().min(60).max(900).default(300),
+  OTP_MAX_ATTEMPTS: z.coerce.number().int().min(3).max(10).default(5),
+  OTP_REQUESTS_PER_WINDOW: z.coerce.number().int().min(1).max(10).default(3),
+
   // PhonePe — optional in dev so the app boots without payment credentials,
   // hard-required in prod (enforced in the refine block below). The dev
   // fallback values live in DEV_FALLBACKS so they are visible in one place.

@@ -17,6 +17,13 @@ import type {
   ProductDetailResponse,
   SearchSuggestResponse,
 } from '@/types/api';
+import type {
+  AddressInput,
+  AuthUser,
+  CustomerAddress,
+  CustomerOrder,
+  CustomerProfile,
+} from '@/types/auth';
 
 // The backend mounts everything under the `/api` global prefix (see
 // Backend/src/main.ts → setGlobalPrefix('api')).
@@ -51,6 +58,37 @@ async function apiGet<T>(path: string, init?: RequestInit): Promise<T> {
   return (await res.json()) as T;
 }
 
+async function apiSend<T>(
+  method: 'POST' | 'PATCH' | 'DELETE',
+  path: string,
+  body?: unknown,
+): Promise<T> {
+  const res = await fetch(`${API_BASE}${path}`, {
+    method,
+    credentials: 'include',
+    headers: {
+      Accept: 'application/json',
+      ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
+    },
+    ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+  });
+  if (!res.ok) {
+    let message = `Request failed (${res.status})`;
+    try {
+      const parsed = (await res.json()) as { message?: string | string[] };
+      if (parsed?.message) {
+        message = Array.isArray(parsed.message) ? parsed.message.join(' ') : parsed.message;
+      }
+    } catch {
+      /* non-JSON error body — keep the status-based message */
+    }
+    throw new ApiError(res.status, message);
+  }
+  // 204 No Content (logout) has no body.
+  if (res.status === 204) return undefined as T;
+  return (await res.json()) as T;
+}
+
 export const api = {
   homepage: () => apiGet<HomepagePayload>('/homepage'),
   products: (query?: string) =>
@@ -59,6 +97,40 @@ export const api = {
     apiGet<ProductDetailResponse>(`/products/${encodeURIComponent(slug)}`),
   searchSuggest: (q: string) =>
     apiGet<SearchSuggestResponse>(`/search/suggest?q=${encodeURIComponent(q)}`),
+
+  auth: {
+    register: (data: { email: string; fullName: string; password: string }) =>
+      apiSend<{ user: Pick<AuthUser, 'id' | 'email' | 'fullName' | 'role'> }>('POST', '/auth/register', data),
+    login: (data: { email: string; password: string }) =>
+      apiSend<{ user: AuthUser }>('POST', '/auth/login', data),
+    logout: () => apiSend<void>('POST', '/auth/logout'),
+    otpRequest: (phone: string) =>
+      apiSend<{ ok: true; ttlSeconds: number; devCode?: string }>('POST', '/auth/otp/request', { phone }),
+    otpVerify: (data: { phone: string; code: string; fullName?: string }) =>
+      apiSend<{ user: AuthUser }>('POST', '/auth/otp/verify', data),
+    google: (credential: string) =>
+      apiSend<{ user: AuthUser }>('POST', '/auth/google', { credential }),
+    verifyEmail: (token: string) => apiSend<{ ok: true }>('POST', '/auth/verify-email', { token }),
+    forgotPassword: (email: string) =>
+      apiSend<{ ok: true }>('POST', '/auth/forgot-password', { email }),
+    resetPassword: (data: { token: string; password: string }) =>
+      apiSend<{ ok: true }>('POST', '/auth/reset-password', data),
+  },
+
+  customer: {
+    profile: () => apiGet<CustomerProfile>('/customers/me'),
+    updateProfile: (data: Partial<Pick<CustomerProfile, 'fullName' | 'phone' | 'skinType' | 'primaryConcerns'>>) =>
+      apiSend<CustomerProfile>('PATCH', '/customers/me', data),
+    createAddress: (data: AddressInput) =>
+      apiSend<CustomerAddress>('POST', '/customers/me/addresses', data),
+    updateAddress: (id: string, data: AddressInput) =>
+      apiSend<CustomerAddress>('PATCH', `/customers/me/addresses/${encodeURIComponent(id)}`, data),
+    deleteAddress: (id: string) =>
+      apiSend<{ ok: true }>('DELETE', `/customers/me/addresses/${encodeURIComponent(id)}`),
+    setDefaultAddress: (id: string) =>
+      apiSend<{ ok: true }>('POST', `/customers/me/addresses/${encodeURIComponent(id)}/default`),
+    orders: () => apiGet<CustomerOrder[]>('/orders'),
+  },
 };
 
 /**

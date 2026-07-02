@@ -1,8 +1,12 @@
-import { IsEmail, IsString, Matches, MaxLength, MinLength } from 'class-validator';
+import { IsEmail, IsOptional, IsString, Matches, MaxLength, MinLength } from 'class-validator';
 import { Transform } from 'class-transformer';
+import { normalizeIndianPhone } from '../../../common/utils/phone';
 
 const trim = ({ value }: { value: unknown }) => (typeof value === 'string' ? value.trim() : value);
 const lower = ({ value }: { value: unknown }) => (typeof value === 'string' ? value.trim().toLowerCase() : value);
+// Normalises to +91XXXXXXXXXX; invalid inputs pass through unchanged so the
+// @Matches below rejects them with a friendly message.
+const phone = ({ value }: { value: unknown }) => normalizeIndianPhone(value) ?? value;
 
 export class RegisterDto {
   @Transform(lower)
@@ -61,6 +65,42 @@ export class ResetPasswordDto {
   @MinLength(10)
   @MaxLength(128)
   password!: string;
+}
+
+export class RequestOtpDto {
+  @Transform(phone)
+  @IsString()
+  @Matches(/^\+91[6-9]\d{9}$/, { message: 'Enter a valid Indian mobile number' })
+  phone!: string;
+}
+
+export class VerifyOtpDto {
+  @Transform(phone)
+  @IsString()
+  @Matches(/^\+91[6-9]\d{9}$/, { message: 'Enter a valid Indian mobile number' })
+  phone!: string;
+
+  @Transform(trim)
+  @IsString()
+  @Matches(/^\d{6}$/, { message: 'Enter the 6-digit code' })
+  code!: string;
+
+  // Only used when the phone number has no account yet.
+  @Transform(trim)
+  @IsOptional()
+  @IsString()
+  @MinLength(2)
+  @MaxLength(80)
+  @Matches(/^[\p{L}\p{M}\s.'\-]+$/u, { message: 'Name contains invalid characters' })
+  fullName?: string;
+}
+
+export class GoogleAuthDto {
+  // The ID token ("credential") produced by Google Identity Services.
+  @IsString()
+  @MinLength(20)
+  @MaxLength(4096)
+  credential!: string;
 }
 
 export class ChangePasswordDto {

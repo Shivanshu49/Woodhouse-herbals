@@ -6,6 +6,7 @@ import { APP_GUARD } from '@nestjs/core';
 import { PrismaModule } from './common/prisma/prisma.module';
 import { SecurityModule } from './common/security/security.module';
 import { MailModule } from './common/mail/mail.module';
+import { SmsModule } from './common/sms/sms.module';
 import { HealthController } from './common/health/health.controller';
 import { AuthModule } from './modules/auth/auth.module';
 import { ProductsModule } from './modules/products/products.module';
@@ -31,6 +32,7 @@ import { ShipmentsModule } from './modules/shipments/shipments.module';
     PrismaModule,
     SecurityModule,
     MailModule,
+    SmsModule,
     AuthModule,
     ProductsModule,
     CategoriesModule,

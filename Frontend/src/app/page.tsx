@@ -6,6 +6,7 @@ import { ComboPacks } from '@/components/home/ComboPacks';
 import { IngredientStory } from '@/components/home/IngredientStory';
 import { NewArrivals } from '@/components/home/NewArrivals';
 import { Testimonials } from '@/components/home/Testimonials';
+import { ReelsSection } from '@/components/sections/ReelsSection';
 import { AICta } from '@/components/home/AICta';
 
 export default function HomePage() {
@@ -19,6 +20,7 @@ export default function HomePage() {
       <IngredientStory />
       <NewArrivals />
       <Testimonials />
+      <ReelsSection />
       <AICta />
     </>
   );

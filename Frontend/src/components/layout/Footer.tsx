@@ -63,18 +63,28 @@ export function Footer() {
           <div className="mt-5 flex items-center gap-2">
             {[
               { Icon: Facebook,  label: 'Facebook',  href: '#' },
-              { Icon: Instagram, label: 'Instagram', href: '#' },
+              { Icon: Instagram, label: 'Instagram', href: 'https://www.instagram.com/woodhouseherbals/' },
               { Icon: Linkedin,  label: 'LinkedIn',  href: '#' },
             ].map(({ Icon, label, href }) => (
               <a
                 key={label}
                 aria-label={label}
                 href={href}
+                target={href.startsWith('http') ? '_blank' : undefined}
+                rel={href.startsWith('http') ? 'noopener noreferrer' : undefined}
                 className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-cream/15 hover:border-brand-500 hover:bg-brand-500/15 transition-colors"
               >
                 <Icon className="h-4 w-4" />
               </a>
             ))}
+            <a
+              href="https://www.instagram.com/woodhouseherbals/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="ml-1 text-sm text-cream/70 hover:text-brand-300 transition-colors"
+            >
+              @woodhouseherbals
+            </a>
           </div>
         </div>
 
@@ -95,7 +105,7 @@ export function Footer() {
           <h4 className="text-cream font-display text-base mb-4 font-semibold">Categories</h4>
           <ul className="space-y-2.5">
             {CATEGORIES.map((l) => (
-              <li key={l.href}>
+              <li key={l.label}>
                 <Link href={l.href} className="text-sm text-cream/70 hover:text-brand-300">
                   {l.label}
                 </Link>

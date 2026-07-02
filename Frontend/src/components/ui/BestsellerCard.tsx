@@ -39,18 +39,18 @@ export function BestsellerCard({ product }: { product: BestsellerProduct }) {
           src={product.image}
           alt={`${product.name} ${product.type}`}
           fill
-          sizes="(max-width: 640px) 80vw, (max-width: 1024px) 33vw, 20vw"
-          className="object-cover transition-transform duration-500 group-hover:scale-105"
+          sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 20vw"
+          className="scale-[1.15] object-cover transition-transform duration-500 group-hover:scale-[1.21]"
         />
       </div>
       {/* flex column so the rating + price row can be pinned to the bottom of
           every card (mt-auto), keeping prices aligned regardless of how many
           lines the name/ingredient text wraps to. */}
-      <div className="flex flex-1 flex-col p-5">
-        <h3 className="font-display font-semibold text-brand-forest text-lg uppercase leading-tight line-clamp-2 min-h-[2.5rem]">
+      <div className="flex flex-1 flex-col p-3.5 sm:p-5">
+        <h3 className="font-display font-semibold text-brand-forest text-base sm:text-lg uppercase leading-tight line-clamp-2 min-h-[2.5rem]">
           {product.name}
         </h3>
-        <p className="mt-1 font-inter font-semibold text-brand-forest text-sm uppercase tracking-wide">
+        <p className="mt-1 font-inter font-semibold text-brand-forest text-xs sm:text-sm uppercase tracking-wide">
           {product.type}, {product.size}
         </p>
         <p className="mt-1 font-inter italic text-xs text-brand-forest/70 line-clamp-2">
@@ -59,12 +59,12 @@ export function BestsellerCard({ product }: { product: BestsellerProduct }) {
         <div className="mt-auto pt-4">
           <Stars rating={product.rating} />
           <div className="mt-3 flex items-baseline gap-1">
-            <span className="text-brand-forest text-2xl">₹</span>
-            <span className="font-display font-bold text-brand-forest text-3xl leading-none">
+            <span className="text-brand-forest text-xl sm:text-2xl">₹</span>
+            <span className="font-display font-bold text-brand-forest text-2xl sm:text-3xl leading-none">
               {product.price}
             </span>
             {product.compareAtPrice && (
-              <span className="ml-2 font-inter text-sm text-brand-forest/50 line-through">
+              <span className="ml-1.5 sm:ml-2 font-inter text-xs sm:text-sm text-brand-forest/50 line-through">
                 ₹{product.compareAtPrice}
               </span>
             )}

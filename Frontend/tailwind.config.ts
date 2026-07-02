@@ -9,6 +9,7 @@ const config: Config = {
         // See DESIGN.md for rationale. Kept additive — legacy tokens below stay intact.
         'brand-mint':   '#B8DCD6',
         'brand-cream':  '#E8F2EE',
+        'brand-teal':   '#60B098',
         'brand-forest': '#0F2D24',
         'brand-leaf':   '#2E7D32',
         'brand-coral':  '#E94B6A',

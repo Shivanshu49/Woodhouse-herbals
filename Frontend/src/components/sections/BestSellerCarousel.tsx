@@ -37,8 +37,8 @@ export function BestSellerCarousel() {
   const scrollNext = () => emblaApi?.scrollNext();
 
   return (
-    <section aria-label="Best sellers" className="bg-brand-cream py-20">
-      <div className="mx-auto max-w-7xl px-6 md:px-10">
+    <section aria-label="Best sellers" className="bg-brand-teal py-20">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 md:px-10">
         <div className="relative mb-10 md:mb-14">
           <h2 className="font-display text-4xl sm:text-5xl text-brand-forest leading-none text-center">
             <span className="font-bold not-italic">Best</span>{' '}
@@ -65,12 +65,12 @@ export function BestSellerCarousel() {
         </div>
 
         <div className="relative">
-          <div className="overflow-hidden -mx-3" ref={emblaRef}>
+          <div className="overflow-hidden -mx-2 sm:-mx-3" ref={emblaRef}>
             <div className="flex">
               {bestsellerProducts.map((product) => (
                 <div
                   key={product.slug}
-                  className="flex-[0_0_67%] sm:flex-[0_0_50%] md:flex-[0_0_33.333%] lg:flex-[0_0_25%] xl:flex-[0_0_20%] px-3"
+                  className="flex-[0_0_50%] md:flex-[0_0_33.333%] lg:flex-[0_0_25%] xl:flex-[0_0_20%] px-2 sm:px-3"
                 >
                   <BestsellerCard product={product} />
                 </div>

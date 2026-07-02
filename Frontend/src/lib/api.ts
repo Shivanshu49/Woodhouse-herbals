@@ -115,11 +115,17 @@ export const api = {
       apiSend<{ ok: true }>('POST', '/auth/forgot-password', { email }),
     resetPassword: (data: { token: string; password: string }) =>
       apiSend<{ ok: true }>('POST', '/auth/reset-password', data),
+    // Verified phone change (phone is a login identifier): request a code
+    // to the NEW number, then verify it. Signed-in users only.
+    phoneChangeRequest: (phone: string) =>
+      apiSend<{ ok: true; ttlSeconds: number; devCode?: string }>('POST', '/auth/phone-change/request', { phone }),
+    phoneChangeVerify: (data: { phone: string; code: string }) =>
+      apiSend<{ ok: true; phone: string }>('POST', '/auth/phone-change/verify', data),
   },
 
   customer: {
     profile: () => apiGet<CustomerProfile>('/customers/me'),
-    updateProfile: (data: Partial<Pick<CustomerProfile, 'fullName' | 'phone' | 'skinType' | 'primaryConcerns'>>) =>
+    updateProfile: (data: Partial<Pick<CustomerProfile, 'fullName' | 'skinType' | 'primaryConcerns'>>) =>
       apiSend<CustomerProfile>('PATCH', '/customers/me', data),
     createAddress: (data: AddressInput) =>
       apiSend<CustomerAddress>('POST', '/customers/me/addresses', data),

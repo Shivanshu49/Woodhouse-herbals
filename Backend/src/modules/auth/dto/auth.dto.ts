@@ -95,6 +95,18 @@ export class VerifyOtpDto {
   fullName?: string;
 }
 
+export class PhoneChangeVerifyDto {
+  @Transform(phone)
+  @IsString()
+  @Matches(/^\+91[6-9]\d{9}$/, { message: 'Enter a valid Indian mobile number' })
+  phone!: string;
+
+  @Transform(trim)
+  @IsString()
+  @Matches(/^\d{6}$/, { message: 'Enter the 6-digit code' })
+  code!: string;
+}
+
 export class GoogleAuthDto {
   // The ID token ("credential") produced by Google Identity Services.
   @IsString()

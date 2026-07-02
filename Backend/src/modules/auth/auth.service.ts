@@ -11,6 +11,7 @@ import {
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { randomInt, randomUUID } from 'node:crypto';
+import { Prisma } from '@prisma/client';
 import { OAuth2Client } from 'google-auth-library';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { env } from '../../common/config/env';
@@ -258,11 +259,15 @@ export class AuthService {
     };
   }
 
-  async verifyOtp(dto: { phone: string; code: string; fullName?: string }, ctx: RequestContext) {
+  /**
+   * Validate and atomically consume the outstanding OTP for a phone number.
+   * Shared by OTP login and verified phone-change. Throws 401 on any failure.
+   */
+  private async consumeOtp(phone: string, code: string): Promise<void> {
     const invalid = () => new UnauthorizedException('Code is invalid or has expired');
 
     const otp = await this.prisma.phoneOtp.findFirst({
-      where: { phone: dto.phone, consumedAt: null },
+      where: { phone, consumedAt: null },
       orderBy: { createdAt: 'desc' },
     });
     if (!otp || otp.expiresAt < new Date()) throw invalid();
@@ -282,7 +287,7 @@ export class AuthService {
       throw new UnauthorizedException('Too many attempts. Request a new code.');
     }
 
-    if (hashToken(`${dto.phone}:${dto.code}`) !== otp.codeHash) throw invalid();
+    if (hashToken(`${phone}:${code}`) !== otp.codeHash) throw invalid();
 
     // Atomic claim — two parallel requests with the right code cannot both win.
     const claimed = await this.prisma.phoneOtp.updateMany({
@@ -290,6 +295,10 @@ export class AuthService {
       data: { consumedAt: new Date() },
     });
     if (claimed.count !== 1) throw invalid();
+  }
+
+  async verifyOtp(dto: { phone: string; code: string; fullName?: string }, ctx: RequestContext) {
+    await this.consumeOtp(dto.phone, dto.code);
 
     let user = await this.prisma.user.findUnique({ where: { phone: dto.phone } });
     if (!user) {
@@ -309,6 +318,35 @@ export class AuthService {
     }
 
     return this.completeSocialLogin(user, 'phone_otp', ctx);
+  }
+
+  /**
+   * Verified phone change for a signed-in user. The phone is a LOGIN
+   * IDENTIFIER (OTP flow), so it must never be persisted from a bare
+   * profile edit — possession is proven with the same OTP machinery
+   * (request via requestOtp, then this consumes the code).
+   */
+  async changePhone(userId: string, dto: { phone: string; code: string }, ctx: RequestContext) {
+    await this.consumeOtp(dto.phone, dto.code);
+    try {
+      await this.prisma.user.update({
+        where: { id: userId },
+        data: { phone: dto.phone },
+      });
+    } catch (err) {
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+        throw new ConflictException('This phone number is already linked to another account.');
+      }
+      throw err;
+    }
+    await this.events.record({
+      userId,
+      type: 'PHONE_CHANGED',
+      ip: ctx.ip,
+      userAgent: ctx.userAgent,
+      meta: { phone: maskForAudit(dto.phone) },
+    });
+    return { ok: true as const, phone: dto.phone };
   }
 
   // ──────────────────────────────────────────────────────────────────
@@ -344,6 +382,15 @@ export class AuthService {
       if (byEmail) {
         // Link Google to the existing account. Google has verified ownership
         // of the address, which also settles our own email verification.
+        //
+        // Pre-hijack defence: if the local account was never email-verified,
+        // it may have been registered by an attacker squatting on this
+        // address (they set the password; verification is what they could
+        // never complete). Marking it verified would activate that password
+        // — so for unverified accounts we wipe the password and revoke every
+        // outstanding session/reset token before handing it to the real
+        // owner of the email.
+        const wasUnverified = !byEmail.emailVerified;
         user = await this.prisma.user.update({
           where: { id: byEmail.id },
           data: {
@@ -351,8 +398,21 @@ export class AuthService {
             avatarUrl: byEmail.avatarUrl ?? payload.picture ?? null,
             emailVerified: true,
             emailVerifiedAt: byEmail.emailVerifiedAt ?? new Date(),
+            ...(wasUnverified ? { passwordHash: null, passwordChangedAt: new Date() } : {}),
           },
         });
+        if (wasUnverified) {
+          await this.prisma.$transaction([
+            this.prisma.refreshToken.updateMany({
+              where: { userId: byEmail.id, revokedAt: null },
+              data: { revokedAt: new Date() },
+            }),
+            this.prisma.passwordResetToken.updateMany({
+              where: { userId: byEmail.id, consumedAt: null },
+              data: { consumedAt: new Date() },
+            }),
+          ]);
+        }
       } else {
         user = await this.prisma.user.create({
           data: {

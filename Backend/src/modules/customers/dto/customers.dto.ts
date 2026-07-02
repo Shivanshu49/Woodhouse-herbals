@@ -1,10 +1,8 @@
 import { IsBoolean, IsIn, IsOptional, IsString, Matches, MaxLength, MinLength } from 'class-validator';
 import { Transform } from 'class-transformer';
 import { SkinType } from '@prisma/client';
-import { normalizeIndianPhone } from '../../../common/utils/phone';
 
 const trim = ({ value }: { value: unknown }) => (typeof value === 'string' ? value.trim() : value);
-const phone = ({ value }: { value: unknown }) => normalizeIndianPhone(value) ?? value;
 
 // Same allow-lists the checkout DTO uses (orders/dto/order.dto.ts) so an
 // address accepted here is also accepted at checkout.
@@ -13,6 +11,9 @@ const INDIAN_MOBILE = /^[6-9]\d{9}$/;
 const ADDRESS_RE = /^[\p{L}\p{M}\p{N}\s,.'/\-#&()]+$/u;
 const NAME_RE = /^[\p{L}\p{M}\s.'\-]+$/u;
 
+// NOTE: `phone` is deliberately NOT part of the profile update — it is a
+// login identifier for the OTP flow, so changing it requires possession
+// proof via POST /auth/phone-change/{request,verify}.
 export class UpdateProfileDto {
   @Transform(trim)
   @IsOptional()
@@ -21,12 +22,6 @@ export class UpdateProfileDto {
   @MaxLength(80)
   @Matches(NAME_RE, { message: 'Name contains invalid characters' })
   fullName?: string;
-
-  @Transform(phone)
-  @IsOptional()
-  @IsString()
-  @Matches(/^\+91[6-9]\d{9}$/, { message: 'Enter a valid Indian mobile number' })
-  phone?: string;
 
   @IsOptional()
   @IsIn(Object.values(SkinType))

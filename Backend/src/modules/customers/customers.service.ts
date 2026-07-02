@@ -1,5 +1,4 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import type { AddressDto, UpdateProfileDto } from './dto/customers.dto';
 
@@ -55,24 +54,17 @@ export class CustomersService {
     };
   }
 
+  // Phone is intentionally absent: it's an OTP login identifier and only
+  // changes through the verified /auth/phone-change flow.
   async updateProfile(userId: string, dto: UpdateProfileDto) {
-    try {
-      await this.prisma.user.update({
-        where: { id: userId },
-        data: {
-          ...(dto.fullName !== undefined ? { fullName: dto.fullName } : {}),
-          ...(dto.phone !== undefined ? { phone: dto.phone } : {}),
-          ...(dto.skinType !== undefined ? { skinType: dto.skinType } : {}),
-          ...(dto.primaryConcerns !== undefined ? { primaryConcerns: dto.primaryConcerns } : {}),
-        },
-      });
-    } catch (err) {
-      // P2002 = unique violation — the phone belongs to another account.
-      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
-        throw new ConflictException('This phone number is already linked to another account.');
-      }
-      throw err;
-    }
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        ...(dto.fullName !== undefined ? { fullName: dto.fullName } : {}),
+        ...(dto.skinType !== undefined ? { skinType: dto.skinType } : {}),
+        ...(dto.primaryConcerns !== undefined ? { primaryConcerns: dto.primaryConcerns } : {}),
+      },
+    });
     return this.getProfile(userId);
   }
 

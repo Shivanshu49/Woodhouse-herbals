@@ -17,6 +17,7 @@ import {
   ForgotPasswordDto,
   GoogleAuthDto,
   LoginDto,
+  PhoneChangeVerifyDto,
   RegisterDto,
   RequestOtpDto,
   ResetPasswordDto,
@@ -108,6 +109,29 @@ export class AuthController {
     const { user, tokens } = await this.auth.verifyOtp(dto, ctxFromRequest(req));
     this.setAuthCookies(res, tokens);
     return { user };
+  }
+
+  // Verified phone change for the signed-in user. Same OTP machinery as
+  // login: request a code to the NEW number, then verify it here. A bare
+  // profile edit can never set a phone (it's a login identifier).
+  @UseGuards(JwtAuthGuard)
+  @Throttle({ default: { ttl: 15 * 60 * 1000, limit: 6 } })
+  @Post('phone-change/request')
+  @HttpCode(200)
+  async requestPhoneChange(@Body() dto: RequestOtpDto, @Req() req: Request) {
+    return this.auth.requestOtp(dto.phone, ctxFromRequest(req));
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Throttle({ default: { ttl: 15 * 60 * 1000, limit: 12 } })
+  @Post('phone-change/verify')
+  @HttpCode(200)
+  async verifyPhoneChange(
+    @Body() dto: PhoneChangeVerifyDto,
+    @CurrentUser() user: AuthenticatedUser,
+    @Req() req: Request,
+  ) {
+    return this.auth.changePhone(user.sub, dto, ctxFromRequest(req));
   }
 
   @Public()

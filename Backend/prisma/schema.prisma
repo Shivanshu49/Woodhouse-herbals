@@ -51,86 +51,167 @@ enum Currency {
   INR
 }
 
+enum ProductStatus {
+  DRAFT
+  PUBLISHED
+  SCHEDULED
+}
+
+enum StockStatus {
+  IN_STOCK
+  OUT_OF_STOCK
+  BACKORDER
+}
+
+// GST tax class per product — printed on invoice line items. Checkout
+// totals still use the order-level GST_RATE_PERCENT env for now.
+enum GstRate {
+  EXEMPT
+  GST_5
+  GST_12
+  GST_18
+  GST_28
+}
+
 model Concern {
-  id          String        @id @default(cuid())
-  slug        String        @unique
+  id          String           @id @default(cuid())
+  slug        String           @unique
   title       String
   description String?
   type        ConcernType
   imageUrl    String?
   accent      String?
-  sortOrder   Int           @default(0)
+  active      Boolean          @default(true)
+  sortOrder   Int              @default(0)
   products    ProductConcern[]
   coupons     CouponConcern[]
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
 }
 
 model Category {
-  id        String          @id @default(cuid())
-  slug      String          @unique
-  name      String
-  category  ProductCategory
-  imageUrl  String?
-  sortOrder Int             @default(0)
+  id              String                @id @default(cuid())
+  slug            String                @unique
+  name            String
+  // Optional since the admin panel introduced free-form categories; the
+  // enum remains populated on the original nine for storefront back-compat.
+  category        ProductCategory?
+  description     String?               @db.Text
+  imageUrl        String?
+  sortOrder       Int                   @default(0)
+  metaTitle       String?
+  metaDescription String?
+  // Tree — top-level categories have parentId = null.
+  parent          Category?             @relation("CategoryTree", fields: [parentId], references: [id], onDelete: SetNull)
+  parentId        String?
+  children        Category[]            @relation("CategoryTree")
   // Soft delete — admin "removes" by setting deletedAt; rows remain so
   // historical orders pointing at this category keep referential integrity.
-  deletedAt DateTime?
-  products  Product[]
-  coupons   CouponCategory[]
-  createdAt DateTime        @default(now())
-  updatedAt DateTime        @updatedAt
+  deletedAt       DateTime?
+  products        Product[]
+  productLinks    ProductCategoryLink[]
+  coupons         CouponCategory[]
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
 
   @@index([deletedAt])
+  @@index([parentId])
 }
 
 model Product {
-  id                 String           @id @default(cuid())
-  slug               String           @unique
-  sku                String           @unique
-  name               String
-  shortDescription   String
-  longDescription    String           @db.Text
-  category           ProductCategory
-  size               String?
-  isCombo            Boolean          @default(false)
+  id                  String                @id @default(cuid())
+  slug                String                @unique
+  sku                 String                @unique
+  barcode             String?               @unique
+  name                String
+  brand               String                @default("Wood House Herbals")
+  shortDescription    String
+  longDescription     String                @db.Text
+  category            ProductCategory
+  size                String?
+  isCombo             Boolean               @default(false)
+  videoUrl            String?
   // Money in paise (minor units).
-  priceMinor         Int
+  priceMinor          Int
   compareAtPriceMinor Int?
-  currency           Currency         @default(INR)
-  rating             Float            @default(0)
-  reviewCount        Int              @default(0)
-  inStock            Boolean          @default(true)
-  stockQty           Int              @default(0)
-  thumbnailUrl       String
-  thumbnailAlt       String
+  costPriceMinor      Int?
+  currency            Currency              @default(INR)
+  // GST class + HSN code — shown on invoice line items.
+  gstRate             GstRate               @default(GST_18)
+  hsnCode             String?
+  saleStartsAt        DateTime?
+  saleEndsAt          DateTime?
+  rating              Float                 @default(0)
+  reviewCount         Int                   @default(0)
+  inStock             Boolean               @default(true)
+  stockQty            Int                   @default(0)
+  lowStockThreshold   Int                   @default(5)
+  allowBackorder      Boolean               @default(false)
+  trackInventory      Boolean               @default(true)
+  stockStatus         StockStatus           @default(IN_STOCK)
+  thumbnailUrl        String
+  thumbnailAlt        String
+  tags                String[]
+  inciText            String?               @db.Text
+  // "Free from" flags
+  parabenFree         Boolean               @default(false)
+  sulfateFree         Boolean               @default(false)
+  crueltyFree         Boolean               @default(false)
+  vegan               Boolean               @default(false)
+  alcoholFree         Boolean               @default(false)
+  usageFrequency      String?
+  recommendedTime     String?
+  // SEO
+  metaTitle           String?
+  metaDescription     String?
+  focusKeyword        String?
+  ogImageUrl          String?
+  // Shipping
+  weightGrams         Int?
+  lengthCm            Float?
+  widthCm             Float?
+  heightCm            Float?
+  shippingClass       String?
+  freeShipping        Boolean               @default(false)
+  // Publish workflow — default PUBLISHED so pre-existing rows stay live.
+  status              ProductStatus         @default(PUBLISHED)
+  publishAt           DateTime?
+  featured            Boolean               @default(false)
   // Soft delete — keeps historical orders viable. Listings must filter.
-  deletedAt          DateTime?
-  gallery            ProductImage[]
-  benefits           String[]
-  howToUse           String[]
-  ingredients        Ingredient[]
-  badges             ProductBadge[]
-  skinTypes          SkinType[]
-  concerns           ProductConcern[]
-  reviews            Review[]
-  cartLines          CartLine[]
-  orderItems         OrderItem[]
-  recommendations    Recommendation[] @relation("RecForSource")
-  recommendedBy      Recommendation[] @relation("RecForTarget")
-  inventoryMovements InventoryMovement[]
+  deletedAt           DateTime?
+  gallery             ProductImage[]
+  // DEPRECATED in favour of ProductBenefit rows — kept until the storefront
+  // reads the relation; drop in a later cleanup migration.
+  benefits            String[]
+  howToUse            String[]
+  ingredients         Ingredient[]
+  badges              ProductBadge[]
+  skinTypes           SkinType[]
+  concerns            ProductConcern[]
+  reviews             Review[]
+  cartLines           CartLine[]
+  orderItems          OrderItem[]
+  recommendations     Recommendation[]      @relation("RecForSource")
+  recommendedBy       Recommendation[]      @relation("RecForTarget")
+  inventoryMovements  InventoryMovement[]
   // Inverse side of WishlistItem.product (the customer-side rows are
   // navigated through `User.wishlistItems`).
-  wishlistedBy       WishlistItem[]
-  categoryRef        Category?        @relation(fields: [categoryRefId], references: [id])
-  categoryRefId      String?
-  createdAt          DateTime         @default(now())
-  updatedAt          DateTime         @updatedAt
+  wishlistedBy        WishlistItem[]
+  variants            ProductVariant[]
+  benefitItems        ProductBenefit[]
+  categoryLinks       ProductCategoryLink[]
+  couponScopes        CouponProduct[]
+  homepageSelections  HomepageSelection[]
+  categoryRef         Category?             @relation(fields: [categoryRefId], references: [id])
+  categoryRefId       String?
+  createdAt           DateTime              @default(now())
+  updatedAt           DateTime              @updatedAt
 
   @@index([category])
   @@index([rating])
   @@index([priceMinor])
   @@index([deletedAt])
+  @@index([status])
 }
 
 model ProductImage {
@@ -142,6 +223,52 @@ model ProductImage {
   width     Int?
   height    Int?
   sortOrder Int     @default(0)
+}
+
+model ProductVariant {
+  id                  String              @id @default(cuid())
+  product             Product             @relation(fields: [productId], references: [id], onDelete: Cascade)
+  productId           String
+  name                String // "15 g", "30 g", "100 ml"
+  sku                 String              @unique
+  barcode             String?
+  priceMinor          Int
+  compareAtPriceMinor Int?
+  costPriceMinor      Int?
+  stockQty            Int                 @default(0)
+  lowStockThreshold   Int                 @default(5)
+  imageUrl            String?
+  attributes          Json? // { "size": "15g", "scent": "lavender", ... }
+  isDefault           Boolean             @default(false)
+  sortOrder           Int                 @default(0)
+  deletedAt           DateTime?
+  cartLines           CartLine[]
+  orderItems          OrderItem[]
+  inventoryMovements  InventoryMovement[]
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+
+  @@index([productId])
+  @@index([deletedAt])
+}
+
+model ProductBenefit {
+  id        String  @id @default(cuid())
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  productId String
+  text      String
+  iconUrl   String?
+  sortOrder Int     @default(0)
+}
+
+model ProductCategoryLink {
+  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  productId  String
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  categoryId String
+  isPrimary  Boolean  @default(false)
+
+  @@id([productId, categoryId])
 }
 
 model Ingredient {
@@ -178,15 +305,22 @@ model ProductConcern {
   @@id([productId, concernId])
 }
 
-model Recommendation {
-  id             String  @id @default(cuid())
-  sourceProduct  Product @relation("RecForSource", fields: [sourceProductId], references: [id], onDelete: Cascade)
-  sourceProductId String
-  targetProduct  Product @relation("RecForTarget", fields: [targetProductId], references: [id], onDelete: Cascade)
-  targetProductId String
-  score          Float   @default(0)
+enum RecommendationKind {
+  RELATED
+  FREQUENTLY_BOUGHT_TOGETHER
+  CROSS_SELL
+}
 
-  @@unique([sourceProductId, targetProductId])
+model Recommendation {
+  id              String             @id @default(cuid())
+  sourceProduct   Product            @relation("RecForSource", fields: [sourceProductId], references: [id], onDelete: Cascade)
+  sourceProductId String
+  targetProduct   Product            @relation("RecForTarget", fields: [targetProductId], references: [id], onDelete: Cascade)
+  targetProductId String
+  kind            RecommendationKind @default(RELATED)
+  score           Float              @default(0)
+
+  @@unique([sourceProductId, targetProductId, kind])
 }
 
 // ────────────────────────────────────────────────────────────────
@@ -216,6 +350,9 @@ model InventoryMovement {
   id          String          @id @default(cuid())
   product     Product         @relation(fields: [productId], references: [id])
   productId   String
+  // Variant this movement applies to — null for base-product stock.
+  variant     ProductVariant? @relation(fields: [variantId], references: [id], onDelete: SetNull)
+  variantId   String?
   previousQty Int
   newQty      Int
   delta       Int
@@ -253,26 +390,30 @@ enum UserRole {
 }
 
 model User {
-  id                  String     @id @default(cuid())
+  id                  String                   @id @default(cuid())
   // Nullable: phone-OTP accounts start with no email. Unique still enforced
   // for the rows that have one (Postgres ignores NULLs in unique indexes).
-  email               String?    @unique
+  email               String?                  @unique
   // Nullable: OTP/Google accounts have no password until the user sets one.
   passwordHash        String?
   fullName            String
-  phone               String?    @unique
+  phone               String?                  @unique
   // Google OIDC subject — set when the account is created via / linked to
   // "Sign in with Google".
-  googleId            String?    @unique
+  googleId            String?                  @unique
   avatarUrl           String?
-  role                UserRole   @default(CUSTOMER)
+  role                UserRole                 @default(CUSTOMER)
   skinType            SkinType?
   primaryConcerns     String[]
+  // Free-form internal note shown only in the admin panel.
+  adminNote           String?                  @db.Text
+  marketingConsent    Boolean                  @default(false)
+  marketingConsentAt  DateTime?
   // Email verification
-  emailVerified       Boolean    @default(false)
+  emailVerified       Boolean                  @default(false)
   emailVerifiedAt     DateTime?
   // Brute-force / lockout
-  failedLoginAttempts Int        @default(0)
+  failedLoginAttempts Int                      @default(0)
   lockedUntil         DateTime?
   lastLoginAt         DateTime?
   lastLoginIp         String?
@@ -292,8 +433,13 @@ model User {
   wishlistItems       WishlistItem[]
   inventoryActions    InventoryMovement[]
   couponRedemptions   CouponRedemption[]
-  createdAt           DateTime   @default(now())
-  updatedAt           DateTime   @updatedAt
+  orderNotes          OrderNote[]
+  orderEvents         OrderEvent[]
+  refunds             Refund[]
+  couponGrants        CouponUser[]
+  adminAuditLogs      AdminAuditLog[]
+  createdAt           DateTime                 @default(now())
+  updatedAt           DateTime                 @updatedAt
 
   @@index([deletedAt])
 }
@@ -440,14 +586,20 @@ model Cart {
 }
 
 model CartLine {
-  id             String  @id @default(cuid())
-  cart           Cart    @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  id             String          @id @default(cuid())
+  cart           Cart            @relation(fields: [cartId], references: [id], onDelete: Cascade)
   cartId         String
-  product        Product @relation(fields: [productId], references: [id])
+  product        Product         @relation(fields: [productId], references: [id])
   productId      String
+  variant        ProductVariant? @relation(fields: [variantId], references: [id], onDelete: SetNull)
+  variantId      String?
   quantity       Int
   unitPriceMinor Int
 
+  // Deliberately still (cartId, productId): Postgres treats NULLs as
+  // distinct in unique indexes, so including nullable variantId would admit
+  // duplicate no-variant lines and break the cart upsert. Widen only when
+  // the storefront cart becomes variant-aware.
   @@unique([cartId, productId])
 }
 
@@ -466,89 +618,154 @@ enum PaymentStatus {
   SUCCESS
   FAILED
   REFUNDED
+  PARTIALLY_REFUNDED
 }
 
 model Order {
-  id              String        @id @default(cuid())
-  number          String        @unique
-  user            User?         @relation(fields: [userId], references: [id])
-  userId          String?
+  id                String             @id @default(cuid())
+  number            String             @unique
+  user              User?              @relation(fields: [userId], references: [id])
+  userId            String?
   // Cart session id at checkout — used by the PhonePe success handler to
   // clear the right cart and by audit logs to correlate the buyer device.
-  cartSessionId   String?
-  status          OrderStatus   @default(PENDING)
-  subtotalMinor   Int
-  discountMinor   Int           @default(0)
-  shippingMinor   Int           @default(0)
-  taxMinor        Int           @default(0)
-  totalMinor      Int
-  currency        Currency      @default(INR)
+  cartSessionId     String?
+  status            OrderStatus        @default(PENDING)
+  subtotalMinor     Int
+  discountMinor     Int                @default(0)
+  shippingMinor     Int                @default(0)
+  taxMinor          Int                @default(0)
+  totalMinor        Int
+  currency          Currency           @default(INR)
   // Snapshot of the coupon at apply-time. We keep both the FK (for joins)
   // and a code snapshot in case the coupon is later deleted.
-  appliedCoupon       Coupon? @relation(fields: [appliedCouponId], references: [id], onDelete: SetNull)
-  appliedCouponId     String?
-  appliedCouponCode   String?
-  items           OrderItem[]
+  appliedCoupon     Coupon?            @relation(fields: [appliedCouponId], references: [id], onDelete: SetNull)
+  appliedCouponId   String?
+  appliedCouponCode String?
+  items             OrderItem[]
   // Shipping address snapshot at order time.
-  shippingFullName String
-  shippingPhone    String
-  shippingLine1    String
-  shippingLine2    String?
-  shippingCity     String
-  shippingState    String
-  shippingPincode  String
-  shippingCountry  String       @default("IN")
-  shippingGstin    String?
+  shippingFullName  String
+  shippingPhone     String
+  shippingLine1     String
+  shippingLine2     String?
+  shippingCity      String
+  shippingState     String
+  shippingPincode   String
+  shippingCountry   String             @default("IN")
+  shippingGstin     String?
   // Order idempotency key (client-provided, optional) — prevents double
   // creation on retry of the network request.
-  idempotencyKey  String?       @unique
-  payments        Payment[]
-  shipments       Shipment[]
-  redemptions     CouponRedemption[]
-  placedAt        DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+  idempotencyKey    String?            @unique
+  payments          Payment[]
+  shipments         Shipment[]
+  redemptions       CouponRedemption[]
+  notes             OrderNote[]
+  events            OrderEvent[]
+  refunds           Refund[]
+  placedAt          DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
 
   @@index([userId, placedAt])
   @@index([status, placedAt])
 }
 
 model OrderItem {
-  id             String  @id @default(cuid())
-  order          Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  orderId        String
-  product        Product @relation(fields: [productId], references: [id])
-  productId      String
+  id                   String          @id @default(cuid())
+  order                Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  orderId              String
+  product              Product         @relation(fields: [productId], references: [id])
+  productId            String
   // Immutable snapshots — survive product edits/deletes.
   productNameSnapshot  String
   productImageSnapshot String
   skuSnapshot          String
-  quantity       Int
-  unitPriceMinor Int
-  lineTotalMinor Int
+  variant              ProductVariant? @relation(fields: [variantId], references: [id], onDelete: SetNull)
+  variantId            String?
+  variantNameSnapshot  String?
+  quantity             Int
+  unitPriceMinor       Int
+  lineTotalMinor       Int
 
   @@index([productId])
   @@index([orderId])
 }
 
 model Payment {
-  id              String        @id @default(cuid())
-  order           Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  orderId         String
-  provider        String        @default("phonepe")
+  id             String        @id @default(cuid())
+  order          Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  orderId        String
+  provider       String        @default("phonepe")
   // Provider transaction id (e.g. merchantTransactionId) — globally unique
   // and used as the idempotency key on callback handling.
-  providerTxnId   String?       @unique
-  amountMinor     Int
-  currency        Currency      @default(INR)
-  status          PaymentStatus @default(INITIATED)
-  rawResponse     Json?
+  providerTxnId  String?       @unique
+  amountMinor    Int
+  currency       Currency      @default(INR)
+  status         PaymentStatus @default(INITIATED)
+  rawResponse    Json?
+  refunds        Refund[]
   // Optional client-provided idempotency key on initiate. Unique per order
   // to prevent duplicate initiations from network retries.
-  idempotencyKey  String?
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+  idempotencyKey String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
 
   @@unique([orderId, idempotencyKey])
+  @@index([status, createdAt])
+}
+
+model OrderNote {
+  id                String   @id @default(cuid())
+  order             Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  orderId           String
+  author            User?    @relation(fields: [authorId], references: [id], onDelete: SetNull)
+  authorId          String?
+  body              String   @db.Text
+  // false = internal admin note; true = shown to the customer.
+  isCustomerVisible Boolean  @default(false)
+  createdAt         DateTime @default(now())
+
+  @@index([orderId, createdAt])
+}
+
+model OrderEvent {
+  id         String       @id @default(cuid())
+  order      Order        @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  orderId    String
+  type       String // "status_changed" | "note_added" | "refund_issued" | ...
+  fromStatus OrderStatus?
+  toStatus   OrderStatus?
+  actor      User?        @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  actorId    String?
+  note       String?
+  meta       Json?
+  createdAt  DateTime     @default(now())
+
+  @@index([orderId, createdAt])
+}
+
+enum RefundStatus {
+  PENDING
+  PROCESSED
+  FAILED
+}
+
+model Refund {
+  id               String       @id @default(cuid())
+  order            Order        @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  orderId          String
+  payment          Payment?     @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+  paymentId        String?
+  amountMinor      Int
+  currency         Currency     @default(INR)
+  reason           String?
+  status           RefundStatus @default(PENDING)
+  providerRefundId String?      @unique // PhonePe refund txn id
+  rawResponse      Json?
+  actor            User?        @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  actorId          String?
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  @@index([orderId])
   @@index([status, createdAt])
 }
 
@@ -559,35 +776,49 @@ model Payment {
 enum CouponKind {
   PERCENT
   FLAT
+  FREE_SHIPPING
+  BXGY
+}
+
+enum CouponEligibility {
+  ALL
+  FIRST_TIME
+  SPECIFIC
 }
 
 model Coupon {
-  id              String           @id @default(cuid())
-  code            String           @unique
-  description     String?
-  kind            CouponKind
+  id               String             @id @default(cuid())
+  code             String             @unique
+  description      String?
+  kind             CouponKind
   // For PERCENT: 0..100. For FLAT: amount in minor units.
-  value           Int
+  value            Int
   // Optional cap on a PERCENT discount (in minor units).
   maxDiscountMinor Int?
   // Minimum cart subtotal (in minor units) for the coupon to apply.
-  minCartMinor    Int              @default(0)
+  minCartMinor     Int                @default(0)
   // Total redemptions allowed across all users. Null = unlimited.
-  maxUses         Int?
-  usedCount       Int              @default(0)
+  maxUses          Int?
+  usedCount        Int                @default(0)
   // Per-user cap. Null = no cap.
-  perUserLimit    Int?
-  expiresAt       DateTime?
-  startsAt        DateTime?
-  active          Boolean          @default(true)
+  perUserLimit     Int?
+  // BXGY: buy `buyQty` in-scope items, get `getQty` free.
+  buyQty           Int?
+  getQty           Int?
+  eligibility      CouponEligibility  @default(ALL)
+  expiresAt        DateTime?
+  startsAt         DateTime?
+  active           Boolean            @default(true)
   // Optional applicability — if any rows exist, coupon ONLY applies to the
   // listed categories / concerns. If none, applies to whole cart.
-  categories      CouponCategory[]
-  concerns        CouponConcern[]
-  redemptions     CouponRedemption[]
-  orders          Order[]
-  createdAt       DateTime         @default(now())
-  updatedAt       DateTime         @updatedAt
+  categories       CouponCategory[]
+  concerns         CouponConcern[]
+  products         CouponProduct[]
+  users            CouponUser[]
+  redemptions      CouponRedemption[]
+  orders           Order[]
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
 
   @@index([active, expiresAt])
 }
@@ -610,16 +841,36 @@ model CouponConcern {
   @@id([couponId, concernId])
 }
 
+model CouponProduct {
+  coupon    Coupon  @relation(fields: [couponId], references: [id], onDelete: Cascade)
+  couponId  String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  productId String
+  // false = in scope; true = explicitly excluded from the coupon.
+  excluded  Boolean @default(false)
+
+  @@id([couponId, productId])
+}
+
+model CouponUser {
+  coupon   Coupon @relation(fields: [couponId], references: [id], onDelete: Cascade)
+  couponId String
+  user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId   String
+
+  @@id([couponId, userId])
+}
+
 model CouponRedemption {
-  id              String   @id @default(cuid())
-  coupon          Coupon   @relation(fields: [couponId], references: [id], onDelete: Cascade)
-  couponId        String
-  user            User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
-  userId          String?
-  order           Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  orderId         String   @unique
-  discountMinor   Int
-  redeemedAt      DateTime @default(now())
+  id            String   @id @default(cuid())
+  coupon        Coupon   @relation(fields: [couponId], references: [id], onDelete: Cascade)
+  couponId      String
+  user          User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  userId        String?
+  order         Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  orderId       String   @unique
+  discountMinor Int
+  redeemedAt    DateTime @default(now())
 
   @@index([couponId, redeemedAt])
   @@index([userId, redeemedAt])
@@ -644,13 +895,13 @@ enum ShipmentStatus {
 }
 
 model Shipment {
-  id                String         @id @default(cuid())
-  order             Order          @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  id                String          @id @default(cuid())
+  order             Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
   orderId           String
   courier           String
   trackingNumber    String?
   trackingUrl       String?
-  status            ShipmentStatus @default(PENDING)
+  status            ShipmentStatus  @default(PENDING)
   estimatedDelivery DateTime?
   shippedAt         DateTime?
   deliveredAt       DateTime?
@@ -658,8 +909,8 @@ model Shipment {
   // future replay if our parsing logic ever regresses.
   rawWebhook        Json?
   events            ShipmentEvent[]
-  createdAt         DateTime       @default(now())
-  updatedAt         DateTime       @updatedAt
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
 
   @@index([orderId])
   @@index([status, updatedAt])
@@ -682,22 +933,38 @@ model ShipmentEvent {
 // Reviews
 // ────────────────────────────────────────────────────────────────
 
+enum ReviewStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
 model Review {
-  id               String   @id @default(cuid())
-  product          Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  id               String       @id @default(cuid())
+  product          Product      @relation(fields: [productId], references: [id], onDelete: Cascade)
   productId        String
-  user             User?    @relation(fields: [userId], references: [id])
+  user             User?        @relation(fields: [userId], references: [id])
   userId           String?
   authorName       String
   rating           Int
   title            String
-  body             String   @db.Text
-  verifiedPurchase Boolean  @default(false)
-  approved         Boolean  @default(false)
+  body             String       @db.Text
+  verifiedPurchase Boolean      @default(false)
+  // DEPRECATED twin of `status` — kept in sync until the storefront reads
+  // `status`; drop in a later cleanup migration.
+  approved         Boolean      @default(false)
+  status           ReviewStatus @default(PENDING)
+  adminReply       String?      @db.Text
+  adminReplyAt     DateTime?
+  adminReplyBy     String?
+  flagged          Boolean      @default(false)
+  flagReason       String?
+  flaggedAt        DateTime?
   deletedAt        DateTime?
-  createdAt        DateTime @default(now())
+  createdAt        DateTime     @default(now())
 
   @@index([productId, approved])
+  @@index([productId, status])
   // Listing approved reviews by newest first hits this index instead of
   // a sort-on-disk after the [productId, approved] filter.
   @@index([productId, createdAt])
@@ -709,16 +976,20 @@ model Review {
 // ────────────────────────────────────────────────────────────────
 
 model OfferStripItem {
-  id        String  @id @default(cuid())
+  id        String    @id @default(cuid())
   headline  String
   code      String?
-  href      String  @default("/shop")
-  sortOrder Int     @default(0)
-  active    Boolean @default(true)
+  href      String    @default("/shop")
+  sortOrder Int       @default(0)
+  active    Boolean   @default(true)
+  startsAt  DateTime?
+  endsAt    DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
 }
 
 model HeroBanner {
-  id        String   @id @default(cuid())
+  id        String    @id @default(cuid())
   eyebrow   String
   title     String
   subtitle  String
@@ -726,11 +997,68 @@ model HeroBanner {
   ctaHref   String
   imageUrl  String
   accent    String?
-  active    Boolean  @default(true)
+  active    Boolean   @default(true)
+  sortOrder Int       @default(0)
   startsAt  DateTime?
   endsAt    DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+model Testimonial {
+  id         String   @id @default(cuid())
+  authorName String
+  authorMeta String? // "Verified buyer · Mumbai"
+  avatarUrl  String?
+  rating     Int?
+  body       String   @db.Text
+  active     Boolean  @default(true)
+  sortOrder  Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model Faq {
+  id        String   @id @default(cuid())
+  question  String
+  answer    String   @db.Text
+  category  String? // "shipping" | "products" | "returns"
+  sortOrder Int      @default(0)
+  active    Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+model StaticPage {
+  id              String   @id @default(cuid())
+  slug            String   @unique // "about", "privacy-policy", "terms", ...
+  title           String
+  bodyHtml        String   @db.Text
+  metaTitle       String?
+  metaDescription String?
+  published       Boolean  @default(true)
+  updatedBy       String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+enum HomepageSection {
+  FEATURED
+  NEW_ARRIVALS
+  BEST_SELLERS
+  COMBO_PACKS
+}
+
+model HomepageSelection {
+  id        String          @id @default(cuid())
+  section   HomepageSection
+  product   Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
+  productId String
+  sortOrder Int             @default(0)
+  createdAt DateTime        @default(now())
+
+  @@unique([section, productId])
+  @@index([section, sortOrder])
 }
 
 // ────────────────────────────────────────────────────────────────
@@ -738,23 +1066,54 @@ model HeroBanner {
 // ────────────────────────────────────────────────────────────────
 
 model WebhookEvent {
-  id              String   @id @default(cuid())
-  provider        String   // "phonepe" | "resend" | "shipping" ...
-  eventType       String?  // e.g. "payment.completed"
+  id             String    @id @default(cuid())
+  provider       String // "phonepe" | "resend" | "shipping" ...
+  eventType      String? // e.g. "payment.completed"
   // Idempotency key derived from the provider event id (or a hash of the
   // raw body when no event id is offered). Unique to guarantee at-most-once
   // processing on retries / replays.
-  idempotencyKey  String   @unique
+  idempotencyKey String    @unique
   // Verbatim signature header (e.g. PhonePe X-VERIFY). Kept for forensic
   // audits — never re-trusted after the initial verification step.
-  signature       String?
-  payload         Json
-  processed       Boolean  @default(false)
-  processedAt     DateTime?
+  signature      String?
+  payload        Json
+  processed      Boolean   @default(false)
+  processedAt    DateTime?
   // Free-form failure detail when processing did not complete cleanly.
-  error           String?
-  createdAt       DateTime @default(now())
+  error          String?
+  createdAt      DateTime  @default(now())
 
   @@index([provider, createdAt])
   @@index([processed, createdAt])
+}
+
+// ────────────────────────────────────────────────────────────────
+// Admin panel
+// ────────────────────────────────────────────────────────────────
+
+model StoreSetting {
+  id        String   @id @default(cuid())
+  key       String   @unique // "store.name", "shipping.freeAboveMinor", ...
+  value     Json
+  updatedBy String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model AdminAuditLog {
+  id         String   @id @default(cuid())
+  actor      User?    @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  actorId    String?
+  action     String // "admin-products.update", "uploads.sign", ...
+  entityType String // controller stem, e.g. "AdminProducts"
+  entityId   String?
+  before     Json?
+  after      Json?
+  ip         String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+
+  @@index([actorId, createdAt])
+  @@index([entityType, entityId])
+  @@index([createdAt])
 }

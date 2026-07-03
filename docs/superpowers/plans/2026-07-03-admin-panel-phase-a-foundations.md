@@ -2056,7 +2056,7 @@ git commit -m "docs(architecture): admin panel is a separate app; mark step 14 i
 ## Completion checklist (whole phase)
 
 - [ ] `npm run typecheck && npm run build && npm test` green in `Backend/` (56 tests).
-- [ ] `npx prisma migrate status` reports up to date; two new migrations exist.
+- [ ] `npx prisma migrate status` reports up to date; three new migrations exist (incl. the drift-fix follow-up).
 - [ ] `npm run admin:create` provisions/promotes an ADMIN idempotently.
 - [ ] `POST /api/auth/admin-login`: 401 for customers (no cookies), 200 + short-TTL cookies for staff/admin.
 - [ ] `POST /api/admin/uploads/sign`: 401 unauthenticated, 503 unconfigured, 200 + valid signature configured, audit row written.

@@ -2,6 +2,9 @@
  * Pure unit tests for pagination math. No Prisma, no IO.
  * Run this file alone: npx tsx --test src/common/dto/pagination.test.ts
  */
+// Required: this test loads a decorator-annotated class outside Nest's
+// bootstrap (main.ts normally imports reflect-metadata first). Without it,
+// class-transformer's @Type() throws "Reflect.getMetadata is not a function".
 import 'reflect-metadata';
 import test from 'node:test';
 import assert from 'node:assert/strict';

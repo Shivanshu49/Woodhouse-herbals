@@ -207,6 +207,29 @@ export class AuthService {
     };
   }
 
+  /**
+   * Admin-surface login. Reuses the full `login` path (lockout, timing-safe
+   * compares, audit events), then refuses CUSTOMER accounts with the SAME
+   * message as bad credentials so this endpoint cannot be used to probe
+   * which emails exist. The refresh token the shared path just minted is
+   * revoked before the rejection, so no dangling session survives.
+   */
+  async adminLogin(dto: { email: string; password: string }, ctx: RequestContext) {
+    const result = await this.login(dto, ctx);
+    if (result.user.role === 'CUSTOMER') {
+      await this.logout(result.tokens.refreshToken, result.user.id, ctx);
+      await this.events.record({
+        userId: result.user.id,
+        type: 'LOGIN_FAILURE',
+        ip: ctx.ip,
+        userAgent: ctx.userAgent,
+        meta: { reason: 'not_staff', surface: 'admin' },
+      });
+      throw new UnauthorizedException('Invalid email or password');
+    }
+    return result;
+  }
+
   // ──────────────────────────────────────────────────────────────────
   // Phone OTP sign-in
   // ──────────────────────────────────────────────────────────────────

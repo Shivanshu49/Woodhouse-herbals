@@ -88,6 +88,22 @@ export class AuthController {
     return { user };
   }
 
+  // Admin-surface login — same throttle budget as customer login. Rejects
+  // CUSTOMER accounts (with an identical 401) before any cookie is set.
+  @Public()
+  @Throttle({ default: { ttl: 15 * 60 * 1000, limit: 10 } })
+  @Post('admin-login')
+  @HttpCode(200)
+  async adminLogin(
+    @Body() dto: LoginDto,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const { user, tokens } = await this.auth.adminLogin(dto, ctxFromRequest(req));
+    this.setAuthCookies(res, tokens);
+    return { user };
+  }
+
   // 6 OTP sends / 15 min per IP; the service adds a per-phone window too.
   @Public()
   @Throttle({ default: { ttl: 15 * 60 * 1000, limit: 6 } })

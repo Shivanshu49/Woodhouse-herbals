@@ -8,6 +8,7 @@ import { useIdleTimeout, THIRTY_MINUTES_MS } from '@/hooks/use-idle-timeout';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Sidebar } from '@/components/layout/sidebar';
 import { Topbar } from '@/components/layout/topbar';
+import { CommandPalette } from '@/components/layout/command-palette';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -30,6 +31,22 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     },
   });
 
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      const meta = e.metaKey || e.ctrlKey;
+      if (meta && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setCommandOpen((v) => !v);
+      }
+      if (meta && e.key.toLowerCase() === 'n') {
+        e.preventDefault();
+        router.push('/products/new');
+      }
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [router]);
+
   if (isLoading || !user) {
     return (
       <div className="flex min-h-screen">
@@ -50,7 +67,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <main className="flex-1 overflow-y-auto p-4 sm:p-6">{children}</main>
       </div>
       {/* CommandPalette is mounted here in Task 9, controlled by commandOpen/setCommandOpen. */}
-      {commandOpen ? null : null}
+      <CommandPalette open={commandOpen} onOpenChange={setCommandOpen} />
     </div>
   );
 }

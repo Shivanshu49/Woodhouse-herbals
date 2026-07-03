@@ -8,7 +8,7 @@ import Link from 'next/link';
 import { toast } from 'sonner';
 import { Leaf } from 'lucide-react';
 import { useAdminLogin } from '@/hooks/use-admin-auth';
-import { ApiError } from '@/lib/api';
+import { loginErrorMessage } from '@/lib/auth-errors';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -33,11 +33,7 @@ export default function LoginPage() {
       await login.mutateAsync(values);
       router.replace('/');
     } catch (err) {
-      const message =
-        err instanceof ApiError && err.status === 401
-          ? 'Invalid email or password.'
-          : 'Something went wrong. Please try again.';
-      toast.error(message);
+      toast.error(loginErrorMessage(err));
     }
   }
 

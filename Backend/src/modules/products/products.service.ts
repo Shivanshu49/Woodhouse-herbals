@@ -10,7 +10,9 @@ export class ProductsService {
   constructor(private readonly prisma: PrismaService) {}
 
   async list(dto: ListProductsDto) {
-    const where: Prisma.ProductWhereInput = {};
+    // Storefront must never leak draft/scheduled products — only PUBLISHED
+    // rows are shoppable.
+    const where: Prisma.ProductWhereInput = { status: 'PUBLISHED' };
 
     if (dto.category?.length) {
       const cats = dto.category
@@ -62,8 +64,9 @@ export class ProductsService {
   async findBySlug(slug: string) {
     const product = await this.prisma.product.findFirst({
       // Soft-delete-aware: deleted products are 404 even though they still
-      // exist for historical orders.
-      where: excludeDeleted({ slug }),
+      // exist for historical orders. Also PUBLISHED-only: a draft/scheduled
+      // slug must 404 on the storefront just like a deleted one.
+      where: excludeDeleted({ slug, status: 'PUBLISHED' }),
       include: {
         badges: true,
         gallery: { orderBy: { sortOrder: 'asc' } },

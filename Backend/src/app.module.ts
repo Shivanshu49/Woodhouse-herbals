@@ -24,6 +24,7 @@ import { HomepageModule } from './modules/homepage/homepage.module';
 import { CouponsModule } from './modules/coupons/coupons.module';
 import { ShipmentsModule } from './modules/shipments/shipments.module';
 import { UploadsModule } from './modules/uploads/uploads.module';
+import { AdminProductsModule } from './modules/admin-products/admin-products.module';
 
 @Module({
   imports: [
@@ -51,6 +52,7 @@ import { UploadsModule } from './modules/uploads/uploads.module';
     CouponsModule,
     ShipmentsModule,
     UploadsModule,
+    AdminProductsModule,
   ],
   controllers: [HealthController],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],

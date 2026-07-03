@@ -25,6 +25,7 @@ import { generateOpaqueToken, hashToken } from '../../common/utils/tokens';
 import { MailService } from '../../common/mail/mail.service';
 import { SmsService } from '../../common/sms/sms.service';
 import { SecurityEventsService } from '../../common/security/security-events.service';
+import { refreshTtlSecondsForRole } from './token-ttl';
 import type {
   AccessTokenPayload,
   RefreshTokenPayload,
@@ -793,6 +794,7 @@ export class AuthService {
     const accessPayload: AccessTokenPayload = { sub: userId, email: email ?? '', role, jti, kind: 'access' };
     const fam = familyId ?? randomUUID();
     const refreshPayload: RefreshTokenPayload = { sub: userId, email: email ?? '', jti, fam, kind: 'refresh' };
+    const refreshTtl = refreshTtlSecondsForRole(role);
 
     const accessToken = await this.jwt.signAsync(accessPayload, {
       secret: env.JWT_ACCESS_SECRET,
@@ -800,7 +802,7 @@ export class AuthService {
     });
     const refreshToken = await this.jwt.signAsync(refreshPayload, {
       secret: env.JWT_REFRESH_SECRET,
-      expiresIn: env.JWT_REFRESH_TTL,
+      expiresIn: refreshTtl,
     });
 
     await this.prisma.refreshToken.create({
@@ -808,7 +810,7 @@ export class AuthService {
         userId,
         tokenHash: hashToken(refreshToken),
         familyId: fam,
-        expiresAt: new Date(Date.now() + env.JWT_REFRESH_TTL * 1000),
+        expiresAt: new Date(Date.now() + refreshTtl * 1000),
         ip: ctx.ip ?? null,
         userAgent: ctx.userAgent?.slice(0, 512) ?? null,
       },
@@ -818,7 +820,7 @@ export class AuthService {
       accessToken,
       refreshToken,
       accessTtlSeconds: env.JWT_ACCESS_TTL,
-      refreshTtlSeconds: env.JWT_REFRESH_TTL,
+      refreshTtlSeconds: refreshTtl,
     };
   }
 }

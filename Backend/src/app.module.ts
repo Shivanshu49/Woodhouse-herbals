@@ -23,6 +23,7 @@ import { SearchModule } from './modules/search/search.module';
 import { HomepageModule } from './modules/homepage/homepage.module';
 import { CouponsModule } from './modules/coupons/coupons.module';
 import { ShipmentsModule } from './modules/shipments/shipments.module';
+import { UploadsModule } from './modules/uploads/uploads.module';
 
 @Module({
   imports: [
@@ -49,6 +50,7 @@ import { ShipmentsModule } from './modules/shipments/shipments.module';
     HomepageModule,
     CouponsModule,
     ShipmentsModule,
+    UploadsModule,
   ],
   controllers: [HealthController],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],

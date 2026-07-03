@@ -390,8 +390,12 @@ model AdminAuditLog {
 - `PaymentStatus`: add `PARTIALLY_REFUNDED` (additive).
 - Variant plumbing: optional `variantId` (+ relation, `SetNull`) on
   `CartLine`, `OrderItem` (+ `variantNameSnapshot String?`), and
-  `InventoryMovement`. `CartLine` unique becomes `@@unique([cartId,
-  productId, variantId])`.
+  `InventoryMovement`. `CartLine` keeps `@@unique([cartId, productId])` for
+  now — Postgres treats NULLs as distinct in unique indexes, so widening the
+  key to include a nullable `variantId` would admit duplicate no-variant
+  lines and break the cart's upsert. The key widens (with a non-null
+  sentinel or partial indexes) only when the storefront cart becomes
+  variant-aware.
 
 ### 5.4 Settings keys seeded in Phase A
 

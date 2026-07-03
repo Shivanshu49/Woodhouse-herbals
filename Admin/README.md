@@ -32,6 +32,13 @@ npm run dev                # http://localhost:3001
   `src/lib/api.ts` (`credentials: 'include'`, automatic 401→refresh→retry).
 - Auth: `POST /api/auth/admin-login` (rejects customers); a 30-minute idle
   timeout logs out client-side; the backend enforces a short refresh TTL.
+- The auth gate is the `(dashboard)` layout: it calls `GET /api/auth/me` and
+  redirects to `/login` for a logged-out or `CUSTOMER`-role session (a
+  skeleton renders until that resolves, so protected content never mounts
+  first). There is intentionally no Next middleware cookie check — the
+  httpOnly cookies are set on the API host and are not visible to the admin
+  origin's server, so a middleware gate would false-negative in production.
+  The client `/api/auth/me` fetch works because it is same-site with the API.
 - Theme: shadcn/ui with a botanical palette (`src/styles/globals.css`),
   light + dark via `next-themes`.
 - This is the shell (Phase B). Feature areas (products, orders, …) are stubs

@@ -5,6 +5,7 @@ import { APP_GUARD } from '@nestjs/core';
 
 import { PrismaModule } from './common/prisma/prisma.module';
 import { SecurityModule } from './common/security/security.module';
+import { AuditModule } from './common/audit/audit.module';
 import { MailModule } from './common/mail/mail.module';
 import { SmsModule } from './common/sms/sms.module';
 import { HealthController } from './common/health/health.controller';
@@ -31,6 +32,7 @@ import { ShipmentsModule } from './modules/shipments/shipments.module';
     ThrottlerModule.forRoot([{ ttl: 60_000, limit: 120 }]),
     PrismaModule,
     SecurityModule,
+    AuditModule,
     MailModule,
     SmsModule,
     AuthModule,

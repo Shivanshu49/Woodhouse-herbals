@@ -1,18 +1,20 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { useAdminUser, useLogout } from '@/hooks/use-admin-auth';
 import { useIdleTimeout, THIRTY_MINUTES_MS } from '@/hooks/use-idle-timeout';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Sidebar } from '@/components/layout/sidebar';
+import { Topbar } from '@/components/layout/topbar';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const { data: user, isLoading } = useAdminUser();
   const logout = useLogout();
+  const [commandOpen, setCommandOpen] = useState(false);
 
-  // Redirect to /login once we know there's no valid admin session.
   useEffect(() => {
     if (!isLoading && !user) router.replace('/login');
   }, [isLoading, user, router]);
@@ -30,17 +32,25 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   if (isLoading || !user) {
     return (
-      <div className="space-y-4 p-6">
-        <Skeleton className="h-8 w-52" />
-        <Skeleton className="h-64 w-full" />
+      <div className="flex min-h-screen">
+        <div className="hidden w-60 border-r bg-card lg:block" />
+        <div className="flex-1 space-y-4 p-6">
+          <Skeleton className="h-8 w-52" />
+          <Skeleton className="h-64 w-full" />
+        </div>
       </div>
     );
   }
 
-  // Task 8 replaces this placeholder wrapper with the sidebar + topbar shell.
   return (
-    <div className="min-h-screen bg-background" data-admin-role={user.role}>
-      {children}
+    <div className="flex min-h-screen bg-background">
+      <Sidebar />
+      <div className="flex min-w-0 flex-1 flex-col">
+        <Topbar onOpenCommand={() => setCommandOpen(true)} />
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6">{children}</main>
+      </div>
+      {/* CommandPalette is mounted here in Task 9, controlled by commandOpen/setCommandOpen. */}
+      {commandOpen ? null : null}
     </div>
   );
 }

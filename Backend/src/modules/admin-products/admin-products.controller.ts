@@ -45,7 +45,11 @@ export class AdminProductsController {
   @Get('slug-check')
   slugCheck(@Query('slug') slug: string, @Query('excludeId') excludeId?: string) {
     if (!slug) throw new BadRequestException('slug query param is required');
-    return this.products.slugCheck(slugify(slug), excludeId);
+    const normalized = slugify(slug);
+    // An empty/invalid slug can never be saved, so reporting it "available"
+    // would be misleading.
+    if (!normalized) return { available: false };
+    return this.products.slugCheck(normalized, excludeId);
   }
 
   @Roles(...READ_ROLES)

@@ -29,11 +29,22 @@ export class AdminAuditInterceptor implements NestInterceptor {
 
     return next.handle().pipe(
       tap((result) => {
+        let entityId = params.id ?? params.number ?? params.productId;
+        // POST create / POST bulk have no route param id — fall back to the
+        // response body's own `id` (e.g. a freshly created entity) so those
+        // requests aren't audited with entityId: undefined. Bulk responses
+        // like `{ updated }` have no `id`, so this stays undefined for them.
+        if (entityId === undefined && result !== null && typeof result === 'object') {
+          const bodyId = (result as Record<string, unknown>).id;
+          if (typeof bodyId === 'string' || typeof bodyId === 'number') {
+            entityId = String(bodyId);
+          }
+        }
         void this.audit.record({
           actorId: req.user?.sub,
           action,
           entityType,
-          entityId: params.id ?? params.number ?? params.productId,
+          entityId,
           after: result,
           ip: req.ip,
           userAgent: req.headers['user-agent'] as string | undefined,

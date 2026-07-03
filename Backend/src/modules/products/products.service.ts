@@ -79,6 +79,7 @@ export class ProductsService {
     const recommended = await this.prisma.product.findMany({
       where: excludeDeleted({
         slug: { not: slug },
+        status: 'PUBLISHED',
         OR: [
           { category: product.category },
           { concerns: { some: { concernId: { in: product.concerns.map((c) => c.concernId) } } } },

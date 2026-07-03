@@ -131,6 +131,12 @@ const schema = z.object({
   R2_SECRET_ACCESS_KEY: z.string().optional(),
   R2_BUCKET: z.string().optional(),
   R2_PUBLIC_URL: z.string().url().optional(),
+
+  // Interactive-transaction window (ms) for admin product create/update/bulk
+  // writes. Neon's pooled connection can add meaningful per-query latency
+  // across the several nested-collection round trips in one product write,
+  // so the default 5s window is too tight — see admin-products.service.ts.
+  ADMIN_WRITE_TX_TIMEOUT_MS: z.coerce.number().int().positive().default(20000),
 });
 
 export type AppEnv = z.infer<typeof schema>;

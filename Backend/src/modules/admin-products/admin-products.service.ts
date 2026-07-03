@@ -1,6 +1,7 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InventoryReason, Prisma, ProductStatus, StockStatus } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { env } from '../../common/config/env';
 import { pageArgs } from '../../common/dto/pagination.dto';
 import { buildAdminProductWhere } from './admin-product-where';
 import { AdminProductSort, ListAdminProductsDto } from './dto/list-admin-products.dto';
@@ -27,14 +28,6 @@ const SUMMARY_SELECT = {
   deletedAt: true,
   updatedAt: true,
 } satisfies Prisma.ProductSelect;
-
-// Product create/update touch several relations across separate round
-// trips inside one interactive transaction (base row + up to 7 nested
-// collections, or delete+recreate pairs on update). Neon's pooled
-// connection can add meaningful per-query latency, so the default 5s
-// interactive-transaction window is too tight for these — give them more
-// room rather than risk an intermittent "transaction already closed".
-const WRITE_TX_TIMEOUT_MS = 20_000;
 
 const FULL_INCLUDE = {
   gallery: { orderBy: { sortOrder: 'asc' } },
@@ -100,6 +93,10 @@ export class AdminProductsService {
     if (clash) throw new ConflictException('A product with this slug or SKU already exists.');
 
     const stockQty = dto.stockQty ?? 0;
+    // De-dupe so a caller passing the same id twice doesn't hit a
+    // composite-PK P2002 on the nested create.
+    const concernIds = dto.concernIds?.length ? [...new Set(dto.concernIds)] : dto.concernIds;
+    const categoryIds = dto.categoryIds?.length ? [...new Set(dto.categoryIds)] : dto.categoryIds;
 
     return this.prisma.$transaction(
       async (tx) => {
@@ -189,12 +186,12 @@ export class AdminProductsService {
           badges: dto.badges?.length
             ? { create: dto.badges.map((b) => ({ label: b.label, tone: b.tone })) }
             : undefined,
-          concerns: dto.concernIds?.length
-            ? { create: dto.concernIds.map((id) => ({ concern: { connect: { id } } })) }
+          concerns: concernIds?.length
+            ? { create: concernIds.map((id) => ({ concern: { connect: { id } } })) }
             : undefined,
-          categoryLinks: dto.categoryIds?.length
+          categoryLinks: categoryIds?.length
             ? {
-                create: dto.categoryIds.map((id, i) => ({
+                create: categoryIds.map((id, i) => ({
                   category: { connect: { id } },
                   isPrimary: i === 0,
                 })),
@@ -233,7 +230,7 @@ export class AdminProductsService {
 
       return product;
       },
-      { timeout: WRITE_TX_TIMEOUT_MS },
+      { timeout: env.ADMIN_WRITE_TX_TIMEOUT_MS },
     );
   }
 
@@ -274,7 +271,7 @@ export class AdminProductsService {
           data: this.buildUpdateData(dto),
         });
       },
-      { timeout: WRITE_TX_TIMEOUT_MS },
+      { timeout: env.ADMIN_WRITE_TX_TIMEOUT_MS },
     );
 
     return this.adminGetById(id);
@@ -319,15 +316,17 @@ export class AdminProductsService {
               create: { productId, categoryId, isPrimary: true },
               update: { isPrimary: true },
             });
-            // Only one category link may be primary per product.
-            await tx.productCategoryLink.updateMany({
-              where: { productId, categoryId: { not: categoryId } },
-              data: { isPrimary: false },
-            });
           }
+          // Only one category link may be primary per product — demote any
+          // stale primary links across all selected ids in a single call
+          // rather than per-id inside the loop above.
+          await tx.productCategoryLink.updateMany({
+            where: { productId: { in: dto.ids }, categoryId: { not: categoryId } },
+            data: { isPrimary: false },
+          });
         }
       },
-      { timeout: WRITE_TX_TIMEOUT_MS },
+      { timeout: env.ADMIN_WRITE_TX_TIMEOUT_MS },
     );
 
     return { updated: dto.ids.length };
@@ -445,11 +444,15 @@ export class AdminProductsService {
       data.badges = { create: dto.badges.map((b) => ({ label: b.label, tone: b.tone })) };
     }
     if (dto.concernIds !== undefined) {
-      data.concerns = { create: dto.concernIds.map((cid) => ({ concern: { connect: { id: cid } } })) };
+      // De-dupe so a caller passing the same id twice doesn't hit a
+      // composite-PK P2002 on the nested create.
+      const concernIds = [...new Set(dto.concernIds)];
+      data.concerns = { create: concernIds.map((cid) => ({ concern: { connect: { id: cid } } })) };
     }
     if (dto.categoryIds !== undefined) {
+      const categoryIds = [...new Set(dto.categoryIds)];
       data.categoryLinks = {
-        create: dto.categoryIds.map((cid, i) => ({
+        create: categoryIds.map((cid, i) => ({
           category: { connect: { id: cid } },
           isPrimary: i === 0,
         })),

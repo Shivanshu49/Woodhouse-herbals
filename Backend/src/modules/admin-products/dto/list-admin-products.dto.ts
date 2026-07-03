@@ -1,7 +1,8 @@
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import { IsBoolean, IsEnum, IsIn, IsInt, IsOptional, IsString, Min } from 'class-validator';
 import { ProductCategory, ProductStatus } from '@prisma/client';
 import { PaginationDto } from '../../../common/dto/pagination.dto';
+import { parseBool } from '../parse-bool';
 
 export enum AdminProductSort {
   Newest = 'newest',
@@ -46,8 +47,15 @@ export class ListAdminProductsDto extends PaginationDto {
   @IsEnum(AdminProductSort)
   sort?: AdminProductSort = AdminProductSort.Newest;
 
+  // Reads from `obj[key]` (the raw query value) rather than the destructured
+  // `value` — with the global ValidationPipe's `enableImplicitConversion`,
+  // class-transformer's own implicit Boolean(x) coercion runs on `value`
+  // BEFORE this decorator (it's applied to the reflected `boolean` design
+  // type ahead of custom @Transform callbacks), which would otherwise hand
+  // us an already-mangled `true` for the string "false". Reading the raw
+  // source sidesteps that entirely.
   @IsOptional()
-  @Type(() => Boolean)
+  @Transform(({ obj, key }) => parseBool(obj[key]))
   @IsBoolean()
   deleted?: boolean;
 }

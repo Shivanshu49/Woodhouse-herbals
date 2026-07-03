@@ -66,6 +66,10 @@ const schema = z.object({
   JWT_ACCESS_TTL: z.coerce.number().int().positive().default(900),       // 15 min
   JWT_REFRESH_TTL: z.coerce.number().int().positive().default(2592000),  // 30 days
 
+  // Staff/admin refresh TTL — short so an IDLE admin session hard-expires
+  // server-side; each rotation re-ups it, so ACTIVE sessions slide forward.
+  JWT_ADMIN_REFRESH_TTL: z.coerce.number().int().positive().default(3600), // 60 min
+
   // Email verification + password reset
   EMAIL_VERIFICATION_TTL: z.coerce.number().int().positive().default(60 * 60 * 24), // 24 h
   PASSWORD_RESET_TTL: z.coerce.number().int().positive().default(60 * 60),          // 1 h
@@ -92,6 +96,15 @@ const schema = z.object({
   // audience). The same value is exposed to the frontend as
   // NEXT_PUBLIC_GOOGLE_CLIENT_ID. Optional — endpoint 503s when unset.
   GOOGLE_CLIENT_ID: z.string().optional(),
+
+  // Admin app origin — staff/admin password-reset links point here.
+  ADMIN_ORIGIN: z.string().url().optional(),
+
+  // Cloudinary signed uploads (admin media). Optional — the sign endpoint
+  // returns 503 until all three are configured.
+  CLOUDINARY_CLOUD_NAME: z.string().optional(),
+  CLOUDINARY_API_KEY: z.string().optional(),
+  CLOUDINARY_API_SECRET: z.string().optional(),
 
   // Phone OTP policy
   OTP_TTL_SECONDS: z.coerce.number().int().min(60).max(900).default(300),

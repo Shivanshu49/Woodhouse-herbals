@@ -26,6 +26,7 @@ import { MailService } from '../../common/mail/mail.service';
 import { SmsService } from '../../common/sms/sms.service';
 import { SecurityEventsService } from '../../common/security/security-events.service';
 import { refreshTtlSecondsForRole } from './token-ttl';
+import { passwordResetUrl } from './reset-url';
 import type {
   AccessTokenPayload,
   RefreshTokenPayload,
@@ -644,7 +645,7 @@ export class AuthService {
           ip: ctx.ip ?? null,
         },
       });
-      const url = `${env.WEB_ORIGIN.split(',')[0]}/account/reset?token=${encodeURIComponent(raw)}`;
+      const url = passwordResetUrl(user.role, raw, env.WEB_ORIGIN, env.ADMIN_ORIGIN);
       const msg = this.mail.buildResetEmail(url);
       await this.mail.send({ to: email, ...msg });
       await this.events.record({

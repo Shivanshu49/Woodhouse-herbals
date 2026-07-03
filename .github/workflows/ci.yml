@@ -42,6 +42,33 @@ jobs:
         run: npm run build
 
   # ────────────────────────────────────────────────────────────
+  # Admin — Next.js admin panel
+  # ────────────────────────────────────────────────────────────
+  admin-check:
+    name: admin · install · lint · build
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    defaults:
+      run:
+        working-directory: Admin
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: Admin/package-lock.json
+      - name: Install
+        run: npm ci --no-audit --no-fund
+      - name: Lint (soft fail until the rules settle)
+        run: npm run lint || true
+      - name: Build
+        env:
+          NEXT_PUBLIC_API_URL: https://api.example.invalid
+          NEXT_PUBLIC_SITE_URL: https://admin.example.invalid
+        run: npm run build
+
+  # ────────────────────────────────────────────────────────────
   # Backend — NestJS API, Prisma against a service-container Postgres
   # ────────────────────────────────────────────────────────────
   backend-check:

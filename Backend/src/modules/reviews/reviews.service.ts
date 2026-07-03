@@ -90,7 +90,7 @@ export class ReviewsService {
     return this.prisma.$transaction(async (tx) => {
       const updated = await tx.review.update({
         where: { id },
-        data: { approved: true },
+        data: { approved: true, status: 'APPROVED' },
       });
       await this.recomputeProductRating(tx, review.productId);
       return updated;

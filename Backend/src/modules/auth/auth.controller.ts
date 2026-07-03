@@ -40,6 +40,11 @@ function cookieOptions(maxAgeSeconds?: number): CookieOptions {
     secure: env.NODE_ENV === 'production',
     sameSite: env.NODE_ENV === 'production' ? 'strict' : 'lax',
     path: '/',
+    // Prod: set COOKIE_DOMAIN=.woodhouseherbals.com so the session cookies are
+    // shared across the storefront and admin subdomains (admin.* + api.*).
+    // Unset in dev — a Domain attribute for a public suffix would be rejected
+    // for localhost, so cookies stay host-only there.
+    ...(env.COOKIE_DOMAIN ? { domain: env.COOKIE_DOMAIN } : {}),
     ...(maxAgeSeconds ? { maxAge: maxAgeSeconds * 1000 } : {}),
   };
 }

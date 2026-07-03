@@ -57,6 +57,10 @@ const schema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   PORT: z.coerce.number().int().positive().default(4000),
   WEB_ORIGIN: z.string().min(1).default('http://localhost:3000'),
+  // Shared parent domain for auth cookies across the storefront + admin
+  // subdomains, e.g. ".woodhouseherbals.com". Leave UNSET in dev (localhost
+  // cannot use a Domain attribute); when unset, cookies are host-only.
+  COOKIE_DOMAIN: z.string().optional(),
 
   DATABASE_URL: z.string().url().startsWith('postgres'),
   REDIS_URL: z.string().url().optional(),

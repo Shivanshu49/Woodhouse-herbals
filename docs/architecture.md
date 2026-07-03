@@ -5,7 +5,7 @@
 ```
 ┌──────────────────────┐    HTTPS    ┌────────────────────────┐
 │   Frontend (Next 14) │────────────▶│   Backend (NestJS)     │
-│  Storefront + Admin  │             │  REST + Prisma + Redis │
+│  Storefront only     │             │  REST + Prisma + Redis │
 └──────────┬───────────┘             └──────────┬─────────────┘
            │                                    │
            │ optional AI calls                  │ Prisma
@@ -15,6 +15,10 @@
 │ Claude vision/text   │             │  Meilisearch / Redis   │
 └──────────────────────┘             └────────────────────────┘
 ```
+
+The admin panel is a **separate Next.js app** (`Admin/`, dev port 3001) that
+consumes the same NestJS API via `/api/admin/*` endpoints — see
+`docs/superpowers/specs/2026-07-03-admin-panel-design.md`.
 
 ## 2. Frontend
 
@@ -101,7 +105,8 @@ Keeps the AI layer **optional** — the storefront and API run fully without it.
 11. Skin/hair quiz (decision tree first, no AI)
 12. AI skin analysis endpoint (Claude vision + instructor + image preprocessing)
 13. Quiz/AI results → product recommendations matched against catalog
-14. Admin endpoints + AdminJS-style UI for products/orders/coupons/inventory
+14. Admin panel — separate `Admin/` Next.js app + `/api/admin/*` endpoints
+    (spec: docs/superpowers/specs/2026-07-03-admin-panel-design.md) — IN PROGRESS
 15. Meilisearch integration for product search/autocomplete
 16. Transactional email via Resend (order confirmation, OTP, password reset)
 17. Production deployment — real PhonePe credentials, custom domain, env wiring

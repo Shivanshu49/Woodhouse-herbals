@@ -15,6 +15,7 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:seed": "tsx prisma/seed.ts",
+    "admin:create": "tsx prisma/seed-admin.ts",
     "test": "node --import tsx --test --test-reporter=spec $(find src -name '*.test.ts' -type f | sort)"
   },
   "dependencies": {

@@ -246,6 +246,9 @@ model InventoryMovement {
 enum UserRole {
   CUSTOMER
   STAFF
+  // MANAGER sits between ADMIN and STAFF: everything except settings,
+  // user management, and refunds. Role checks live in app code (@Roles).
+  MANAGER
   ADMIN
 }
 

@@ -80,6 +80,24 @@ Pinned to match the storefront. `npm install` warns.
 - **Fix:** bump both apps to a patched `14.2.x` together in one change so they
   stay in lockstep.
 
+### FF-9 — No global Prisma error filter: unique-constraint races surface as 500
+The admin-products create/update pre-check slug/SKU with `findFirst` then write
+(TOCTOU). A concurrent duplicate, or a `barcode` collision (unique, not
+pre-checked), hits Prisma `P2002` inside the transaction and — with no
+app-wide `PrismaClientKnownRequestError` exception filter — returns a raw 500
+instead of a clean 409. Low-probability on an admin-only panel, but worth a
+global filter once the products UI drives more traffic.
+- **Where:** app-wide (a new `src/common/filters/prisma-exception.filter.ts`
+  registered in `main.ts`).
+
+### FF-10 — Duplicate recommendation pairs throw an unhandled P2002
+`admin-products` create/update de-dupe `concernIds`/`categoryIds`, but a
+repeated `(targetProductId, kind)` in `recommendations` still hits the
+`Recommendation` unique constraint as a 500.
+- **Where:** `Backend/src/modules/admin-products/admin-products.service.ts`.
+- **Fix:** de-dupe recommendations by `(targetProductId, kind)` in the
+  DTO→Prisma mapping (or lean on FF-9's filter).
+
 ### FF-8 — `useLogout.onSettled` does a redundant invalidate
 It calls `setQueryData(qk.me, null)` (instant) then
 `invalidateQueries({ queryKey: qk.me })`, which can trigger a pointless

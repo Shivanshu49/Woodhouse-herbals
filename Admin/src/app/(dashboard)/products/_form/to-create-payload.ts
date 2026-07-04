@@ -108,5 +108,9 @@ export function productFormToUpdatePayload(v: ProductFormValues): Record<string,
   for (const key of ['gallery', 'badges', 'concernIds', 'categoryIds', 'skinTypes', 'tags', 'ingredients', 'benefitItems', 'howToUse']) {
     if (!(key in payload)) payload[key] = [];
   }
+  // NOTE: clearing an optional SCALAR (compare-at, cost, HSN, sale window) on
+  // edit is not yet supported — sending null needs the backend DTO/service to
+  // treat null as "clear" (today new Date(null) would corrupt to the epoch and
+  // @IsInt+implicit-conversion could coerce null→0). Tracked as FF-16.
   return payload;
 }

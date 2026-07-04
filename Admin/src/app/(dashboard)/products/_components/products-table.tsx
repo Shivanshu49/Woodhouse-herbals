@@ -91,7 +91,7 @@ export function ProductsTable({
                   key={row.id}
                   data-state={row.getIsSelected() ? 'selected' : undefined}
                   className="group cursor-pointer"
-                  onClick={() => router.push(`/products/${row.original.id}`)}
+                  onClick={() => router.push(`/products/${row.original.id}/edit`)}
                 >
                   {row.getVisibleCells().map((cell) => (
                     <TableCell key={cell.id} className={cn(metaClass(cell.column))}>

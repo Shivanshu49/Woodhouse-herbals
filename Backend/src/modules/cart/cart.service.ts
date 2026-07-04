@@ -22,9 +22,9 @@ export class CartService {
   async addLine(sessionId: string, dto: AddToCartDto) {
     const cart = await this.getOrCreate(sessionId);
     // findFirst (not findUnique) so the soft-delete filter applies — a
-    // deleted product must not be addable to a cart.
+    // deleted or non-published product must not be addable to a cart.
     const product = await this.prisma.product.findFirst({
-      where: excludeDeleted({ id: dto.productId }),
+      where: excludeDeleted({ id: dto.productId, status: 'PUBLISHED' }),
     });
     if (!product) throw new NotFoundException('Product not found');
     if (!product.inStock) throw new NotFoundException('Product is out of stock');

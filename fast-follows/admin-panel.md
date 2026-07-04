@@ -182,3 +182,29 @@ is already in the detail response, so a check is feasible.
   excluded from the update payload, so Inventory-only changes won't false-trip
   it unless they also bump `updatedAt` (they do) — so scope the check to a
   reload prompt rather than a hard block if that proves noisy.
+
+### FF-16 — Optional pricing/text fields cannot be CLEARED on edit (deferred from the whole-branch review)
+productFormToUpdatePayload sends explicit `[]` for cleared collections, but for
+optional SCALARS (compare-at price, cost, HSN, sale window) it still omits a
+blank value, and the backend treats an omitted key as "leave unchanged" — so
+those fields cannot be removed once set. A safe fix needs BOTH ends: the frontend
+must send `null`, AND buildUpdateData must treat `null` as clear (today
+`new Date(null)` corrupts saleStartsAt/saleEndsAt/publishAt to the 1970 epoch),
+plus the DTO must not let @IsInt + implicit-conversion coerce `null` to 0.
+- **Where:** `Admin/.../_form/to-create-payload.ts` (productFormToUpdatePayload);
+  `Backend/.../admin-products.service.ts::buildUpdateData` (date lines ~380/411);
+  `update-product.dto.ts` (type the fields `| null`).
+- **Fix:** send null for cleared optional scalars; in buildUpdateData do
+  `data.saleStartsAt = dto.saleStartsAt === null ? null : new Date(dto.saleStartsAt)`
+  (and saleEndsAt/publishAt); confirm compareAt/cost/hsn null clears (not 0).
+
+### FF-17 — Storefront PDP reads deprecated `benefits` scalar; admin writes `benefitItems`
+The admin form (GROUP 6) writes the `benefitItems` relation; the storefront PDP
+(`products.service.ts::toDetail`) still reads the legacy `benefits` string array,
+so admin-entered benefits never appear on the PDP. Not a live regression (the
+storefront is still largely on mock data) but a gap to close when the PDP goes live.
+- **Where:** `Backend/src/modules/products/products.service.ts` (findBySlug
+  include + toDetail ~line 158).
+- **Fix:** include `benefitItems: { orderBy: { sortOrder: 'asc' } }` and map
+  `benefits: p.benefitItems.map((b) => b.text)` (fall back to the legacy scalar
+  for un-migrated rows).

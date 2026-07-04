@@ -12,7 +12,7 @@ export class SearchService {
     const query = q.trim();
     if (!query) {
       const trending = await this.prisma.product.findMany({
-        where: excludeDeleted(),
+        where: excludeDeleted({ status: 'PUBLISHED' }),
         take: 5,
         orderBy: { reviewCount: 'desc' },
         select: { name: true, slug: true, thumbnailUrl: true, priceMinor: true },
@@ -31,6 +31,7 @@ export class SearchService {
 
     const products = await this.prisma.product.findMany({
       where: excludeDeleted({
+        status: 'PUBLISHED',
         OR: [
           { name: { contains: query, mode: 'insensitive' } },
           { shortDescription: { contains: query, mode: 'insensitive' } },

@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { excludeDeleted } from '../../common/prisma/soft-delete';
 import { toMoney } from '../../common/utils/money';
 
 @Injectable()
@@ -11,18 +12,19 @@ export class HomepageService {
       this.prisma.offerStripItem.findMany({ where: { active: true }, orderBy: { sortOrder: 'asc' } }),
       this.prisma.heroBanner.findFirst({ where: { active: true }, orderBy: { updatedAt: 'desc' } }),
       this.prisma.concern.findMany({ orderBy: { sortOrder: 'asc' }, take: 8 }),
+      // Storefront must never surface draft/scheduled or soft-deleted products.
       this.prisma.product.findMany({
-        where: { badges: { some: { tone: 'BESTSELLER' } } },
+        where: excludeDeleted({ status: 'PUBLISHED', badges: { some: { tone: 'BESTSELLER' } } }),
         take: 8,
         include: { badges: true, concerns: { include: { concern: true } } },
       }),
       this.prisma.product.findMany({
-        where: { badges: { some: { tone: 'NEW' } } },
+        where: excludeDeleted({ status: 'PUBLISHED', badges: { some: { tone: 'NEW' } } }),
         take: 8,
         include: { badges: true, concerns: { include: { concern: true } } },
       }),
       this.prisma.product.findMany({
-        where: { isCombo: true },
+        where: excludeDeleted({ status: 'PUBLISHED', isCombo: true }),
         take: 4,
         include: { badges: true, concerns: { include: { concern: true } } },
       }),

@@ -89,11 +89,26 @@ function toQuery(params: Record<string, string | number | boolean | undefined>):
   return qs ? `?${qs}` : '';
 }
 
+// Single-flight refresh: the admin app fires several queries at once, so an
+// expired access token yields concurrent 401s. Without deduping, each fires its
+// own POST /auth/refresh; the backend rotates the refresh token and treats the
+// second (now-stale) presentation as reuse — revoking the whole family and
+// force-logging-out the user. One shared in-flight refresh avoids that.
+let refreshInFlight: Promise<Response> | null = null;
+function refreshOnce(): Promise<Response> {
+  if (!refreshInFlight) {
+    refreshInFlight = rawRequest('POST', '/auth/refresh').finally(() => {
+      refreshInFlight = null;
+    });
+  }
+  return refreshInFlight;
+}
+
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
   let res = await rawRequest(method, path, body);
 
   if (!res.ok && shouldAttemptRefresh(res.status, path)) {
-    const refreshed = await rawRequest('POST', '/auth/refresh');
+    const refreshed = await refreshOnce();
     if (refreshed.ok) {
       res = await rawRequest(method, path, body);
     }

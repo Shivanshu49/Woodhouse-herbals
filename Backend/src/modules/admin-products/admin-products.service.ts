@@ -189,6 +189,9 @@ export class AdminProductsService {
           concerns: concernIds?.length
             ? { create: concernIds.map((id) => ({ concern: { connect: { id } } })) }
             : undefined,
+          // Keep the denormalized primary-category FK in lockstep with the
+          // primary link (category-scoped coupons + order snapshots read it).
+          categoryRefId: categoryIds?.length ? categoryIds[0] : undefined,
           categoryLinks: categoryIds?.length
             ? {
                 create: categoryIds.map((id, i) => ({
@@ -451,6 +454,8 @@ export class AdminProductsService {
     }
     if (dto.categoryIds !== undefined) {
       const categoryIds = [...new Set(dto.categoryIds)];
+      // Keep the denormalized primary-category FK in lockstep with the links.
+      data.categoryRef = categoryIds.length ? { connect: { id: categoryIds[0] } } : { disconnect: true };
       data.categoryLinks = {
         create: categoryIds.map((cid, i) => ({
           category: { connect: { id: cid } },

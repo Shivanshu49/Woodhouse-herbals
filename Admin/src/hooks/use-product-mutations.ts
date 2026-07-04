@@ -84,7 +84,10 @@ export function useBulkProducts() {
       toast.error(toMessage(err));
     },
     onSuccess: (res, body) => toast.success(BULK_SUCCESS[body.action](res.updated)),
-    onSettled: () => qc.invalidateQueries({ queryKey: qk.products.all }),
+    onSettled: (_res, _err, body) => {
+      qc.invalidateQueries({ queryKey: qk.products.all });
+      body.ids.forEach((id) => qc.invalidateQueries({ queryKey: qk.products.detail(id) }));
+    },
   });
 }
 
@@ -106,7 +109,10 @@ export function useDeleteProduct() {
       toast.error(toMessage(err));
     },
     onSuccess: () => toast.success('Product archived — restore it from the Archived filter'),
-    onSettled: () => qc.invalidateQueries({ queryKey: qk.products.all }),
+    onSettled: (_res, _err, id) => {
+      qc.invalidateQueries({ queryKey: qk.products.all });
+      qc.invalidateQueries({ queryKey: qk.products.detail(id) });
+    },
   });
 }
 
@@ -128,7 +134,10 @@ export function useRestoreProduct() {
       toast.error(toMessage(err));
     },
     onSuccess: () => toast.success('Product restored'),
-    onSettled: () => qc.invalidateQueries({ queryKey: qk.products.all }),
+    onSettled: (_res, _err, id) => {
+      qc.invalidateQueries({ queryKey: qk.products.all });
+      qc.invalidateQueries({ queryKey: qk.products.detail(id) });
+    },
   });
 }
 
@@ -162,6 +171,9 @@ export function useAdjustStock() {
       }
       toast.success(`Stock updated to ${res.newQty}`);
     },
-    onSettled: () => qc.invalidateQueries({ queryKey: qk.products.all }),
+    onSettled: (_res, _err, body) => {
+      qc.invalidateQueries({ queryKey: qk.products.all });
+      qc.invalidateQueries({ queryKey: qk.products.detail(body.productId) });
+    },
   });
 }

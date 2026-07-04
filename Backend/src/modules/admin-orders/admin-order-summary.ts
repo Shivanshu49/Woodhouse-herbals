@@ -31,6 +31,9 @@ export function toOrderSummary(row: OrderSummaryRow): OrderSummary {
     status: row.status,
     totalMinor: row.totalMinor,
     customerName: row.shippingFullName,
+    // Display-only heuristic: the latest payment's status. The list *filter*
+    // (`payments: { some }`) uses any-match, so for an order with a FAILED retry
+    // after a SUCCESS the badge and the filter can legitimately disagree.
     paymentStatus: row.payments[0]?.status ?? null,
     itemCount: row._count.items,
   };

@@ -150,6 +150,9 @@ export const DEV_FALLBACKS = {
   PHONEPE_MERCHANT_ID: 'PGTESTPAYUAT',
   PHONEPE_SALT_KEY: 'dev-salt',
   PHONEPE_SALT_INDEX: '1',
+  // Legacy Standard Checkout / Hermes sandbox host — used for server→PhonePe
+  // refund + Check-Status calls in dev. Prod supplies the real value.
+  PHONEPE_BASE_URL: 'https://api-preprod.phonepe.com/apis/pg-sandbox',
 } as const;
 
 /** App version — sourced from npm at runtime, with a literal fallback. */

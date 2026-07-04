@@ -617,6 +617,7 @@ enum PaymentStatus {
   INITIATED
   SUCCESS
   FAILED
+  REFUND_PENDING // a refund has been initiated + is awaiting settlement
   REFUNDED
   PARTIALLY_REFUNDED
 }
@@ -755,8 +756,24 @@ model OrderEvent {
 
 enum RefundStatus {
   PENDING
-  PROCESSED
+  PROCESSED // settled / succeeded — money moved
   FAILED
+}
+
+// How the refund is executed. PHONEPE = online refund API (async, callback +
+// recheck); MANUAL = COD out-of-band transfer recorded with a UTR (one-step).
+enum RefundMethod {
+  PHONEPE
+  MANUAL
+}
+
+// What happened to the physical goods, chosen by the admin at refund time.
+// RETURNED restocks; DAMAGED (unsellable) and LOST (lost in transit / RTO gone)
+// do not. LOST is kept distinct from DAMAGED for audit; neither moves stock.
+enum RefundDisposition {
+  RETURNED
+  DAMAGED
+  LOST
 }
 
 model Refund {
@@ -767,8 +784,13 @@ model Refund {
   paymentId        String?
   amountMinor      Int
   currency         Currency     @default(INR)
+  method           RefundMethod
+  disposition      RefundDisposition
+  utrReference     String? // bank/UPI UTR — required when method = MANUAL
   reason           String?
   status           RefundStatus @default(PENDING)
+  // The refund's own PhonePe merchantTransactionId (deterministic from id).
+  merchantRefundId String?      @unique
   providerRefundId String?      @unique // PhonePe refund txn id
   rawResponse      Json?
   actor            User?        @relation(fields: [actorId], references: [id], onDelete: SetNull)

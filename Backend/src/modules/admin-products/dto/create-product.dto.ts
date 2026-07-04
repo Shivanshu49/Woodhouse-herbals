@@ -9,6 +9,7 @@ import {
   IsOptional,
   IsString,
   Matches,
+  Max,
   MaxLength,
   Min,
   ValidateNested,
@@ -16,6 +17,9 @@ import {
 import { BadgeTone, GstRate, ProductCategory, ProductStatus, RecommendationKind, SkinType } from '@prisma/client';
 
 const SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+// Money columns (priceMinor etc.) are 32-bit signed Int in Postgres; cap so an
+// out-of-range amount is a clean 400, not an "integer out of range" 500.
+const INT4_MAX = 2_147_483_647;
 
 export class GalleryItemDto {
   @IsString()
@@ -118,6 +122,7 @@ export class CreateProductDto {
 
   @IsInt()
   @Min(0)
+  @Max(INT4_MAX)
   priceMinor!: number;
 
   @IsString()
@@ -149,11 +154,13 @@ export class CreateProductDto {
   @IsOptional()
   @IsInt()
   @Min(0)
+  @Max(INT4_MAX)
   compareAtPriceMinor?: number;
 
   @IsOptional()
   @IsInt()
   @Min(0)
+  @Max(INT4_MAX)
   costPriceMinor?: number;
 
   @IsOptional()

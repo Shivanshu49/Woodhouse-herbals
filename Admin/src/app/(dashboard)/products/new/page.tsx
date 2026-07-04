@@ -8,11 +8,11 @@ export default function NewProductPage() {
     <ProductForm
       mode="create"
       onSubmit={(values, { asDraft }) => {
-        // GROUPS 1–2 are validation-only. The real POST /admin/products is
-        // wired once the remaining sections (pricing / organization / …)
-        // supply the other required fields.
+        // GROUPS 1–3 are validation-only. The real POST /admin/products is
+        // wired once the remaining sections (organization / SEO / …) supply
+        // the other fields.
         toast.success(
-          `Valid ✓ — status “${values.status}”${asDraft ? ' (draft)' : ''}, ${values.images.length} image${values.images.length === 1 ? '' : 's'}. Remaining sections come next.`,
+          `Valid ✓ — status “${values.status}”${asDraft ? ' (draft)' : ''}, ${values.images.length} image${values.images.length === 1 ? '' : 's'}, ₹${values.price || '—'}. Remaining sections come next.`,
         );
       }}
     />

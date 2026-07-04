@@ -26,8 +26,19 @@ function base(overrides: Partial<ProductFormValues> = {}): ProductFormValues {
     featured: false,
     bestSeller: false,
     images: [],
+    price: '199',
+    compareAtPrice: '',
+    costPrice: '',
+    gstRate: 'GST_18',
+    hsnCode: '',
+    saleStartsAt: '',
+    saleEndsAt: '',
     ...overrides,
   };
+}
+
+function issueOn(result: ReturnType<typeof productFormSchema.safeParse>, path: string): boolean {
+  return !result.success && result.error.issues.some((i) => i.path[0] === path);
 }
 
 const img = (over: Partial<ProductFormValues['images'][number]> = {}): ProductFormValues['images'][number] => ({
@@ -98,4 +109,63 @@ test('DEFAULT_PRODUCT_FORM_VALUES starts with an empty images array', () => {
   // The defaults are intentionally-empty placeholders (blank name/sku/etc.), so
   // they do not pass validation — we only assert the media field's starting shape.
   assert.deepEqual(DEFAULT_PRODUCT_FORM_VALUES.images, []);
+});
+
+// ── GROUP 3 · Pricing & Tax ──────────────────────────────────────────
+test('a valid price passes; an empty price fails on `price`', () => {
+  assert.equal(productFormSchema.safeParse(base({ price: '199.50' })).success, true);
+  assert.ok(issueOn(productFormSchema.safeParse(base({ price: '' })), 'price'));
+});
+
+test('price must be a valid amount greater than zero', () => {
+  assert.ok(issueOn(productFormSchema.safeParse(base({ price: '0' })), 'price'));
+  assert.ok(issueOn(productFormSchema.safeParse(base({ price: 'abc' })), 'price'));
+  assert.ok(issueOn(productFormSchema.safeParse(base({ price: '9.999' })), 'price')); // sub-paise
+});
+
+test('compare-at must be higher than the price (hard error)', () => {
+  assert.ok(issueOn(productFormSchema.safeParse(base({ price: '199', compareAtPrice: '150' })), 'compareAtPrice'));
+  assert.ok(issueOn(productFormSchema.safeParse(base({ price: '199', compareAtPrice: '199' })), 'compareAtPrice')); // equal not allowed
+  assert.equal(productFormSchema.safeParse(base({ price: '199', compareAtPrice: '249' })).success, true);
+  assert.equal(productFormSchema.safeParse(base({ price: '199', compareAtPrice: '' })).success, true); // optional
+});
+
+test('amounts above the 32-bit Int limit are rejected (backend Int column overflows)', () => {
+  // INT_MAX paise = 2,147,483,647 → ₹21,474,836.47 is the largest storable amount.
+  assert.equal(productFormSchema.safeParse(base({ price: '21474836.47' })).success, true); // == INT_MAX
+  assert.ok(issueOn(productFormSchema.safeParse(base({ price: '21474836.48' })), 'price')); // 1 paise over
+  assert.ok(issueOn(productFormSchema.safeParse(base({ price: '10000000000' })), 'price')); // fat-finger
+  assert.ok(issueOn(productFormSchema.safeParse(base({ price: '199', compareAtPrice: '99999999999' })), 'compareAtPrice'));
+  assert.ok(issueOn(productFormSchema.safeParse(base({ costPrice: '99999999999' })), 'costPrice'));
+});
+
+test('cost price, when present, must be a valid amount', () => {
+  assert.ok(issueOn(productFormSchema.safeParse(base({ costPrice: '12.999' })), 'costPrice'));
+  assert.equal(productFormSchema.safeParse(base({ costPrice: '80' })).success, true);
+  assert.equal(productFormSchema.safeParse(base({ costPrice: '' })).success, true);
+});
+
+test('HSN code, when present, must be 4-8 digits', () => {
+  assert.equal(productFormSchema.safeParse(base({ hsnCode: '3304' })).success, true);
+  assert.ok(issueOn(productFormSchema.safeParse(base({ hsnCode: '33' })), 'hsnCode'));
+  assert.ok(issueOn(productFormSchema.safeParse(base({ hsnCode: '123456789' })), 'hsnCode'));
+  assert.ok(issueOn(productFormSchema.safeParse(base({ hsnCode: '33a4' })), 'hsnCode'));
+});
+
+test('gstRate accepts the enum values and rejects others', () => {
+  assert.equal(productFormSchema.safeParse(base({ gstRate: 'GST_12' })).success, true);
+  assert.equal(productFormSchema.safeParse(base({ gstRate: 'EXEMPT' })).success, true);
+  assert.equal(productFormSchema.safeParse(base({ gstRate: 'GST_9' as never })).success, false);
+});
+
+test('sale window: end must be after start, and an end needs a start', () => {
+  assert.equal(
+    productFormSchema.safeParse(base({ saleStartsAt: '2099-01-01T00:00', saleEndsAt: '2099-01-10T00:00' })).success,
+    true,
+  );
+  assert.ok(
+    issueOn(productFormSchema.safeParse(base({ saleStartsAt: '2099-01-10T00:00', saleEndsAt: '2099-01-01T00:00' })), 'saleEndsAt'),
+  );
+  assert.ok(issueOn(productFormSchema.safeParse(base({ saleStartsAt: '', saleEndsAt: '2099-01-10T00:00' })), 'saleStartsAt'));
+  assert.equal(productFormSchema.safeParse(base({ saleStartsAt: '', saleEndsAt: '' })).success, true);
 });

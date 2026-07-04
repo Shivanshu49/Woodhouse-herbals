@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { GST_RATE_VALUES, rupeesToPaise } from './pricing';
 
 /** Mirrors the backend SLUG_RE (create/update DTO). */
 const SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
@@ -60,6 +61,17 @@ export const productFormSchema = z
 
     // ── GROUP 2 · Media ───────────────────────────────────────────────
     images: z.array(productImageSchema).max(12, 'Up to 12 images'),
+
+    // ── GROUP 3 · Pricing & Tax ───────────────────────────────────────
+    // Amounts are entered in rupees (text) and validated/stored as integer
+    // paise; the empty string means "not set" for the optional ones.
+    price: z.string(),
+    compareAtPrice: z.string(),
+    costPrice: z.string(),
+    gstRate: z.enum(GST_RATE_VALUES),
+    hsnCode: z.string(),
+    saleStartsAt: z.string(),
+    saleEndsAt: z.string(),
   })
   .superRefine((v, ctx) => {
     if (richTextToPlain(v.longDescription).length === 0) {
@@ -94,6 +106,58 @@ export const productFormSchema = z
         });
       }
     }
+
+    // ── Pricing & Tax ──
+    const AMOUNT_MSG = 'Enter a valid amount (max 2 decimal places)';
+    // The backend price columns are 32-bit signed Int (paise); anything above
+    // INT_MAX would overflow the column (Postgres raises "integer out of range").
+    const MAX_PAISE = 2_147_483_647;
+    const TOO_LARGE = 'Amount is too large';
+    const pricePaise = rupeesToPaise(v.price);
+    if (v.price.trim() === '') {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['price'], message: 'Price is required' });
+    } else if (pricePaise === null) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['price'], message: AMOUNT_MSG });
+    } else if (pricePaise <= 0) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['price'], message: 'Price must be greater than 0' });
+    } else if (pricePaise > MAX_PAISE) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['price'], message: TOO_LARGE });
+    }
+
+    if (v.compareAtPrice.trim() !== '') {
+      const c = rupeesToPaise(v.compareAtPrice);
+      if (c === null) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['compareAtPrice'], message: AMOUNT_MSG });
+      } else if (c > MAX_PAISE) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['compareAtPrice'], message: TOO_LARGE });
+      } else if (pricePaise !== null && c <= pricePaise) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['compareAtPrice'],
+          message: 'Compare-at must be higher than the price',
+        });
+      }
+    }
+
+    if (v.costPrice.trim() !== '') {
+      const cost = rupeesToPaise(v.costPrice);
+      if (cost === null) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['costPrice'], message: AMOUNT_MSG });
+      } else if (cost > MAX_PAISE) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['costPrice'], message: TOO_LARGE });
+      }
+    }
+
+    if (v.hsnCode.trim() !== '' && !/^\d{4,8}$/.test(v.hsnCode.trim())) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['hsnCode'], message: 'HSN code must be 4–8 digits' });
+    }
+
+    if (v.saleEndsAt && !v.saleStartsAt) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['saleStartsAt'], message: 'Set a start date for the sale' });
+    }
+    if (v.saleStartsAt && v.saleEndsAt && new Date(v.saleEndsAt).getTime() <= new Date(v.saleStartsAt).getTime()) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['saleEndsAt'], message: 'Sale end must be after the start' });
+    }
   });
 
 export type ProductFormValues = z.infer<typeof productFormSchema>;
@@ -109,4 +173,11 @@ export const DEFAULT_PRODUCT_FORM_VALUES: ProductFormValues = {
   featured: false,
   bestSeller: false,
   images: [],
+  price: '',
+  compareAtPrice: '',
+  costPrice: '',
+  gstRate: 'GST_18',
+  hsnCode: '',
+  saleStartsAt: '',
+  saleEndsAt: '',
 };

@@ -18,11 +18,13 @@ import {
 } from './product-form-schema';
 import { CoreSection } from './sections/core-section';
 import { MediaSection } from './sections/media-section';
+import { PricingSection } from './sections/pricing-section';
 
 /** Sections rendered so far — grows one group at a time; drives the side-nav. */
 const SECTIONS = [
   { id: 'core', label: 'Core details' },
   { id: 'media', label: 'Media' },
+  { id: 'pricing', label: 'Pricing & tax' },
 ] as const;
 
 export interface ProductFormProps {
@@ -139,6 +141,7 @@ export function ProductForm({
           <div className="min-w-0 space-y-6 pb-24">
             <CoreSection />
             <MediaSection />
+            <PricingSection />
           </div>
         </div>
 

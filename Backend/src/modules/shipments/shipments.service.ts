@@ -1,6 +1,9 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { OrderStatus, ShipmentStatus } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { env } from '../../common/config/env';
+import { OrderEventsService } from '../order-events/order-events.service';
+import { OrderEventType } from '../order-events/order-event-types';
 
 interface CreateInput {
   orderNumber: string;
@@ -12,7 +15,10 @@ interface CreateInput {
 
 @Injectable()
 export class ShipmentsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly events: OrderEventsService,
+  ) {}
 
   /**
    * Create a shipment row for a paid order and stamp the order status.
@@ -62,10 +68,20 @@ export class ShipmentsService {
           where: { id: order.id },
           data: { status: OrderStatus.PROCESSING },
         });
+        await this.events.record(
+          {
+            orderId: order.id,
+            type: OrderEventType.StatusChanged,
+            fromStatus: OrderStatus.PAID,
+            toStatus: OrderStatus.PROCESSING,
+            meta: { via: 'shipment_created' },
+          },
+          tx,
+        );
       }
 
       return shipment;
-    });
+    }, { timeout: env.ADMIN_WRITE_TX_TIMEOUT_MS });
   }
 
   /**
@@ -97,18 +113,51 @@ export class ShipmentsService {
         data: { shipmentId, status, description, occurredAt: now },
       });
 
+      // Read the order's prior status so the event's fromStatus is accurate and
+      // we can skip a redundant event when the order status doesn't actually move
+      // (e.g. IN_TRANSIT then OUT_FOR_DELIVERY both map to SHIPPED).
+      const orderRow = await tx.order.findUnique({
+        where: { id: shipment.orderId },
+        select: { status: true },
+      });
+      const prior = orderRow?.status ?? null;
+
       if (status === ShipmentStatus.IN_TRANSIT || status === ShipmentStatus.OUT_FOR_DELIVERY) {
         await tx.order.update({
           where: { id: shipment.orderId },
           data: { status: OrderStatus.SHIPPED },
         });
+        if (prior !== OrderStatus.SHIPPED) {
+          await this.events.record(
+            {
+              orderId: shipment.orderId,
+              type: OrderEventType.StatusChanged,
+              fromStatus: prior,
+              toStatus: OrderStatus.SHIPPED,
+              meta: { via: 'shipment_status', shipmentStatus: status },
+            },
+            tx,
+          );
+        }
       } else if (status === ShipmentStatus.DELIVERED) {
         await tx.order.update({
           where: { id: shipment.orderId },
           data: { status: OrderStatus.DELIVERED },
         });
+        if (prior !== OrderStatus.DELIVERED) {
+          await this.events.record(
+            {
+              orderId: shipment.orderId,
+              type: OrderEventType.StatusChanged,
+              fromStatus: prior,
+              toStatus: OrderStatus.DELIVERED,
+              meta: { via: 'shipment_status', shipmentStatus: status },
+            },
+            tx,
+          );
+        }
       }
-    });
+    }, { timeout: env.ADMIN_WRITE_TX_TIMEOUT_MS });
   }
 
   /** Owner-scoped lookup for the customer order-tracking page. */

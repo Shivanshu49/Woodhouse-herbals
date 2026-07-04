@@ -8,6 +8,8 @@ import {
 import { createHash, randomUUID, timingSafeEqual } from 'node:crypto';
 import { InventoryReason, OrderStatus, PaymentStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { OrderEventsService } from '../order-events/order-events.service';
+import { OrderEventType } from '../order-events/order-event-types';
 import { InventoryService } from '../inventory/inventory.service';
 import { WebhookEventsService } from '../../common/security/webhook-events.service';
 import { DEV_FALLBACKS, env } from '../../common/config/env';
@@ -48,6 +50,7 @@ export class PhonepeService {
     private readonly prisma: PrismaService,
     private readonly inventory: InventoryService,
     private readonly webhooks: WebhookEventsService,
+    private readonly events: OrderEventsService,
   ) {}
 
   /**
@@ -280,6 +283,17 @@ export class PhonepeService {
         where: { id: orderId },
         data: { status: OrderStatus.PAID },
       });
+      // CAS above guarantees the payment was INITIATED → the order was PENDING.
+      await this.events.record(
+        {
+          orderId,
+          type: OrderEventType.StatusChanged,
+          fromStatus: OrderStatus.PENDING,
+          toStatus: OrderStatus.PAID,
+          meta: { via: 'phonepe_callback' },
+        },
+        tx,
+      );
 
       if (cartSessionId) {
         const cart = await tx.cart.findUnique({ where: { sessionId: cartSessionId } });
@@ -287,7 +301,7 @@ export class PhonepeService {
           await tx.cartLine.deleteMany({ where: { cartId: cart.id } });
         }
       }
-    });
+    }, { timeout: env.ADMIN_WRITE_TX_TIMEOUT_MS });
     this.logger.log(JSON.stringify({ scope: 'phonepe:callback:success', orderId }));
   }
 
@@ -311,6 +325,17 @@ export class PhonepeService {
         where: { id: orderId },
         data: { status: OrderStatus.CANCELLED },
       });
+      await this.events.record(
+        {
+          orderId,
+          type: OrderEventType.StatusChanged,
+          fromStatus: OrderStatus.PENDING,
+          toStatus: OrderStatus.CANCELLED,
+          note: 'Payment failed',
+          meta: { via: 'phonepe_callback' },
+        },
+        tx,
+      );
 
       // Restore stock through InventoryService so each return is audited.
       for (const item of items) {
@@ -322,7 +347,7 @@ export class PhonepeService {
           tx,
         });
       }
-    });
+    }, { timeout: env.ADMIN_WRITE_TX_TIMEOUT_MS });
     this.logger.warn(JSON.stringify({ scope: 'phonepe:callback:failed', orderId }));
   }
 }

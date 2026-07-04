@@ -43,14 +43,14 @@ export class ShipmentsController {
       select: { id: true, userId: true },
     });
     if (!order) throw new NotFoundException('Order not found');
-    const isStaff = user.role === UserRole.ADMIN || user.role === UserRole.STAFF;
-    if (!isStaff && order.userId !== user.sub) throw new ForbiddenException();
+    const isInternal = user.role === UserRole.ADMIN || user.role === UserRole.MANAGER;
+    if (!isInternal && order.userId !== user.sub) throw new ForbiddenException();
     return this.shipments.forOrder(order.id);
   }
 
   // ── Admin: create + update ───────────────────────────────────────
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN, UserRole.STAFF)
+  @Roles(UserRole.ADMIN, UserRole.MANAGER)
   @Post()
   create(@Body() dto: CreateShipmentDto) {
     return this.shipments.create({
@@ -63,7 +63,7 @@ export class ShipmentsController {
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN, UserRole.STAFF)
+  @Roles(UserRole.ADMIN, UserRole.MANAGER)
   @Patch(':id')
   async update(@Param('id') id: string, @Body() dto: UpdateShipmentDto) {
     if (!ID_RE.test(id)) throw new BadRequestException('Invalid shipment id');

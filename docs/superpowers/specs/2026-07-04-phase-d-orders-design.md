@@ -133,6 +133,14 @@ TanStack Table (like products): columns (number, date, customer, total, status
 badge, payment badge), filters (status/payment/date/search), pagination, row →
 detail. Optimistic-free (orders are lower-volume; keep it simple + invalidation).
 
+> **D2 build note (badge logic, decided once):** the list row exposes both
+> `paymentMethod` (PREPAID/COD) and `paymentStatus` (nullable — the latest online
+> payment's status). **COD orders have `paymentStatus: null` and `payments: []`** —
+> so the payment badge must render from `paymentMethod` ("COD") for COD rows rather
+> than showing a blank/null status. Prepaid rows render from `paymentStatus`
+> (SUCCESS/INITIATED/FAILED/REFUNDED). Field names stay DB-native (`number`,
+> `placedAt`) — do not alias to orderNumber/createdAt.
+
 ### D3 — Order detail UI + GST-compliant invoice
 Items, customer + address, totals breakdown, payment(s), shipments with a
 tracking-entry action (reusing `shipments`), cancel action (per §2.1), notes

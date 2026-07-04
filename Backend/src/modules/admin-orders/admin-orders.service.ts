@@ -58,6 +58,7 @@ export class AdminOrdersService {
       q: dto.q,
       status: dto.status,
       paymentStatus: dto.paymentStatus,
+      paymentMethod: dto.paymentMethod,
       dateFrom: dto.dateFrom,
       dateTo: dto.dateTo,
     });

@@ -1,9 +1,10 @@
-import type { OrderStatus, PaymentStatus, Prisma } from '@prisma/client';
+import type { OrderStatus, PaymentMethod, PaymentStatus, Prisma } from '@prisma/client';
 
 export interface AdminOrderWhereInput {
   q?: string;
-  status?: OrderStatus;
+  status?: OrderStatus[];
   paymentStatus?: PaymentStatus;
+  paymentMethod?: PaymentMethod;
   dateFrom?: string; // ISO 8601
   dateTo?: string; // ISO 8601
 }
@@ -11,8 +12,9 @@ export interface AdminOrderWhereInput {
 export function buildAdminOrderWhere(input: AdminOrderWhereInput): Prisma.OrderWhereInput {
   const where: Prisma.OrderWhereInput = {};
 
-  if (input.status) where.status = input.status;
+  if (input.status && input.status.length) where.status = { in: input.status };
   if (input.paymentStatus) where.payments = { some: { status: input.paymentStatus } };
+  if (input.paymentMethod) where.paymentMethod = input.paymentMethod;
 
   if (input.dateFrom || input.dateTo) {
     where.placedAt = {

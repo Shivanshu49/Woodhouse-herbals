@@ -4,20 +4,36 @@
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { OrderStatus, PaymentStatus } from '@prisma/client';
+import { OrderStatus, PaymentMethod, PaymentStatus } from '@prisma/client';
 import { buildAdminOrderWhere } from './admin-order-where';
 
 test('empty input builds an empty where', () => {
   assert.deepEqual(buildAdminOrderWhere({}), {});
 });
 
-test('status filters on the order status column', () => {
-  assert.deepEqual(buildAdminOrderWhere({ status: OrderStatus.PROCESSING }).status, 'PROCESSING');
+test('a single status builds an IN filter', () => {
+  assert.deepEqual(buildAdminOrderWhere({ status: [OrderStatus.PROCESSING] }).status, {
+    in: ['PROCESSING'],
+  });
+});
+
+test('multiple statuses build an IN filter', () => {
+  assert.deepEqual(buildAdminOrderWhere({ status: [OrderStatus.PENDING, OrderStatus.PAID] }).status, {
+    in: ['PENDING', 'PAID'],
+  });
+});
+
+test('an empty status array adds no status filter', () => {
+  assert.equal(buildAdminOrderWhere({ status: [] }).status, undefined);
 });
 
 test('paymentStatus filters via a payments relation (some)', () => {
   const where = buildAdminOrderWhere({ paymentStatus: PaymentStatus.SUCCESS });
   assert.deepEqual(where.payments, { some: { status: 'SUCCESS' } });
+});
+
+test('paymentMethod filters on the order paymentMethod column', () => {
+  assert.equal(buildAdminOrderWhere({ paymentMethod: PaymentMethod.COD }).paymentMethod, 'COD');
 });
 
 test('dateFrom/dateTo build a placedAt gte/lte range', () => {

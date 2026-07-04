@@ -34,6 +34,7 @@ export function useOrdersView() {
     setDateRange: (dateFrom?: string, dateTo?: string) => patch({ dateFrom, dateTo }),
     clearFilters: () =>
       patch({
+        q: '',
         statuses: [],
         paymentStatus: undefined,
         paymentMethod: undefined,

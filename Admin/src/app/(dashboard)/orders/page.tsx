@@ -14,7 +14,7 @@ import { OrdersPagination } from './_components/orders-pagination';
 
 export default function OrdersPage() {
   const api = useOrdersView();
-  const { data, isPending, isError, isFetching, refetch } = useOrders(api.apiParams);
+  const { data, isPending, isError, isPlaceholderData, refetch } = useOrders(api.apiParams);
   const total = data?.total ?? 0;
   const isFiltered = api.filterCount > 0 || api.view.q.trim() !== '';
   const isEmpty = !isPending && !isError && total === 0;
@@ -64,10 +64,15 @@ export default function OrdersPage() {
           />
         )
       ) : (
-        <>
-          <div className={cn('transition-opacity', isFetching && !isPending && 'pointer-events-none opacity-60')}>
-            <OrdersTable data={data?.items ?? []} loading={isPending} />
-          </div>
+        // Dim only during a param-change refetch (isPlaceholderData) — NOT on the
+        // background 30s poll / window-focus refetch, which keep the same key.
+        <div
+          className={cn(
+            'space-y-4 transition-opacity',
+            isPlaceholderData && 'pointer-events-none opacity-60',
+          )}
+        >
+          <OrdersTable data={data?.items ?? []} loading={isPending} />
           <OrdersPagination
             page={data?.page ?? api.view.page}
             perPage={data?.perPage ?? api.view.perPage}
@@ -75,7 +80,7 @@ export default function OrdersPage() {
             onPage={api.setPage}
             onPerPage={api.setPerPage}
           />
-        </>
+        </div>
       )}
     </div>
   );

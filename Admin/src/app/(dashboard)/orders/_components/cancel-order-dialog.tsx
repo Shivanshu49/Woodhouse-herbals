@@ -11,6 +11,7 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { ApiError } from '@/lib/api';
 import { useCancelOrder } from '@/hooks/use-order-mutations';
 import type { AdminOrderRow } from '@/types/order';
 
@@ -32,7 +33,19 @@ export function CancelOrderDialog({
 
   function submit() {
     if (!reason.trim()) return;
-    cancel.mutate({ reason: reason.trim() }, { onSuccess: () => onOpenChange(false) });
+    cancel.mutate(
+      { reason: reason.trim() },
+      {
+        onSuccess: () => onOpenChange(false),
+        // A 409 means the order changed underneath (e.g. it shipped) and is no
+        // longer cancellable — retry is pointless, so dismiss the now-useless
+        // dialog. The mutation hook still surfaces the backend message as a toast
+        // and refetches the list so the row shows its true status.
+        onError: (err) => {
+          if (err instanceof ApiError && err.status === 409) onOpenChange(false);
+        },
+      },
+    );
   }
 
   return (

@@ -149,3 +149,20 @@ set-category produces no visible change in the Category column.
   relational category (add it to `SUMMARY_SELECT` and show it), or point the
   bulk action at the enum. Until then the dialog notes it assigns the catalog
   category.
+
+---
+
+## Phase C step 4 (Add Product form) — deferred
+
+### FF-14 — Per-ingredient / per-benefit icons (deferred from GROUP 6)
+`IngredientItemDto` and `BenefitItemDto` both carry an optional `iconUrl`, but
+the Add-Product form's Ingredients & Usage section (GROUP 6) captures only
+name + benefit (and benefit text). Per-row icons need a per-row Cloudinary
+upload (the media-section signed-upload flow, scoped down to a single small
+image) — real complexity for a cosmetic touch, so deferred.
+- **Where:** `Admin/.../products/_form/sections/ingredients-section.tsx`
+  (+ `_form/ingredients.ts` payload mapping — would add `iconUrl` to the
+  ingredient/benefit item shape).
+- **Fix:** add an optional icon picker per ingredient/benefit row reusing the
+  signed-upload orchestration (`lib/cloudinary-upload.ts`), storing the returned
+  `secure_url` as the row's `iconUrl`.

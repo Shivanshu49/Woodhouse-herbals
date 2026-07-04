@@ -21,6 +21,7 @@ import { MediaSection } from './sections/media-section';
 import { PricingSection } from './sections/pricing-section';
 import { InventorySection } from './sections/inventory-section';
 import { OrganizationSection } from './sections/organization-section';
+import { IngredientsSection } from './sections/ingredients-section';
 
 /** Sections rendered so far — grows one group at a time; drives the side-nav. */
 const SECTIONS = [
@@ -29,6 +30,7 @@ const SECTIONS = [
   { id: 'pricing', label: 'Pricing & tax' },
   { id: 'inventory', label: 'Inventory & shipping' },
   { id: 'organization', label: 'Organization' },
+  { id: 'ingredients', label: 'Ingredients & usage' },
 ] as const;
 
 export interface ProductFormProps {
@@ -152,6 +154,7 @@ export function ProductForm({
             <PricingSection />
             <InventorySection />
             <OrganizationSection />
+            <IngredientsSection />
           </div>
         </div>
 

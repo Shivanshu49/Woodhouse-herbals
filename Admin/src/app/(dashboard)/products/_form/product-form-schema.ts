@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { GST_RATE_VALUES, rupeesToPaise } from './pricing';
 import { parseCount, parseDimension } from './inventory';
+import { ingredientRowState } from './ingredients';
 import {
   BADGE_LABEL_MAX_LENGTH,
   BADGE_TONE_VALUES,
@@ -110,6 +111,19 @@ export const productFormSchema = z
         tone: z.enum(BADGE_TONE_VALUES),
       }),
     ),
+
+    // ── GROUP 6 · Ingredients & Usage ─────────────────────────────────
+    ingredients: z.array(z.object({ name: z.string().max(100), benefit: z.string().max(200) })),
+    benefits: z.array(z.string().max(200)),
+    howToUse: z.array(z.string().max(300)),
+    inciText: z.string(), // deliberately UNCAPPED — real INCI lists run 1000+ chars
+    usageFrequency: z.string().max(200),
+    recommendedTime: z.string().max(200),
+    parabenFree: z.boolean(),
+    sulfateFree: z.boolean(),
+    crueltyFree: z.boolean(),
+    vegan: z.boolean(),
+    alcoholFree: z.boolean(),
   })
   .superRefine((v, ctx) => {
     if (richTextToPlain(v.longDescription).length === 0) {
@@ -228,6 +242,19 @@ export const productFormSchema = z
     if (!PRODUCT_CATEGORY_VALUES.includes(v.category)) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['category'], message: 'Select a category' });
     }
+
+    // ── Ingredients & Usage ──
+    // An ingredient row needs BOTH name and benefit (the backend requires both);
+    // a half-filled row is an error, a fully-blank row is dropped on save.
+    v.ingredients.forEach((row, i) => {
+      if (ingredientRowState(row) === 'partial') {
+        if (row.name.trim() === '') {
+          ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['ingredients', i, 'name'], message: 'Add an ingredient name' });
+        } else {
+          ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['ingredients', i, 'benefit'], message: 'Add a benefit' });
+        }
+      }
+    });
   });
 
 export type ProductFormValues = z.infer<typeof productFormSchema>;
@@ -266,4 +293,15 @@ export const DEFAULT_PRODUCT_FORM_VALUES: ProductFormValues = {
   skinTypes: [],
   tags: [],
   badges: [],
+  ingredients: [],
+  benefits: [],
+  howToUse: [],
+  inciText: '',
+  usageFrequency: '',
+  recommendedTime: '',
+  parabenFree: false,
+  sulfateFree: false,
+  crueltyFree: false,
+  vegan: false,
+  alcoholFree: false,
 };

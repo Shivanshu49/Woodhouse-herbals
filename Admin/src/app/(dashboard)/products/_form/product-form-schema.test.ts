@@ -49,12 +49,31 @@ function base(overrides: Partial<ProductFormValues> = {}): ProductFormValues {
     skinTypes: [],
     tags: [],
     badges: [],
+    ingredients: [],
+    benefits: [],
+    howToUse: [],
+    inciText: '',
+    usageFrequency: '',
+    recommendedTime: '',
+    parabenFree: false,
+    sulfateFree: false,
+    crueltyFree: false,
+    vegan: false,
+    alcoholFree: false,
     ...overrides,
   };
 }
 
 function issueOn(result: ReturnType<typeof productFormSchema.safeParse>, path: string): boolean {
   return !result.success && result.error.issues.some((i) => i.path[0] === path);
+}
+
+/** Assert an issue exists at an exact nested path (e.g. ['ingredients', 0, 'benefit']). */
+function issueAtPath(
+  result: ReturnType<typeof productFormSchema.safeParse>,
+  path: (string | number)[],
+): boolean {
+  return !result.success && result.error.issues.some((i) => i.path.join('.') === path.join('.'));
 }
 
 const img = (over: Partial<ProductFormValues['images'][number]> = {}): ProductFormValues['images'][number] => ({
@@ -147,6 +166,49 @@ test('badges: label required and tone must be a valid BadgeTone', () => {
   assert.equal(productFormSchema.safeParse(base({ badges: [{ label: '', tone: 'NEW' }] })).success, false);
   assert.equal(productFormSchema.safeParse(base({ badges: [{ label: '   ', tone: 'NEW' }] })).success, false); // whitespace-only
   assert.equal(productFormSchema.safeParse(base({ badges: [{ label: 'x', tone: 'BOGUS' }] })).success, false);
+});
+
+// ── GROUP 6 · Ingredients & Usage ────────────────────────────────────
+test('ingredients: blank & complete rows pass; a half-filled row errors on the EMPTY field', () => {
+  assert.equal(productFormSchema.safeParse(base({ ingredients: [{ name: 'Niacinamide', benefit: 'Brightens' }] })).success, true);
+  assert.equal(productFormSchema.safeParse(base({ ingredients: [{ name: '', benefit: '' }] })).success, true); // blank → dropped
+  // The error must land on the field the user still needs to fill (the inline
+  // ingErr(i,'name'|'benefit') rendering reads exactly this path).
+  assert.ok(
+    issueAtPath(productFormSchema.safeParse(base({ ingredients: [{ name: 'Niacinamide', benefit: '' }] })), ['ingredients', 0, 'benefit']),
+  );
+  assert.ok(
+    issueAtPath(productFormSchema.safeParse(base({ ingredients: [{ name: '', benefit: 'Brightens' }] })), ['ingredients', 0, 'name']),
+  );
+  // A whitespace-only name is still "empty" for that field → partial → name error.
+  assert.ok(
+    issueAtPath(productFormSchema.safeParse(base({ ingredients: [{ name: '   ', benefit: 'Brightens' }] })), ['ingredients', 0, 'name']),
+  );
+});
+
+test('ingredients & usage length caps (name ≤100, benefit ≤200, benefit item ≤200, step ≤300, usage ≤200)', () => {
+  assert.ok(issueOn(productFormSchema.safeParse(base({ ingredients: [{ name: 'x'.repeat(101), benefit: 'ok' }] })), 'ingredients'));
+  assert.ok(issueOn(productFormSchema.safeParse(base({ ingredients: [{ name: 'ok', benefit: 'x'.repeat(201) }] })), 'ingredients'));
+  assert.ok(issueOn(productFormSchema.safeParse(base({ benefits: ['x'.repeat(201)] })), 'benefits'));
+  assert.ok(issueOn(productFormSchema.safeParse(base({ howToUse: ['x'.repeat(301)] })), 'howToUse'));
+  assert.ok(issueOn(productFormSchema.safeParse(base({ usageFrequency: 'x'.repeat(201) })), 'usageFrequency'));
+});
+
+test('inciText has no restrictive cap — real INCI lists run 1000+ chars', () => {
+  const longInci = 'Aqua, Niacinamide, Glycerin, '.repeat(60); // ~1700 chars
+  assert.ok(longInci.length > 1000);
+  assert.equal(productFormSchema.safeParse(base({ inciText: longInci })).success, true);
+});
+
+test('usage frequency / best time are optional short text', () => {
+  assert.equal(
+    productFormSchema.safeParse(base({ usageFrequency: 'Apply twice daily on damp skin', recommendedTime: 'Morning & night' })).success,
+    true,
+  );
+});
+
+test('free-from flags accept booleans', () => {
+  assert.equal(productFormSchema.safeParse(base({ vegan: true, crueltyFree: true, parabenFree: true })).success, true);
 });
 
 test('DEFAULT_PRODUCT_FORM_VALUES starts with an empty images array', () => {

@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InventoryReason, OrderStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { pageArgs } from '../../common/dto/pagination.dto';
@@ -9,7 +9,7 @@ import { OrderEventType } from '../order-events/order-event-types';
 import { buildAdminOrderWhere } from './admin-order-where';
 import { buildAdminOrderOrderBy } from './admin-order-sort';
 import { toOrderSummary } from './admin-order-summary';
-import { assertCancellable } from './order-transitions';
+import { assertCancellable, CANCELLABLE_STATUSES } from './order-transitions';
 import { ListAdminOrdersDto } from './dto/list-admin-orders.dto';
 import { AddOrderNoteDto } from './dto/add-order-note.dto';
 import { CancelOrderDto } from './dto/cancel-order.dto';
@@ -121,9 +121,25 @@ export class AdminOrdersService {
       },
     });
     if (!order) throw new NotFoundException('Order not found');
-    assertCancellable(order.status); // throws 409 unless PENDING/PAID/PROCESSING
+    assertCancellable(order.status); // fast-fail 409 for the common case
 
     return this.prisma.$transaction(async (tx) => {
+      // The REAL guard: atomically CLAIM the cancellation as the first write,
+      // gated on the order still being cancellable. This closes two races the
+      // pre-read check above cannot — (a) a concurrent shipment flipping the
+      // order to SHIPPED (TOCTOU), and (b) a second concurrent cancel
+      // (double-restock). A lost race yields count 0 → 409, rolling the whole
+      // transaction back before any stock is returned or event written.
+      const claimed = await tx.order.updateMany({
+        where: { id, status: { in: [...CANCELLABLE_STATUSES] } },
+        data: { status: OrderStatus.CANCELLED },
+      });
+      if (claimed.count !== 1) {
+        throw new ConflictException(
+          'Order status changed concurrently and can no longer be cancelled — reload and retry.',
+        );
+      }
+
       for (const item of order.items) {
         await this.inventory.adjust({
           productId: item.productId,
@@ -134,7 +150,6 @@ export class AdminOrdersService {
           tx,
         });
       }
-      await tx.order.update({ where: { id }, data: { status: OrderStatus.CANCELLED } });
       await this.events.record(
         {
           orderId: id,

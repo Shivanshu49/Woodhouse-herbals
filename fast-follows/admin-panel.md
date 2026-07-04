@@ -208,3 +208,21 @@ storefront is still largely on mock data) but a gap to close when the PDP goes l
 - **Fix:** include `benefitItems: { orderBy: { sortOrder: 'asc' } }` and map
   `benefits: p.benefitItems.map((b) => b.text)` (fall back to the legacy scalar
   for un-migrated rows).
+
+---
+
+## Phase D1 (admin-orders) — deferred from the D1 adversarial review
+
+### FF-18 — `cancel()` restock cost grows linearly with line-item count (Low)
+`AdminOrdersService.cancel` restocks each line with a separate
+`InventoryService.adjust` (3 sequential queries/line). On Neon's high-latency
+link a very large order (dozens of lines) could approach the 20s
+`ADMIN_WRITE_TX_TIMEOUT_MS` and become uncancellable. Realistic orders (a handful
+of lines) are well within budget, so this is deferred — but if bulk/wholesale
+orders appear it should be made set-based.
+- **Where:** `Backend/src/modules/admin-orders/admin-orders.service.ts::cancel`.
+- **Fix:** inside the tx, one `findMany` of `{id, stockQty}` for all line
+  products, one bulk `UPDATE ... stockQty = stockQty + delta` (a cancel restock
+  is a positive delta and can't violate `stockQty >= 0`, so the per-row CAS isn't
+  needed here), reconcile `inStock`/`stockStatus` flags, and one
+  `inventoryMovement.createMany` for the audit rows — cost independent of line count.

@@ -279,11 +279,22 @@ export class PhonepeService {
       });
       if (updated.count !== 1) return; // raced — leave alone
 
-      await tx.order.update({
-        where: { id: orderId },
+      // The payment is now SUCCESS. Only advance the ORDER if it is still PENDING:
+      // a payment that lands after the order left PENDING (e.g. admin-cancelled
+      // while in flight) must NOT resurrect it to PAID or fabricate an event.
+      const advanced = await tx.order.updateMany({
+        where: { id: orderId, status: OrderStatus.PENDING },
         data: { status: OrderStatus.PAID },
       });
-      // CAS above guarantees the payment was INITIATED → the order was PENDING.
+      if (advanced.count !== 1) {
+        // Money captured but the order is no longer PENDING — leave the payment
+        // SUCCESS (do NOT throw, or PhonePe retries forever) and flag it for
+        // manual / refund reconciliation (D1b). No status change, no event.
+        this.logger.error(
+          JSON.stringify({ scope: 'phonepe:callback:paid_on_non_pending', orderId }),
+        );
+        return;
+      }
       await this.events.record(
         {
           orderId,
@@ -321,10 +332,19 @@ export class PhonepeService {
       });
       if (updated.count !== 1) return;
 
-      await tx.order.update({
-        where: { id: orderId },
+      // Only cancel + restock if the order is still PENDING. If it already left
+      // PENDING (e.g. an admin cancelled it — which already restocked), do NOT
+      // restock again or emit a duplicate CANCELLED event.
+      const cancelled = await tx.order.updateMany({
+        where: { id: orderId, status: OrderStatus.PENDING },
         data: { status: OrderStatus.CANCELLED },
       });
+      if (cancelled.count !== 1) {
+        this.logger.warn(
+          JSON.stringify({ scope: 'phonepe:callback:failed_on_non_pending', orderId }),
+        );
+        return; // payment marked FAILED; order already terminal, stock already handled
+      }
       await this.events.record(
         {
           orderId,

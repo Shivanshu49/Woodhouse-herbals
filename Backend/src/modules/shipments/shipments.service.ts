@@ -63,11 +63,13 @@ export class ShipmentsService {
         include: { events: true },
       });
 
-      if (order.status === OrderStatus.PAID) {
-        await tx.order.update({
-          where: { id: order.id },
-          data: { status: OrderStatus.PROCESSING },
-        });
+      // Atomic PAID→PROCESSING; record the event only if THIS call transitioned
+      // the order (count 1), never off a stale pre-read.
+      const movedToProcessing = await tx.order.updateMany({
+        where: { id: order.id, status: OrderStatus.PAID },
+        data: { status: OrderStatus.PROCESSING },
+      });
+      if (movedToProcessing.count === 1) {
         await this.events.record(
           {
             orderId: order.id,
@@ -123,11 +125,14 @@ export class ShipmentsService {
       const prior = orderRow?.status ?? null;
 
       if (status === ShipmentStatus.IN_TRANSIT || status === ShipmentStatus.OUT_FOR_DELIVERY) {
-        await tx.order.update({
-          where: { id: shipment.orderId },
+        // Atomic move to SHIPPED; emit the event only if THIS call transitioned
+        // the order (count 1), so concurrent IN_TRANSIT/OUT_FOR_DELIVERY updates
+        // (both mapping to SHIPPED) can't each write a duplicate event.
+        const moved = await tx.order.updateMany({
+          where: { id: shipment.orderId, status: { not: OrderStatus.SHIPPED } },
           data: { status: OrderStatus.SHIPPED },
         });
-        if (prior !== OrderStatus.SHIPPED) {
+        if (moved.count === 1) {
           await this.events.record(
             {
               orderId: shipment.orderId,
@@ -140,11 +145,11 @@ export class ShipmentsService {
           );
         }
       } else if (status === ShipmentStatus.DELIVERED) {
-        await tx.order.update({
-          where: { id: shipment.orderId },
+        const moved = await tx.order.updateMany({
+          where: { id: shipment.orderId, status: { not: OrderStatus.DELIVERED } },
           data: { status: OrderStatus.DELIVERED },
         });
-        if (prior !== OrderStatus.DELIVERED) {
+        if (moved.count === 1) {
           await this.events.record(
             {
               orderId: shipment.orderId,

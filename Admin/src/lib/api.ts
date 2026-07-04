@@ -23,6 +23,13 @@ import type {
   Concern,
   ProductDetail,
 } from '@/types/product';
+import type {
+  AddOrderNoteBody,
+  AdminOrderListParams,
+  AdminOrdersList,
+  CancelOrderBody,
+  OrderDetail,
+} from '@/types/order';
 
 const API_BASE = `${env.apiUrl}/api`;
 
@@ -169,5 +176,17 @@ export const api = {
   },
   concerns: {
     list: () => request<Concern[]>('GET', '/concerns'),
+  },
+  orders: {
+    list: (params: AdminOrderListParams) =>
+      request<AdminOrdersList>(
+        'GET',
+        `/admin/orders${toQuery(params as Record<string, string | number | boolean | undefined>)}`,
+      ),
+    get: (id: string) => request<OrderDetail>('GET', `/admin/orders/${id}`),
+    addNote: (id: string, body: AddOrderNoteBody) =>
+      request<{ id: string }>('POST', `/admin/orders/${id}/notes`, body),
+    cancel: (id: string, body: CancelOrderBody) =>
+      request<{ id: string; status: string }>('POST', `/admin/orders/${id}/cancel`, body),
   },
 };

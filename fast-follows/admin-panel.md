@@ -104,3 +104,48 @@ It calls `setQueryData(qk.me, null)` (instant) then
 me → refresh → retry round-trip on the next mount.
 - **Where:** `Admin/src/hooks/use-admin-auth.ts`.
 - **Fix:** `setQueryData(qk.me, null)` alone is sufficient for instant logout UI.
+
+---
+
+## Phase C step 3 (products list) — deferred from the step-3 review
+
+The step-3 adversarial review confirmed 4 findings; 3 were fixed on
+`feat/admin-phase-c` (checkout stock-flag reconciliation folded into
+`InventoryService.adjust`; `adjustStockInView` made stock-filter-aware;
+pagination page-snap-back). The rest are tracked here.
+
+### FF-11 — Quick stock-adjust sends a delta derived from a possibly-stale current qty (Low)
+The dialog presents an absolute "New quantity" but transmits
+`delta = target − cachedCurrentQty`. If the product's stock changed since the
+list was fetched, the product lands at the wrong absolute quantity (the CAS
+guard prevents corruption/oversell, and the ledger records the true delta, but
+the admin's intended absolute value is not honoured). Rare on an admin-only
+panel; the value self-corrects on the next refetch.
+- **Where:** `Admin/src/app/(dashboard)/products/_components/stock-adjust-dialog.tsx`,
+  `Backend/src/modules/inventory/{inventory.controller,inventory.service,dto/adjust-stock.dto}.ts`.
+- **Fix:** send `expectedQty: target.stockQty` in the adjust body and have the
+  service CAS against the client-supplied expected value (409 "Stock changed
+  concurrently — please retry" on mismatch), then the dialog refetches and
+  shows the new current. Alternatively reframe the control as an explicit
+  relative +/- adjustment.
+
+### FF-12 — Category & status list filters are single-select only (Minor)
+The step-3 spec called for multi-select category and status filters, but
+`GET /admin/products` accepts a single `category` (ProductCategory enum) and a
+single `status` (ProductStatus) value, so the UI is honestly single-select.
+- **Where:** `Backend/src/modules/admin-products/dto/list-admin-products.dto.ts`
+  + `admin-product-where.ts`; `Admin/.../products-filters.tsx`.
+- **Fix:** accept `category`/`status` as arrays (`@IsEnum(..., { each: true })`,
+  `where.category = { in: [...] }`), then switch the filter chips to multi-select.
+
+### FF-13 — "Set category" bulk action targets the relational Category, not the displayed enum (Minor)
+The list's Category column shows the `ProductCategory` enum, but the
+`set-category` bulk action assigns the relational `Category` (`categoryRefId` +
+`ProductCategoryLink`), which is not shown in this list — so a successful
+set-category produces no visible change in the Category column.
+- **Where:** `Backend/src/modules/admin-products/admin-products.service.ts`
+  (`bulk` set-category branch); `Admin/.../set-category-dialog.tsx`.
+- **Fix:** decide the canonical taxonomy for the admin list — either surface the
+  relational category (add it to `SUMMARY_SELECT` and show it), or point the
+  bulk action at the enum. Until then the dialog notes it assigns the catalog
+  category.

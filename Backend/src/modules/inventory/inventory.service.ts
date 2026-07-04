@@ -1,6 +1,7 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InventoryReason, Prisma } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { stockFlagsFor } from './stock-flags';
 
 interface AdjustInput {
   productId: string;
@@ -21,10 +22,12 @@ interface AdjustInput {
  *
  * Every stock change goes through `adjust` so we have a single point that
  *   1) enforces the `stockQty >= 0` invariant atomically via a conditional
- *      update against the previously-observed value, and
- *   2) writes an `InventoryMovement` row in the same transaction.
+ *      update against the previously-observed value,
+ *   2) reconciles the denormalised `inStock` / `stockStatus` flags in the same
+ *      update so the storefront never reads a sold-out product as available, and
+ *   3) writes an `InventoryMovement` row in the same transaction.
  *
- * If either step fails the whole transaction rolls back.
+ * If any step fails the whole transaction rolls back.
  */
 @Injectable()
 export class InventoryService {
@@ -44,9 +47,13 @@ export class InventoryService {
       if (newQty < 0) throw new ConflictException('Insufficient stock');
 
       // CAS-style guard against concurrent updates that also read `before`.
+      // The denormalized inStock/stockStatus flags are reconciled in the SAME
+      // update so every stock path (order decrement, refund restore, admin
+      // adjust) keeps them in sync with stockQty — a sold-out product must
+      // never linger as inStock:true.
       const updated = await tx.product.updateMany({
         where: { id: input.productId, stockQty: before.stockQty },
-        data: { stockQty: newQty },
+        data: { stockQty: newQty, ...stockFlagsFor(newQty) },
       });
       if (updated.count !== 1) {
         throw new ConflictException('Stock changed concurrently — please retry');
@@ -68,6 +75,28 @@ export class InventoryService {
     };
 
     return input.tx ? run(input.tx) : this.prisma.$transaction(run);
+  }
+
+  /**
+   * Manual, admin-initiated stock adjustment. Thin wrapper over `adjust` that
+   * defaults the reason to MANUAL_ADJUSTMENT and maps the admin note onto the
+   * ledger `reference`. Flag reconciliation now lives in `adjust` itself, so
+   * this needs no extra transaction.
+   */
+  async adminAdjust(input: {
+    productId: string;
+    delta: number;
+    actorId: string;
+    reason?: InventoryReason;
+    note?: string | null;
+  }): Promise<{ previousQty: number; newQty: number }> {
+    return this.adjust({
+      productId: input.productId,
+      delta: input.delta,
+      reason: input.reason ?? InventoryReason.MANUAL_ADJUSTMENT,
+      actorId: input.actorId,
+      reference: input.note ?? null,
+    });
   }
 
   lowStock(threshold = 5) {

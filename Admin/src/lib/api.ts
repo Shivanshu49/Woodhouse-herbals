@@ -11,6 +11,15 @@
  */
 import { env } from './env';
 import type { AdminLoginResponse, AdminMeResponse } from '@/types/api';
+import type {
+  AdjustStockBody,
+  AdjustStockResult,
+  AdminProductListParams,
+  AdminProductsList,
+  BulkProductsBody,
+  BulkProductsResult,
+  Category,
+} from '@/types/product';
 
 const API_BASE = `${env.apiUrl}/api`;
 
@@ -66,6 +75,17 @@ async function rawRequest(
   });
 }
 
+/** Serialise a params object to a query string, dropping empty values. */
+function toQuery(params: Record<string, string | number | boolean | undefined>): string {
+  const usp = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (value === undefined || value === null || value === '') continue;
+    usp.set(key, String(value));
+  }
+  const qs = usp.toString();
+  return qs ? `?${qs}` : '';
+}
+
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
   let res = await rawRequest(method, path, body);
 
@@ -103,5 +123,24 @@ export const api = {
         signature: string;
         uploadUrl: string;
       }>('POST', '/admin/uploads/sign', { folder }),
+  },
+  products: {
+    list: (params: AdminProductListParams) =>
+      request<AdminProductsList>(
+        'GET',
+        `/admin/products${toQuery(params as Record<string, string | number | boolean | undefined>)}`,
+      ),
+    bulk: (body: BulkProductsBody) =>
+      request<BulkProductsResult>('POST', '/admin/products/bulk', body),
+    // Soft-delete (sets deletedAt). The catalog keeps the row for order history.
+    remove: (id: string) => request<{ ok: true }>('DELETE', `/admin/products/${id}`),
+    restore: (id: string) => request<{ ok: true }>('POST', `/admin/products/${id}/restore`),
+  },
+  inventory: {
+    adjust: (body: AdjustStockBody) =>
+      request<AdjustStockResult>('POST', '/admin/inventory/adjust', body),
+  },
+  categories: {
+    list: () => request<Category[]>('GET', '/categories'),
   },
 };

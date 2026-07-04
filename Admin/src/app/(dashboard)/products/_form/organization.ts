@@ -31,8 +31,10 @@ export const BADGE_TONE_OPTIONS = [
   { value: 'LIMITED', label: 'Limited' },
 ] as const;
 
-export const BADGE_TONE_VALUES = BADGE_TONE_OPTIONS.map((o) => o.value) as [string, ...string[]];
-export type BadgeToneValue = (typeof BADGE_TONE_OPTIONS)[number]['value'];
+// Explicit literal tuple (not a widened .map) so z.enum keeps the union type —
+// the create-payload mapper needs form badges' tone to stay BadgeToneValue.
+export const BADGE_TONE_VALUES = ['BESTSELLER', 'NEW', 'SALE', 'LIMITED'] as const;
+export type BadgeToneValue = (typeof BADGE_TONE_VALUES)[number];
 
 export const TAG_MAX_LENGTH = 30;
 export const BADGE_LABEL_MAX_LENGTH = 30;

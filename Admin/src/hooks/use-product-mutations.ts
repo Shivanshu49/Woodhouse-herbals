@@ -1,6 +1,7 @@
 'use client';
 
 import { useMutation, useQueryClient, type QueryKey } from '@tanstack/react-query';
+import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
 import { qk } from '@/lib/query-keys';
@@ -31,6 +32,22 @@ const BULK_SUCCESS: Record<BulkAction, (n: number) => string> = {
   restore: (n) => `Restored ${n} product${plural(n)}`,
   'set-category': (n) => `Updated category for ${n} product${plural(n)}`,
 };
+
+/** Create a product from the Add Product form; on success go to the list. */
+export function useCreateProduct() {
+  const qc = useQueryClient();
+  const router = useRouter();
+  return useMutation({
+    mutationFn: (body: unknown) => api.products.create(body),
+    onSuccess: () => {
+      // No edit page yet — land back on the list where the new product appears.
+      void qc.invalidateQueries({ queryKey: qk.products.all });
+      toast.success('Product created');
+      router.push('/products');
+    },
+    onError: (err) => toast.error(toMessage(err)),
+  });
+}
 
 /** Bulk publish / draft / archive / restore / set-category. */
 export function useBulkProducts() {

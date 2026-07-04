@@ -165,7 +165,7 @@ test('badges: label required and tone must be a valid BadgeTone', () => {
   assert.equal(productFormSchema.safeParse(base({ badges: [{ label: 'New', tone: 'NEW' }] })).success, true);
   assert.equal(productFormSchema.safeParse(base({ badges: [{ label: '', tone: 'NEW' }] })).success, false);
   assert.equal(productFormSchema.safeParse(base({ badges: [{ label: '   ', tone: 'NEW' }] })).success, false); // whitespace-only
-  assert.equal(productFormSchema.safeParse(base({ badges: [{ label: 'x', tone: 'BOGUS' }] })).success, false);
+  assert.equal(productFormSchema.safeParse(base({ badges: [{ label: 'x', tone: 'BOGUS' as never }] })).success, false);
 });
 
 // ── GROUP 6 · Ingredients & Usage ────────────────────────────────────

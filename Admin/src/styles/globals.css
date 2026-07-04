@@ -71,4 +71,16 @@
   .tnum {
     font-feature-settings: "tnum" 1, "cv01" 1;
   }
+
+  /* Tiptap (rich-text editor) — placeholder + focus reset. */
+  .ProseMirror:focus {
+    outline: none;
+  }
+  .ProseMirror p.is-editor-empty:first-child::before {
+    content: attr(data-placeholder);
+    float: left;
+    height: 0;
+    pointer-events: none;
+    color: hsl(var(--muted-foreground));
+  }
 }

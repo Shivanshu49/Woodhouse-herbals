@@ -10,6 +10,7 @@
  *    propagates and the auth layer redirects to /login.
  */
 import { env } from './env';
+import type { SignResponse } from './cloudinary-upload';
 import type { AdminLoginResponse, AdminMeResponse } from '@/types/api';
 import type {
   AdjustStockBody,
@@ -115,14 +116,12 @@ export const api = {
   },
   uploads: {
     sign: (folder: 'products' | 'banners' | 'content') =>
-      request<{
-        cloudName: string;
-        apiKey: string;
-        timestamp: number;
-        folder: string;
-        signature: string;
-        uploadUrl: string;
-      }>('POST', '/admin/uploads/sign', { folder }),
+      request<SignResponse>('POST', '/admin/uploads/sign', { folder }),
+    // Delete-on-remove: called the moment an image uploaded this session is
+    // removed, so it is never orphaned in Cloudinary. Server-scoped to our
+    // own woodhouse/ folders (see DeleteUploadDto).
+    delete: (publicId: string) =>
+      request<{ result: string }>('POST', '/admin/uploads/delete', { publicId }),
   },
   products: {
     list: (params: AdminProductListParams) =>
@@ -130,6 +129,12 @@ export const api = {
         'GET',
         `/admin/products${toQuery(params as Record<string, string | number | boolean | undefined>)}`,
       ),
+    slugCheck: (slug: string, excludeId?: string) =>
+      request<{ available: boolean }>(
+        'GET',
+        `/admin/products/slug-check${toQuery({ slug, excludeId })}`,
+      ),
+    create: (body: unknown) => request<{ id: string }>('POST', '/admin/products', body),
     bulk: (body: BulkProductsBody) =>
       request<BulkProductsResult>('POST', '/admin/products/bulk', body),
     // Soft-delete (sets deletedAt). The catalog keeps the row for order history.

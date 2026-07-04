@@ -25,6 +25,7 @@ import { CouponsModule } from './modules/coupons/coupons.module';
 import { ShipmentsModule } from './modules/shipments/shipments.module';
 import { UploadsModule } from './modules/uploads/uploads.module';
 import { AdminProductsModule } from './modules/admin-products/admin-products.module';
+import { OrderEventsModule } from './modules/order-events/order-events.module';
 
 @Module({
   imports: [
@@ -35,6 +36,7 @@ import { AdminProductsModule } from './modules/admin-products/admin-products.mod
     PrismaModule,
     SecurityModule,
     AuditModule,
+    OrderEventsModule,
     MailModule,
     SmsModule,
     AuthModule,

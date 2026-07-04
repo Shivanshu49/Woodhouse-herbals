@@ -1,8 +1,14 @@
 import { z } from 'zod';
 import { GST_RATE_VALUES, rupeesToPaise } from './pricing';
+import { parseCount, parseDimension } from './inventory';
 
 /** Mirrors the backend SLUG_RE (create/update DTO). */
 const SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+
+/** Backend money/count columns are 32-bit signed Int (paise or units); anything
+ *  above this overflows the column (Postgres raises "integer out of range"). */
+const INT4_MAX = 2_147_483_647;
+const SHIPPING_CLASS_MAX = 50;
 
 export const PRODUCT_STATUS_VALUES = ['DRAFT', 'PUBLISHED', 'SCHEDULED'] as const;
 
@@ -72,6 +78,18 @@ export const productFormSchema = z
     hsnCode: z.string(),
     saleStartsAt: z.string(),
     saleEndsAt: z.string(),
+
+    // ── GROUP 4 · Inventory & Shipping ────────────────────────────────
+    trackInventory: z.boolean(),
+    stockQty: z.string(),
+    lowStockThreshold: z.string(),
+    allowBackorder: z.boolean(),
+    weightGrams: z.string(),
+    lengthCm: z.string(),
+    widthCm: z.string(),
+    heightCm: z.string(),
+    shippingClass: z.string(),
+    freeShipping: z.boolean(),
   })
   .superRefine((v, ctx) => {
     if (richTextToPlain(v.longDescription).length === 0) {
@@ -109,9 +127,7 @@ export const productFormSchema = z
 
     // ── Pricing & Tax ──
     const AMOUNT_MSG = 'Enter a valid amount (max 2 decimal places)';
-    // The backend price columns are 32-bit signed Int (paise); anything above
-    // INT_MAX would overflow the column (Postgres raises "integer out of range").
-    const MAX_PAISE = 2_147_483_647;
+    const MAX_PAISE = INT4_MAX;
     const TOO_LARGE = 'Amount is too large';
     const pricePaise = rupeesToPaise(v.price);
     if (v.price.trim() === '') {
@@ -158,6 +174,35 @@ export const productFormSchema = z
     if (v.saleStartsAt && v.saleEndsAt && new Date(v.saleEndsAt).getTime() <= new Date(v.saleStartsAt).getTime()) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['saleEndsAt'], message: 'Sale end must be after the start' });
     }
+
+    // ── Inventory & Shipping ──
+    const COUNT_MSG = 'Enter a whole number';
+    const DIM_MSG = 'Enter a valid measurement (max 2 decimal places)';
+    for (const field of ['stockQty', 'lowStockThreshold', 'weightGrams'] as const) {
+      // Stock fields only apply (and are only validated) when tracking is on —
+      // otherwise a stale value in a disabled field would block submit.
+      if (!v.trackInventory && field !== 'weightGrams') continue;
+      const raw = v[field];
+      if (raw.trim() === '') continue;
+      const n = parseCount(raw);
+      if (n === null) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: [field], message: COUNT_MSG });
+      } else if (n > INT4_MAX) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: [field], message: 'Number is too large' });
+      }
+    }
+    for (const field of ['lengthCm', 'widthCm', 'heightCm'] as const) {
+      if (v[field].trim() !== '' && parseDimension(v[field]) === null) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: [field], message: DIM_MSG });
+      }
+    }
+    if (v.shippingClass.trim().length > SHIPPING_CLASS_MAX) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['shippingClass'],
+        message: `Keep it under ${SHIPPING_CLASS_MAX} characters`,
+      });
+    }
   });
 
 export type ProductFormValues = z.infer<typeof productFormSchema>;
@@ -180,4 +225,14 @@ export const DEFAULT_PRODUCT_FORM_VALUES: ProductFormValues = {
   hsnCode: '',
   saleStartsAt: '',
   saleEndsAt: '',
+  trackInventory: true,
+  stockQty: '',
+  lowStockThreshold: '',
+  allowBackorder: false,
+  weightGrams: '',
+  lengthCm: '',
+  widthCm: '',
+  heightCm: '',
+  shippingClass: '',
+  freeShipping: false,
 };

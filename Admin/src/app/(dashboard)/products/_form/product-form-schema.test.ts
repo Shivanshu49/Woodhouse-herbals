@@ -33,6 +33,16 @@ function base(overrides: Partial<ProductFormValues> = {}): ProductFormValues {
     hsnCode: '',
     saleStartsAt: '',
     saleEndsAt: '',
+    trackInventory: true,
+    stockQty: '',
+    lowStockThreshold: '',
+    allowBackorder: false,
+    weightGrams: '',
+    lengthCm: '',
+    widthCm: '',
+    heightCm: '',
+    shippingClass: '',
+    freeShipping: false,
     ...overrides,
   };
 }
@@ -156,6 +166,49 @@ test('gstRate accepts the enum values and rejects others', () => {
   assert.equal(productFormSchema.safeParse(base({ gstRate: 'GST_12' })).success, true);
   assert.equal(productFormSchema.safeParse(base({ gstRate: 'EXEMPT' })).success, true);
   assert.equal(productFormSchema.safeParse(base({ gstRate: 'GST_9' as never })).success, false);
+});
+
+// ── GROUP 4 · Inventory & Shipping ───────────────────────────────────
+test('stockQty: whole number ok; decimals / negatives / over-INT_MAX rejected; blank ok', () => {
+  assert.equal(productFormSchema.safeParse(base({ stockQty: '100' })).success, true);
+  assert.ok(issueOn(productFormSchema.safeParse(base({ stockQty: '10.5' })), 'stockQty'));
+  assert.ok(issueOn(productFormSchema.safeParse(base({ stockQty: '-1' })), 'stockQty'));
+  assert.equal(productFormSchema.safeParse(base({ stockQty: '2147483647' })).success, true); // exact INT_MAX
+  assert.ok(issueOn(productFormSchema.safeParse(base({ stockQty: '2147483648' })), 'stockQty'));
+  assert.equal(productFormSchema.safeParse(base({ stockQty: '' })).success, true);
+});
+
+test('stock fields are only validated when tracking is ON (disabled fields must not block submit)', () => {
+  // An invalid value left in a now-disabled stock field must not block submit.
+  assert.equal(productFormSchema.safeParse(base({ trackInventory: false, stockQty: '10.5' })).success, true);
+  assert.equal(productFormSchema.safeParse(base({ trackInventory: false, lowStockThreshold: 'abc' })).success, true);
+  // With tracking on, the same value is validated.
+  assert.ok(issueOn(productFormSchema.safeParse(base({ trackInventory: true, stockQty: '10.5' })), 'stockQty'));
+  // Weight is shipping, not gated by tracking — always validated.
+  assert.ok(issueOn(productFormSchema.safeParse(base({ trackInventory: false, weightGrams: '2.5' })), 'weightGrams'));
+});
+
+test('lowStockThreshold: optional whole number', () => {
+  assert.equal(productFormSchema.safeParse(base({ lowStockThreshold: '5' })).success, true);
+  assert.ok(issueOn(productFormSchema.safeParse(base({ lowStockThreshold: '5.5' })), 'lowStockThreshold'));
+});
+
+test('weightGrams: optional whole number of grams; over-max rejected', () => {
+  assert.equal(productFormSchema.safeParse(base({ weightGrams: '250' })).success, true);
+  assert.equal(productFormSchema.safeParse(base({ weightGrams: '2147483647' })).success, true); // exact INT_MAX
+  assert.ok(issueOn(productFormSchema.safeParse(base({ weightGrams: '2.5' })), 'weightGrams'));
+  assert.ok(issueOn(productFormSchema.safeParse(base({ weightGrams: '9999999999' })), 'weightGrams'));
+});
+
+test('dimensions: optional non-negative decimals up to 2 places', () => {
+  assert.equal(productFormSchema.safeParse(base({ lengthCm: '12.5', widthCm: '8', heightCm: '5.25' })).success, true);
+  assert.ok(issueOn(productFormSchema.safeParse(base({ lengthCm: '12.555' })), 'lengthCm'));
+  assert.ok(issueOn(productFormSchema.safeParse(base({ widthCm: '-3' })), 'widthCm'));
+});
+
+test('shippingClass: optional, capped length', () => {
+  assert.equal(productFormSchema.safeParse(base({ shippingClass: 'cold-chain' })).success, true);
+  assert.ok(issueOn(productFormSchema.safeParse(base({ shippingClass: 'x'.repeat(51) })), 'shippingClass'));
 });
 
 test('sale window: end must be after start, and an end needs a start', () => {

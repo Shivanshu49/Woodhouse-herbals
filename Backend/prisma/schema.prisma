@@ -621,6 +621,16 @@ enum PaymentStatus {
   PARTIALLY_REFUNDED
 }
 
+// How the customer pays. PREPAID = online (PhonePe) collected before fulfilment;
+// COD = cash/UPI on delivery, no online Payment row until (if ever) reconciled.
+// The refund flow branches on this (prepaid → PhonePe refund API; COD → manual
+// mark-refunded with a mandatory UTR reference). Defaults PREPAID — every order
+// to date is online PhonePe; COD checkout sets it explicitly when it ships.
+enum PaymentMethod {
+  PREPAID
+  COD
+}
+
 model Order {
   id                String             @id @default(cuid())
   number            String             @unique
@@ -636,6 +646,7 @@ model Order {
   taxMinor          Int                @default(0)
   totalMinor        Int
   currency          Currency           @default(INR)
+  paymentMethod     PaymentMethod      @default(PREPAID)
   // Snapshot of the coupon at apply-time. We keep both the FK (for joins)
   // and a code snapshot in case the coupon is later deleted.
   appliedCoupon     Coupon?            @relation(fields: [appliedCouponId], references: [id], onDelete: SetNull)

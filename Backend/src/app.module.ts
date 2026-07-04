@@ -25,6 +25,7 @@ import { CouponsModule } from './modules/coupons/coupons.module';
 import { ShipmentsModule } from './modules/shipments/shipments.module';
 import { UploadsModule } from './modules/uploads/uploads.module';
 import { AdminProductsModule } from './modules/admin-products/admin-products.module';
+import { AdminOrdersModule } from './modules/admin-orders/admin-orders.module';
 import { OrderEventsModule } from './modules/order-events/order-events.module';
 
 @Module({
@@ -55,6 +56,7 @@ import { OrderEventsModule } from './modules/order-events/order-events.module';
     ShipmentsModule,
     UploadsModule,
     AdminProductsModule,
+    AdminOrdersModule,
   ],
   controllers: [HealthController],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],

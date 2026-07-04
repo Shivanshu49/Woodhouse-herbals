@@ -36,6 +36,11 @@ test('dateFrom alone builds only gte', () => {
   assert.deepEqual(where.placedAt, { gte: new Date('2026-01-01T00:00:00.000Z') });
 });
 
+test('a date-only dateTo is inclusive through end-of-day', () => {
+  const where = buildAdminOrderWhere({ dateTo: '2026-07-04' });
+  assert.deepEqual(where.placedAt, { lte: new Date('2026-07-04T23:59:59.999Z') });
+});
+
 test('q builds an OR across number, name, phone, and account email; trims', () => {
   const where = buildAdminOrderWhere({ q: '  WH-123 ' });
   assert.deepEqual(where.OR, [

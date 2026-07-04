@@ -5,11 +5,12 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { createHash, randomUUID, timingSafeEqual } from 'node:crypto';
+import { randomUUID, timingSafeEqual } from 'node:crypto';
 import { InventoryReason, OrderStatus, PaymentStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { OrderEventsService } from '../order-events/order-events.service';
 import { OrderEventType } from '../order-events/order-event-types';
+import { requestChecksum, callbackChecksum } from './phonepe-signing';
 import { InventoryService } from '../inventory/inventory.service';
 import { WebhookEventsService } from '../../common/security/webhook-events.service';
 import { DEV_FALLBACKS, env } from '../../common/config/env';
@@ -106,7 +107,7 @@ export class PhonepeService {
     };
 
     const base64 = Buffer.from(JSON.stringify(payload)).toString('base64');
-    const checksum = `${createHash('sha256').update(base64 + PAY_ENDPOINT + saltKey).digest('hex')}###${saltIndex}`;
+    const checksum = requestChecksum(base64, PAY_ENDPOINT, saltKey, saltIndex);
 
     await this.prisma.payment.create({
       data: {
@@ -144,7 +145,7 @@ export class PhonepeService {
    */
   verifySignature(rawBody: string, signature: string): boolean {
     const { saltKey, saltIndex } = this.credentials();
-    const expected = `${createHash('sha256').update(rawBody + saltKey).digest('hex')}###${saltIndex}`;
+    const expected = callbackChecksum(rawBody, saltKey, saltIndex);
     const a = Buffer.from(expected);
     const b = Buffer.from(signature);
     if (a.length !== b.length) return false;

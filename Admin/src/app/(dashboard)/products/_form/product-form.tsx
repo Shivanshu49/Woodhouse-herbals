@@ -20,6 +20,7 @@ import { CoreSection } from './sections/core-section';
 import { MediaSection } from './sections/media-section';
 import { PricingSection } from './sections/pricing-section';
 import { InventorySection } from './sections/inventory-section';
+import { OrganizationSection } from './sections/organization-section';
 
 /** Sections rendered so far — grows one group at a time; drives the side-nav. */
 const SECTIONS = [
@@ -27,6 +28,7 @@ const SECTIONS = [
   { id: 'media', label: 'Media' },
   { id: 'pricing', label: 'Pricing & tax' },
   { id: 'inventory', label: 'Inventory & shipping' },
+  { id: 'organization', label: 'Organization' },
 ] as const;
 
 export interface ProductFormProps {
@@ -85,17 +87,21 @@ export function ProductForm({
     return false;
   };
 
+  // A failed submit must never be silent — some fields (tags, badges) are managed
+  // manually and can't be auto-focused by RHF, so surface a toast.
+  const onInvalid = () => toast.error('Please fix the highlighted fields before saving.');
+
   const handlePrimary = form.handleSubmit((values) => {
     if (guardPending()) return;
     return onSubmit(values, { asDraft: false });
-  });
+  }, onInvalid);
 
   const handleSaveDraft = () => {
     if (guardPending()) return;
     // Saving as a draft forces DRAFT status so scheduled-date validation is
     // not required, and reflects the choice in the Status field.
     form.setValue('status', 'DRAFT', { shouldDirty: true });
-    void form.handleSubmit((values) => onSubmit(values, { asDraft: true }))();
+    void form.handleSubmit((values) => onSubmit(values, { asDraft: true }), onInvalid)();
   };
 
   return (
@@ -145,6 +151,7 @@ export function ProductForm({
             <MediaSection />
             <PricingSection />
             <InventorySection />
+            <OrganizationSection />
           </div>
         </div>
 

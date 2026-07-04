@@ -14,4 +14,5 @@ export const qk = {
     list: (params: AdminProductListParams) => ['products', 'list', params] as const,
   },
   categories: ['categories'] as const,
+  concerns: ['concerns'] as const,
 };

@@ -43,6 +43,12 @@ function base(overrides: Partial<ProductFormValues> = {}): ProductFormValues {
     heightCm: '',
     shippingClass: '',
     freeShipping: false,
+    category: 'SERUM',
+    categoryIds: [],
+    concernIds: [],
+    skinTypes: [],
+    tags: [],
+    badges: [],
     ...overrides,
   };
 }
@@ -113,6 +119,34 @@ test('more than 12 images fails on `images` (the .max(12) cap)', () => {
   const r = productFormSchema.safeParse(base({ status: 'DRAFT', images }));
   assert.equal(r.success, false);
   assert.ok(imagesIssue(r), 'expected an issue on the images path');
+});
+
+// ── GROUP 5 · Organization ───────────────────────────────────────────
+test('category is required and must be a valid ProductCategory', () => {
+  assert.ok(issueOn(productFormSchema.safeParse(base({ category: '' })), 'category'));
+  assert.ok(issueOn(productFormSchema.safeParse(base({ category: 'NOT_A_CATEGORY' })), 'category'));
+  assert.equal(productFormSchema.safeParse(base({ category: 'FACE_WASH' })).success, true);
+});
+
+test('skinTypes accepts enum values and rejects others', () => {
+  assert.equal(productFormSchema.safeParse(base({ skinTypes: ['OILY', 'ALL'] })).success, true);
+  assert.equal(productFormSchema.safeParse(base({ skinTypes: ['OILY', 'FOO'] })).success, false);
+});
+
+test('relational category/concern ids pass through as string arrays', () => {
+  assert.equal(productFormSchema.safeParse(base({ categoryIds: ['c1', 'c2'], concernIds: ['x'] })).success, true);
+});
+
+test('tags: each capped at 30 characters', () => {
+  assert.equal(productFormSchema.safeParse(base({ tags: ['vegan', 'herbal'] })).success, true);
+  assert.ok(issueOn(productFormSchema.safeParse(base({ tags: ['x'.repeat(31)] })), 'tags'));
+});
+
+test('badges: label required and tone must be a valid BadgeTone', () => {
+  assert.equal(productFormSchema.safeParse(base({ badges: [{ label: 'New', tone: 'NEW' }] })).success, true);
+  assert.equal(productFormSchema.safeParse(base({ badges: [{ label: '', tone: 'NEW' }] })).success, false);
+  assert.equal(productFormSchema.safeParse(base({ badges: [{ label: '   ', tone: 'NEW' }] })).success, false); // whitespace-only
+  assert.equal(productFormSchema.safeParse(base({ badges: [{ label: 'x', tone: 'BOGUS' }] })).success, false);
 });
 
 test('DEFAULT_PRODUCT_FORM_VALUES starts with an empty images array', () => {

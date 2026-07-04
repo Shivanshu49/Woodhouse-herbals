@@ -1,6 +1,13 @@
 import { z } from 'zod';
 import { GST_RATE_VALUES, rupeesToPaise } from './pricing';
 import { parseCount, parseDimension } from './inventory';
+import {
+  BADGE_LABEL_MAX_LENGTH,
+  BADGE_TONE_VALUES,
+  PRODUCT_CATEGORY_VALUES,
+  SKIN_TYPE_VALUES,
+  TAG_MAX_LENGTH,
+} from './organization';
 
 /** Mirrors the backend SLUG_RE (create/update DTO). */
 const SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
@@ -90,6 +97,19 @@ export const productFormSchema = z
     heightCm: z.string(),
     shippingClass: z.string(),
     freeShipping: z.boolean(),
+
+    // ── GROUP 5 · Organization ────────────────────────────────────────
+    category: z.string(), // ProductCategory enum, required (checked in superRefine)
+    categoryIds: z.array(z.string()),
+    concernIds: z.array(z.string()),
+    skinTypes: z.array(z.enum(SKIN_TYPE_VALUES)),
+    tags: z.array(z.string().trim().min(1).max(TAG_MAX_LENGTH, `Keep tags under ${TAG_MAX_LENGTH} characters`)),
+    badges: z.array(
+      z.object({
+        label: z.string().trim().min(1, 'Badge label is required').max(BADGE_LABEL_MAX_LENGTH),
+        tone: z.enum(BADGE_TONE_VALUES),
+      }),
+    ),
   })
   .superRefine((v, ctx) => {
     if (richTextToPlain(v.longDescription).length === 0) {
@@ -203,6 +223,11 @@ export const productFormSchema = z
         message: `Keep it under ${SHIPPING_CLASS_MAX} characters`,
       });
     }
+
+    // ── Organization ──
+    if (!PRODUCT_CATEGORY_VALUES.includes(v.category)) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['category'], message: 'Select a category' });
+    }
   });
 
 export type ProductFormValues = z.infer<typeof productFormSchema>;
@@ -235,4 +260,10 @@ export const DEFAULT_PRODUCT_FORM_VALUES: ProductFormValues = {
   heightCm: '',
   shippingClass: '',
   freeShipping: false,
+  category: '',
+  categoryIds: [],
+  concernIds: [],
+  skinTypes: [],
+  tags: [],
+  badges: [],
 };

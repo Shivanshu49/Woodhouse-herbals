@@ -20,6 +20,7 @@ import type {
   BulkProductsBody,
   BulkProductsResult,
   Category,
+  Concern,
 } from '@/types/product';
 
 const API_BASE = `${env.apiUrl}/api`;
@@ -147,5 +148,8 @@ export const api = {
   },
   categories: {
     list: () => request<Category[]>('GET', '/categories'),
+  },
+  concerns: {
+    list: () => request<Concern[]>('GET', '/concerns'),
   },
 };

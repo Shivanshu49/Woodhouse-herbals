@@ -105,3 +105,11 @@ export interface Category {
   slug: string;
   name: string;
 }
+
+/** A concern (Concern table) — the "Shop by Concern" taxonomy. */
+export interface Concern {
+  id: string;
+  slug: string;
+  title: string;
+  type: 'SKIN' | 'HAIR';
+}

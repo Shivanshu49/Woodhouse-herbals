@@ -11,6 +11,7 @@ import { Form } from '@/components/ui/form';
 import { cn } from '@/lib/cn';
 import { useUnsavedChangesWarning } from '@/hooks/use-unsaved-changes-warning';
 import { UploadStatusContext } from './upload-status';
+import { ProductFormMetaContext } from './product-form-context';
 import {
   DEFAULT_PRODUCT_FORM_VALUES,
   productFormSchema,
@@ -35,6 +36,7 @@ const SECTIONS = [
 
 export interface ProductFormProps {
   mode: 'create' | 'edit';
+  productId?: string;
   defaultValues?: ProductFormValues;
   submitting?: boolean;
   onSubmit: (values: ProductFormValues, opts: { asDraft: boolean }) => void | Promise<void>;
@@ -42,6 +44,7 @@ export interface ProductFormProps {
 
 export function ProductForm({
   mode,
+  productId,
   defaultValues = DEFAULT_PRODUCT_FORM_VALUES,
   submitting = false,
   onSubmit,
@@ -108,6 +111,7 @@ export function ProductForm({
 
   return (
     <Form {...form}>
+      <ProductFormMetaContext.Provider value={{ mode, productId }}>
       <UploadStatusContext.Provider value={{ setPendingUploads }}>
       <form onSubmit={handlePrimary} className="mx-auto max-w-5xl">
         <div className="mb-6 flex items-center gap-3">
@@ -187,6 +191,7 @@ export function ProductForm({
         </div>
       </form>
       </UploadStatusContext.Provider>
+      </ProductFormMetaContext.Provider>
     </Form>
   );
 }

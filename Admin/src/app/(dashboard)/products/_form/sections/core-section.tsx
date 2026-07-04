@@ -24,13 +24,15 @@ import { RichTextEditor } from '@/components/editor/rich-text-editor';
 import { slugify } from '@/lib/slugify';
 import { STATUS_LABELS } from '@/lib/product-meta';
 import { useSlugCheck } from '@/hooks/use-slug-check';
+import { useProductFormMeta } from '../product-form-context';
 import { FormSection } from '../form-section';
 import { PRODUCT_STATUS_VALUES, type ProductFormValues } from '../product-form-schema';
 
 function SlugField({ onManualEdit }: { onManualEdit: () => void }) {
   const form = useFormContext<ProductFormValues>();
   const slug = form.watch('slug');
-  const { status } = useSlugCheck(slug);
+  const { productId } = useProductFormMeta();
+  const { status } = useSlugCheck(slug, productId);
 
   return (
     <FormField

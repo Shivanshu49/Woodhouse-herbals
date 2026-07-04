@@ -91,3 +91,22 @@ export function productFormToCreatePayload(v: ProductFormValues): Record<string,
   }
   return payload;
 }
+
+/**
+ * The update (PATCH) body. Identical to the create body except stock is
+ * create-only — subsequent stock changes go through the Inventory module, never
+ * a product edit — so `stockQty` is never sent on update.
+ */
+export function productFormToUpdatePayload(v: ProductFormValues): Record<string, unknown> {
+  const payload = productFormToCreatePayload(v);
+  delete payload.stockQty;
+  // The create builder OMITS empty collections (absent = "default to empty",
+  // fine for create). But the backend UPDATE replaces a collection only when its
+  // key is present — an omitted key means "leave untouched". So on update, any
+  // collection cleared to empty must be sent as [] or the removal won't persist
+  // (and, for gallery, would leave rows pointing at already-deleted assets).
+  for (const key of ['gallery', 'badges', 'concernIds', 'categoryIds', 'skinTypes', 'tags', 'ingredients', 'benefitItems', 'howToUse']) {
+    if (!(key in payload)) payload[key] = [];
+  }
+  return payload;
+}

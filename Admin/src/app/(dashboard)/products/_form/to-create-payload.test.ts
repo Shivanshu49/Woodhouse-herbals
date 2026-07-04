@@ -6,7 +6,7 @@
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { productFormToCreatePayload } from './to-create-payload';
+import { productFormToCreatePayload, productFormToUpdatePayload } from './to-create-payload';
 import { DEFAULT_PRODUCT_FORM_VALUES, type ProductFormValues } from './product-form-schema';
 
 function form(over: Partial<ProductFormValues>): ProductFormValues {
@@ -115,6 +115,18 @@ test('uses backend field names — no form-only key leaks into the payload', () 
   assert.equal(p.thumbnailUrl, mainImage.url);
   assert.deepEqual(p.benefitItems, [{ text: 'Glows', sortOrder: 0 }]);
   assert.ok(Array.isArray(p.badges)); // bestSeller → a Bestseller badge
+});
+
+test('productFormToUpdatePayload never sends stockQty (create-only; stock goes through Inventory)', () => {
+  const upd = productFormToUpdatePayload(
+    form({ price: '199', category: 'SERUM', images: [mainImage], trackInventory: true, stockQty: '50' }),
+  );
+  assert.ok(!('stockQty' in upd));
+  assert.equal(upd.priceMinor, 19900); // everything else still present
+  const create = productFormToCreatePayload(
+    form({ price: '199', category: 'SERUM', images: [mainImage], trackInventory: true, stockQty: '50' }),
+  );
+  assert.equal(create.stockQty, 50); // create still sends it
 });
 
 test('includes every field CreateProductDto requires', () => {

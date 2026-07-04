@@ -37,7 +37,7 @@ export function RowActions({ row }: { row: AdminProductRow }) {
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
-          <DropdownMenuItem onSelect={() => router.push(`/products/${row.id}`)}>
+          <DropdownMenuItem onSelect={() => router.push(`/products/${row.id}/edit`)}>
             <Pencil />
             Edit
           </DropdownMenuItem>

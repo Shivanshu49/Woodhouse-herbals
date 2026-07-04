@@ -166,3 +166,19 @@ image) — real complexity for a cosmetic touch, so deferred.
 - **Fix:** add an optional icon picker per ingredient/benefit row reusing the
   signed-upload orchestration (`lib/cloudinary-upload.ts`), storing the returned
   `secure_url` as the row's `iconUrl`.
+
+### FF-15 — No optimistic-concurrency on product edit (last-write-wins)
+The edit page loads a product then PATCHes the FULL form state back. If another
+admin edits the product (or the Inventory module adjusts it) between load and
+save, the edit silently overwrites those changes — a lost update. `updatedAt`
+is already in the detail response, so a check is feasible.
+- **Where:** `Admin/.../products/[id]/edit/page.tsx` (send the loaded
+  `updatedAt`), `Backend/.../admin-products/dto/update-product.dto.ts` (add an
+  optional `expectedUpdatedAt`), `admin-products.service.ts::update` (compare
+  inside the transaction, throw 409 on mismatch).
+- **Fix:** carry the loaded `updatedAt` through the form, send it as
+  `expectedUpdatedAt`, and 409 "Product changed since you opened it — reload"
+  on mismatch; the edit page then offers to reload. Note: `stockQty` is already
+  excluded from the update payload, so Inventory-only changes won't false-trip
+  it unless they also bump `updatedAt` (they do) — so scope the check to a
+  reload prompt rather than a hard block if that proves noisy.

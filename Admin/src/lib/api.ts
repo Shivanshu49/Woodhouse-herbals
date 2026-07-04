@@ -21,6 +21,7 @@ import type {
   BulkProductsResult,
   Category,
   Concern,
+  ProductDetail,
 } from '@/types/product';
 
 const API_BASE = `${env.apiUrl}/api`;
@@ -135,7 +136,9 @@ export const api = {
         'GET',
         `/admin/products/slug-check${toQuery({ slug, excludeId })}`,
       ),
+    get: (id: string) => request<ProductDetail>('GET', `/admin/products/${id}`),
     create: (body: unknown) => request<{ id: string }>('POST', '/admin/products', body),
+    update: (id: string, body: unknown) => request<{ id: string }>('PATCH', `/admin/products/${id}`, body),
     bulk: (body: BulkProductsBody) =>
       request<BulkProductsResult>('POST', '/admin/products/bulk', body),
     // Soft-delete (sets deletedAt). The catalog keeps the row for order history.

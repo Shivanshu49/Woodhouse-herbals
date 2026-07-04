@@ -12,6 +12,8 @@ export const qk = {
     all: ['products', 'list'] as const,
     /** Per-view key: caching + `keepPreviousData` work per filter/sort/page. */
     list: (params: AdminProductListParams) => ['products', 'list', params] as const,
+    /** Single product detail (edit prefill). */
+    detail: (id: string) => ['products', 'detail', id] as const,
   },
   categories: ['categories'] as const,
   concerns: ['concerns'] as const,

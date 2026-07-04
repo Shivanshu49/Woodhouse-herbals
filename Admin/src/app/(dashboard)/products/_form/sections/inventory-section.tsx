@@ -13,6 +13,7 @@ import {
 } from '@/components/ui/form';
 import { cn } from '@/lib/cn';
 import { FormSection } from '../form-section';
+import { useProductFormMeta } from '../product-form-context';
 import type { ProductFormValues } from '../product-form-schema';
 
 type NumberFieldName = 'stockQty' | 'lowStockThreshold' | 'weightGrams' | 'lengthCm' | 'widthCm' | 'heightCm';
@@ -116,6 +117,8 @@ function SwitchRow({
 export function InventorySection() {
   const form = useFormContext<ProductFormValues>();
   const tracking = form.watch('trackInventory');
+  // Stock is create-only — after creation it's managed via the Inventory module.
+  const editing = useProductFormMeta().mode === 'edit';
 
   return (
     <FormSection
@@ -134,10 +137,14 @@ export function InventorySection() {
         <div className="grid gap-5 sm:grid-cols-2">
           <NumberField
             name="stockQty"
-            label="Initial stock"
+            label={editing ? 'Current stock' : 'Initial stock'}
             placeholder="0"
-            disabled={!tracking}
-            description="Starting quantity. After creating, manage stock in Inventory."
+            disabled={!tracking || editing}
+            description={
+              editing
+                ? 'Managed in the Inventory module — not editable here.'
+                : 'Starting quantity. After creating, manage stock in Inventory.'
+            }
           />
           <NumberField
             name="lowStockThreshold"

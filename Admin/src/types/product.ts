@@ -113,3 +113,55 @@ export interface Concern {
   title: string;
   type: 'SKIN' | 'HAIR';
 }
+
+/** The full product returned by GET /admin/products/:id (FULL_INCLUDE), used to
+ *  prefill the edit form. Only the fields the form reads are typed here. */
+export interface ProductDetail {
+  id: string;
+  name: string;
+  slug: string;
+  sku: string;
+  shortDescription: string;
+  longDescription: string;
+  category: ProductCategory;
+  priceMinor: number;
+  compareAtPriceMinor: number | null;
+  costPriceMinor: number | null;
+  gstRate: string | null;
+  hsnCode: string | null;
+  saleStartsAt: string | null;
+  saleEndsAt: string | null;
+  status: ProductStatus;
+  publishAt: string | null;
+  featured: boolean;
+  thumbnailUrl: string;
+  thumbnailAlt: string;
+  stockQty: number;
+  lowStockThreshold: number | null;
+  allowBackorder: boolean;
+  trackInventory: boolean;
+  weightGrams: number | null;
+  lengthCm: number | null;
+  widthCm: number | null;
+  heightCm: number | null;
+  shippingClass: string | null;
+  freeShipping: boolean;
+  inciText: string | null;
+  usageFrequency: string | null;
+  recommendedTime: string | null;
+  parabenFree: boolean;
+  sulfateFree: boolean;
+  crueltyFree: boolean;
+  vegan: boolean;
+  alcoholFree: boolean;
+  tags: string[];
+  skinTypes: string[];
+  howToUse: string[];
+  updatedAt: string;
+  gallery: { id: string; url: string; alt: string; width: number | null; height: number | null; sortOrder: number }[];
+  ingredients: { id: string; name: string; benefit: string; sortOrder: number }[];
+  benefitItems: { id: string; text: string; sortOrder: number }[];
+  badges: { id: string; label: string; tone: string }[];
+  concerns: { concernId: string }[];
+  categoryLinks: { categoryId: string; isPrimary: boolean }[];
+}

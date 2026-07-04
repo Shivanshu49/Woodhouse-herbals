@@ -49,6 +49,22 @@ export function useCreateProduct() {
   });
 }
 
+/** Update an existing product from the edit form; on success go to the list. */
+export function useUpdateProduct(id: string) {
+  const qc = useQueryClient();
+  const router = useRouter();
+  return useMutation({
+    mutationFn: (body: unknown) => api.products.update(id, body),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: qk.products.all });
+      void qc.invalidateQueries({ queryKey: qk.products.detail(id) });
+      toast.success('Product updated');
+      router.push('/products');
+    },
+    onError: (err) => toast.error(toMessage(err)),
+  });
+}
+
 /** Bulk publish / draft / archive / restore / set-category. */
 export function useBulkProducts() {
   const qc = useQueryClient();

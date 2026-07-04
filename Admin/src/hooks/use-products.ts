@@ -16,3 +16,11 @@ export function useProducts(params: AdminProductListParams) {
     placeholderData: keepPreviousData,
   });
 }
+
+/** A single product's full detail, for prefilling the edit form. */
+export function useProduct(id: string) {
+  return useQuery({
+    queryKey: qk.products.detail(id),
+    queryFn: () => api.products.get(id),
+  });
+}

@@ -163,10 +163,18 @@ export class RefundsService {
           orderBy: { createdAt: 'desc' },
           select: { id: true, providerTxnId: true },
         },
+        // Any non-FAILED refund means one is already in flight (or done). Fetched
+        // so an in-progress refund yields an HONEST "already in progress" 409 —
+        // NOT the misleading "no online payment" message that would otherwise
+        // fire once the payment has been flipped to REFUND_PENDING.
+        refunds: { where: { status: { not: 'FAILED' } }, select: { id: true } },
       },
     });
     if (!order) throw new NotFoundException('Order not found');
     assertRefundable(order.status);
+    if (order.refunds.length > 0) {
+      throw new ConflictException('A refund is already in progress for this order.');
+    }
     const payment = order.payments[0];
     if (!payment) {
       throw new ConflictException(

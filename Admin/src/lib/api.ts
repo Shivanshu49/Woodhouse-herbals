@@ -24,6 +24,15 @@ import type {
   ProductDetail,
 } from '@/types/product';
 import type {
+  StoreProfile,
+  StoreProfilePatch,
+  IntegrationsStatus,
+  StaffUser,
+  CreateStaffBody,
+  CreateStaffResult,
+  UpdateStaffBody,
+} from '@/types/settings';
+import type {
   InvoiceMeta,
   ManualRefundBody,
   RefundBody,
@@ -216,5 +225,15 @@ export const api = {
       if (!res.ok) throw new ApiError(res.status, 'Failed to download invoice');
       return res.blob();
     },
+  },
+  settings: {
+    getStore: () => request<StoreProfile>('GET', '/admin/settings/store'),
+    updateStore: (body: StoreProfilePatch) => request<StoreProfile>('PATCH', '/admin/settings/store', body),
+    integrations: () => request<IntegrationsStatus>('GET', '/admin/settings/integrations'),
+  },
+  users: {
+    list: () => request<StaffUser[]>('GET', '/admin/users'),
+    create: (body: CreateStaffBody) => request<CreateStaffResult>('POST', '/admin/users', body),
+    update: (id: string, body: UpdateStaffBody) => request<StaffUser>('PATCH', `/admin/users/${id}`, body),
   },
 };

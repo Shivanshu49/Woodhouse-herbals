@@ -135,6 +135,20 @@ export class AuthService {
       throw new UnauthorizedException('Invalid email or password');
     }
 
+    // A deactivated (soft-deleted) account cannot log in — this is what makes the
+    // admin "deactivate user" action actually revoke access. Same opaque message
+    // as a bad password so it is not an enumeration/state oracle.
+    if (user.deletedAt) {
+      await this.events.record({
+        userId: user.id,
+        type: 'LOGIN_FAILURE',
+        ip: ctx.ip,
+        userAgent: ctx.userAgent,
+        meta: { reason: 'deactivated' },
+      });
+      throw new UnauthorizedException('Invalid email or password');
+    }
+
     if (user.lockedUntil && user.lockedUntil > new Date()) {
       await this.events.record({
         userId: user.id,

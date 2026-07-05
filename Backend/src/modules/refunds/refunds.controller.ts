@@ -9,6 +9,7 @@ import type { AuthenticatedUser } from '../../common/auth/auth-types';
 import { AdminAuditInterceptor } from '../../common/audit/admin-audit.interceptor';
 import { RefundsService } from './refunds.service';
 import { ManualRefundDto } from './dto/manual-refund.dto';
+import { RefundOrderDto } from './dto/refund-order.dto';
 
 /**
  * Refund endpoints — ADMIN-only (MANAGER is deliberately excluded; refunds move
@@ -21,6 +22,19 @@ import { ManualRefundDto } from './dto/manual-refund.dto';
 export class RefundsController {
   constructor(private readonly refunds: RefundsService) {}
 
+  /** Prepaid (PhonePe) refund — async: returns PENDING, settles via callback/recheck. */
+  @Roles(UserRole.ADMIN)
+  @Throttle({ default: { ttl: 60_000, limit: 20 } })
+  @Post(':id/refund')
+  initiate(
+    @Param('id') id: string,
+    @Body() dto: RefundOrderDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.refunds.initiate(id, dto, user.sub);
+  }
+
+  /** COD manual refund — one-step PROCESSED with a mandatory UTR. */
   @Roles(UserRole.ADMIN)
   @Throttle({ default: { ttl: 60_000, limit: 20 } })
   @Post(':id/refund/manual')
@@ -30,5 +44,13 @@ export class RefundsController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.refunds.manual(id, dto, user.sub);
+  }
+
+  /** Reconcile the order's active PhonePe refund against Check-Status. */
+  @Roles(UserRole.ADMIN)
+  @Throttle({ default: { ttl: 60_000, limit: 30 } })
+  @Post(':id/refund/recheck')
+  recheck(@Param('id') id: string) {
+    return this.refunds.recheck(id);
   }
 }

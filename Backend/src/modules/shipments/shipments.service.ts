@@ -1,9 +1,10 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { OrderStatus, ShipmentStatus } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { env } from '../../common/config/env';
 import { OrderEventsService } from '../order-events/order-events.service';
 import { OrderEventType } from '../order-events/order-event-types';
+import { InvoiceService } from '../invoices/invoice.service';
 
 interface CreateInput {
   orderNumber: string;
@@ -15,9 +16,12 @@ interface CreateInput {
 
 @Injectable()
 export class ShipmentsService {
+  private readonly logger = new Logger(ShipmentsService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly events: OrderEventsService,
+    private readonly invoices: InvoiceService,
   ) {}
 
   /**
@@ -91,7 +95,7 @@ export class ShipmentsService {
    * states on both shipment and parent order.
    */
   async updateStatus(shipmentId: string, status: ShipmentStatus, description?: string) {
-    return this.prisma.$transaction(async (tx) => {
+    const { shippedNow, orderId } = await this.prisma.$transaction(async (tx) => {
       const shipment = await tx.shipment.findUnique({
         where: { id: shipmentId },
         select: { id: true, status: true, orderId: true },
@@ -124,6 +128,7 @@ export class ShipmentsService {
       });
       const prior = orderRow?.status ?? null;
 
+      let shippedNow = false;
       if (status === ShipmentStatus.IN_TRANSIT || status === ShipmentStatus.OUT_FOR_DELIVERY) {
         // Atomic move to SHIPPED; emit the event only if THIS call transitioned
         // the order (count 1), so concurrent IN_TRANSIT/OUT_FOR_DELIVERY updates
@@ -133,6 +138,7 @@ export class ShipmentsService {
           data: { status: OrderStatus.SHIPPED },
         });
         if (moved.count === 1) {
+          shippedNow = true;
           await this.events.record(
             {
               orderId: shipment.orderId,
@@ -162,7 +168,19 @@ export class ShipmentsService {
           );
         }
       }
+      return { shippedNow, orderId: shipment.orderId };
     }, { timeout: env.ADMIN_WRITE_TX_TIMEOUT_MS });
+
+    // Auto-generate the GST invoice at the SHIPPED transition (correct time-of-
+    // supply) — best-effort, AFTER the tx commits so a slow/failing invoice never
+    // blocks the shipment. A 503 (store profile unset) leaves it for on-demand.
+    if (shippedNow) {
+      this.invoices
+        .generateForOrder(orderId)
+        .catch((e) =>
+          this.logger.warn(`invoice auto-gen at SHIPPED failed order=${orderId}: ${(e as Error).message}`),
+        );
+    }
   }
 
   /** Owner-scoped lookup for the customer order-tracking page. */

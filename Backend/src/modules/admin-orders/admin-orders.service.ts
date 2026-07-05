@@ -30,7 +30,8 @@ const SUMMARY_SELECT = {
 
 /** Full detail — the D3 UI reads all of this. Address is denormalized on Order. */
 const DETAIL_INCLUDE = {
-  items: true,
+  items: { include: { product: { select: { hsnCode: true, gstRate: true } } } },
+  invoice: { select: { number: true, fy: true, issuedAt: true } },
   payments: { orderBy: { createdAt: 'desc' } },
   shipments: {
     include: { events: { orderBy: { occurredAt: 'asc' } } },

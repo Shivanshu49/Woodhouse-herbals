@@ -1,9 +1,11 @@
 import { Module } from '@nestjs/common';
 import { InvoiceService } from './invoice.service';
+import { InvoicesController } from './invoices.controller';
 
-// Controller is added in Phase D (Task 10). Prisma / StoreProfile / ObjectStorage
-// are @Global, so no imports are needed here.
+// Prisma / StoreProfile / ObjectStorage are @Global, so no imports are needed here.
+// Exports InvoiceService so ShipmentsModule can auto-generate at the SHIPPED hook.
 @Module({
+  controllers: [InvoicesController],
   providers: [InvoiceService],
   exports: [InvoiceService],
 })

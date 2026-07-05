@@ -29,6 +29,7 @@ import type {
   UpdateCategoryBody,
   ReorderCategoriesBody,
 } from '@/types/admin-category';
+import type { InventoryList, InventoryMovement } from '@/types/inventory';
 import type {
   StoreProfile,
   StoreProfilePatch,
@@ -186,6 +187,9 @@ export const api = {
     restore: (id: string) => request<{ ok: true }>('POST', `/admin/products/${id}/restore`),
   },
   inventory: {
+    overview: (params: { q?: string; lowStockOnly?: boolean; page?: number; perPage?: number }) =>
+      request<InventoryList>('GET', `/admin/inventory${toQuery(params as Record<string, string | number | boolean | undefined>)}`),
+    history: (productId: string) => request<InventoryMovement[]>('GET', `/admin/inventory/${productId}/history`),
     adjust: (body: AdjustStockBody) =>
       request<AdjustStockResult>('POST', '/admin/inventory/adjust', body),
   },

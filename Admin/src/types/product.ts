@@ -91,6 +91,9 @@ export interface BulkProductsResult {
 export interface AdjustStockBody {
   productId: string;
   delta: number;
+  // Optional reason code (InventoryReason). The products quick-adjust omits it
+  // (defaults MANUAL_ADJUSTMENT server-side); the Inventory page sets it explicitly.
+  reason?: string;
   note?: string;
 }
 

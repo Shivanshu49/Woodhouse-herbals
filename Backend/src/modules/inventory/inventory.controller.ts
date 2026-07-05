@@ -1,7 +1,8 @@
-import { Body, Controller, Post, UseGuards, UseInterceptors } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query, UseGuards, UseInterceptors } from '@nestjs/common';
 import { UserRole } from '@prisma/client';
 import { InventoryService } from './inventory.service';
 import { AdjustStockDto } from './dto/adjust-stock.dto';
+import { ListInventoryDto } from './dto/list-inventory.dto';
 import { JwtAuthGuard } from '../../common/auth/jwt-auth.guard';
 import { RolesGuard } from '../../common/auth/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -19,6 +20,19 @@ import type { AuthenticatedUser } from '../../common/auth/auth-types';
 @UseInterceptors(AdminAuditInterceptor)
 export class InventoryController {
   constructor(private readonly inventory: InventoryService) {}
+
+  // Reading stock is available to STAFF too (they can view the catalog).
+  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.STAFF)
+  @Get()
+  overview(@Query() dto: ListInventoryDto) {
+    return this.inventory.overview(dto);
+  }
+
+  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.STAFF)
+  @Get(':productId/history')
+  history(@Param('productId') productId: string) {
+    return this.inventory.history(productId);
+  }
 
   // Moving stock is a MANAGER+ capability, mirroring product writes. STAFF may
   // read the catalog but not mutate quantities.

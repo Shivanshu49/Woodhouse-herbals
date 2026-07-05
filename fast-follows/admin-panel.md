@@ -309,3 +309,36 @@ it), so a removed/replaced banner or category image is orphaned in Cloudinary.
   have both features consume it; fold in delete-on-remove (call
   `api.uploads.delete(publicId)` on remove/replace of a just-uploaded asset) while
   the code is unified.
+
+## Coupon-redemption enforcement gaps (each is its own money-path phase)
+The §5 Coupons admin is scoped to what `CouponsService.preview`/`redeem` actually
+enforces (PERCENT/FLAT + category restriction + usage caps + schedule). The
+`Coupon` model carries more columns that the redeem path ignores; the admin DTOs
+REJECT them (400) rather than persist dead config. Enforcing each is deferred —
+and because it touches the ATOMIC redeem/pricing path, each is its own specced
+phase with money-grade TDD + review, NOT a rider on a CRUD change.
+
+### FF-26 — Coupon eligibility (FIRST_TIME / SPECIFIC) + CouponUser targeting
+`Coupon.eligibility` and the `CouponUser` join are enforced nowhere: `preview`
+checks `active`/dates/`maxUses`/`perUserLimit` but never `eligibility` or whether
+the user is in `coupon.users`. A "first-time only" or "specific-users" coupon
+would today apply to everyone.
+- **Requires:** its own phase touching `coupons.service.ts::preview`/`redeem`
+  (needs the customer's prior-order count for FIRST_TIME, and a `users` membership
+  check for SPECIFIC), money-grade review. Then re-admit the fields to the admin DTO.
+
+### FF-27 — Coupon concern / product restriction
+`applicableSubtotal` only honors the CATEGORY restriction; `CouponConcern` and
+`CouponProduct` (incl. the `excluded` flag) are ignored. Worse, a concern-ONLY
+coupon (no categories) currently computes applicableSubtotal = 0 and always fails.
+- **Requires:** plumb the line's concern ids + product id through `PreviewInput.lines`
+  and extend `applicableSubtotal` to honor concern/product scope + exclusions;
+  money-grade review. Then re-admit `concernIds`/`productIds` to the admin DTO.
+
+### FF-28 — FREE_SHIPPING / BXGY discount kinds
+`computeDiscount` implements only PERCENT/FLAT; FREE_SHIPPING and BXGY fall through
+to FLAT math (wrong discount). FREE_SHIPPING needs the shipping amount in the
+pricing scope; BXGY needs line-level buy/get logic (`buyQty`/`getQty`).
+- **Requires:** its own phase extending `coupon-pricing.ts` + the order-pricing
+  shipping wiring, TDD + money-grade review. Then re-admit those kinds to the
+  admin DTO's `@IsIn`.

@@ -130,11 +130,17 @@ export class ShipmentsService {
 
       let shippedNow = false;
       if (status === ShipmentStatus.IN_TRANSIT || status === ShipmentStatus.OUT_FOR_DELIVERY) {
-        // Atomic move to SHIPPED; emit the event only if THIS call transitioned
-        // the order (count 1), so concurrent IN_TRANSIT/OUT_FOR_DELIVERY updates
-        // (both mapping to SHIPPED) can't each write a duplicate event.
+        // Atomic move to SHIPPED from a LEGAL source only. A whitelist (not a
+        // `not: SHIPPED` negative match) both preserves idempotency — a 2nd
+        // IN_TRANSIT/OUT_FOR_DELIVERY finds the order already SHIPPED → count 0 →
+        // no duplicate event — AND refuses illegal sources: a CANCELLED order
+        // must never regress to SHIPPED (which would mint a GST invoice for a
+        // cancelled, restocked order via the auto-gen hook below).
         const moved = await tx.order.updateMany({
-          where: { id: shipment.orderId, status: { not: OrderStatus.SHIPPED } },
+          where: {
+            id: shipment.orderId,
+            status: { in: [OrderStatus.PAID, OrderStatus.PROCESSING] },
+          },
           data: { status: OrderStatus.SHIPPED },
         });
         if (moved.count === 1) {
@@ -151,8 +157,14 @@ export class ShipmentsService {
           );
         }
       } else if (status === ShipmentStatus.DELIVERED) {
+        // DELIVERED only from a legal in-fulfilment source (SHIPPED, or a direct
+        // PROCESSING→DELIVERED when a courier skips the in-transit scan). Excludes
+        // CANCELLED/PENDING/PAID and is idempotent (already-DELIVERED → count 0).
         const moved = await tx.order.updateMany({
-          where: { id: shipment.orderId, status: { not: OrderStatus.DELIVERED } },
+          where: {
+            id: shipment.orderId,
+            status: { in: [OrderStatus.PROCESSING, OrderStatus.SHIPPED] },
+          },
           data: { status: OrderStatus.DELIVERED },
         });
         if (moved.count === 1) {

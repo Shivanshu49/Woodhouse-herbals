@@ -100,3 +100,10 @@ test('canDownloadInvoice: COD from PROCESSING, prepaid from PAID; never PENDING/
   assert.equal(canDownloadInvoice('CANCELLED', 'COD'), false);
   assert.equal(canDownloadInvoice('DELIVERED', 'COD'), true);
 });
+
+test('paymentBadge shows "Refund pending" for a mid-settlement online refund (never "Unpaid")', () => {
+  assert.deepEqual(paymentBadge({ paymentMethod: 'PREPAID', paymentStatus: 'REFUND_PENDING' }), {
+    label: 'Refund pending',
+    tone: 'warning',
+  });
+});

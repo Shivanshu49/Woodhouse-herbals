@@ -13,6 +13,7 @@ export type PaymentStatus =
   | 'INITIATED'
   | 'SUCCESS'
   | 'FAILED'
+  | 'REFUND_PENDING'
   | 'REFUNDED'
   | 'PARTIALLY_REFUNDED';
 

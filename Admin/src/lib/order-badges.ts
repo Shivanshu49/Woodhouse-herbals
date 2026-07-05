@@ -91,6 +91,9 @@ export function paymentBadge(row: {
       return { label: 'Pending', tone: 'warning' };
     case 'FAILED':
       return { label: 'Failed', tone: 'danger' };
+    case 'REFUND_PENDING':
+      // Money WAS captured and a refund is mid-settlement — never "Unpaid".
+      return { label: 'Refund pending', tone: 'warning' };
     case 'REFUNDED':
       return { label: 'Refunded', tone: 'info' };
     case 'PARTIALLY_REFUNDED':

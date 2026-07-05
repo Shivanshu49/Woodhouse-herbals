@@ -202,9 +202,17 @@ export const api = {
     generateInvoice: (id: string) =>
       request<InvoiceMeta>('POST', `/admin/orders/${id}/invoice`),
     /** Streams the PDF as a Blob via the credentialed client — httpOnly cookies
-     *  won't ride a cross-origin <a href> in prod; a blob download does. */
+     *  won't ride a cross-origin <a href> in prod; a blob download does. Routes
+     *  through the same single-flight silent refresh as request() so an expired
+     *  access token transparently refreshes + retries (not a lone hard failure). */
     invoicePdf: async (id: string): Promise<Blob> => {
-      const res = await fetch(`${API_BASE}/admin/orders/${id}/invoice/pdf`, { credentials: 'include' });
+      const path = `/admin/orders/${id}/invoice/pdf`;
+      const fetchPdf = () => fetch(`${API_BASE}${path}`, { credentials: 'include' });
+      let res = await fetchPdf();
+      if (!res.ok && shouldAttemptRefresh(res.status, path)) {
+        const refreshed = await refreshOnce();
+        if (refreshed.ok) res = await fetchPdf();
+      }
       if (!res.ok) throw new ApiError(res.status, 'Failed to download invoice');
       return res.blob();
     },

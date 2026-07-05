@@ -99,6 +99,9 @@ model Category {
   description     String?               @db.Text
   imageUrl        String?
   sortOrder       Int                   @default(0)
+  // Admin can hide a category from the storefront without deleting it. (Soft
+  // delete = removed; isActive=false = kept but hidden.)
+  isActive        Boolean               @default(true)
   metaTitle       String?
   metaDescription String?
   // Tree — top-level categories have parentId = null.

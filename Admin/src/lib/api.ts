@@ -24,6 +24,12 @@ import type {
   ProductDetail,
 } from '@/types/product';
 import type {
+  AdminCategory,
+  CreateCategoryBody,
+  UpdateCategoryBody,
+  ReorderCategoriesBody,
+} from '@/types/admin-category';
+import type {
   StoreProfile,
   StoreProfilePatch,
   IntegrationsStatus,
@@ -225,6 +231,15 @@ export const api = {
       if (!res.ok) throw new ApiError(res.status, 'Failed to download invoice');
       return res.blob();
     },
+  },
+  adminCategories: {
+    list: () => request<AdminCategory[]>('GET', '/admin/categories'),
+    slugCheck: (slug: string, excludeId?: string) =>
+      request<{ available: boolean }>('GET', `/admin/categories/slug-check${toQuery({ slug, excludeId })}`),
+    create: (body: CreateCategoryBody) => request<AdminCategory>('POST', '/admin/categories', body),
+    update: (id: string, body: UpdateCategoryBody) => request<AdminCategory>('PATCH', `/admin/categories/${id}`, body),
+    reorder: (body: ReorderCategoriesBody) => request<{ ok: true }>('PATCH', '/admin/categories/reorder', body),
+    remove: (id: string) => request<{ id: string; deleted: true }>('DELETE', `/admin/categories/${id}`),
   },
   settings: {
     getStore: () => request<StoreProfile>('GET', '/admin/settings/store'),

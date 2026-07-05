@@ -13,6 +13,7 @@ import { OrderEventType } from '../order-events/order-event-types';
 import { requestChecksum, callbackChecksum } from './phonepe-signing';
 import { InventoryService } from '../inventory/inventory.service';
 import { WebhookEventsService } from '../../common/security/webhook-events.service';
+import { RefundsService } from '../refunds/refunds.service';
 import { DEV_FALLBACKS, env } from '../../common/config/env';
 
 const PAY_ENDPOINT = '/pg/v1/pay';
@@ -52,6 +53,7 @@ export class PhonepeService {
     private readonly inventory: InventoryService,
     private readonly webhooks: WebhookEventsService,
     private readonly events: OrderEventsService,
+    private readonly refunds: RefundsService,
   ) {}
 
   /**
@@ -184,9 +186,13 @@ export class PhonepeService {
     // Persist + claim the webhook for at-most-once processing.
     // Idempotency key = provider transaction id. A re-delivered webhook
     // with the same id short-circuits below.
+    // Refund callbacks reuse this endpoint; their merchantTransactionId is the
+    // refund's merchantRefundId (deterministic `RF…` prefix) rather than a
+    // payment's providerTxnId. The label is cosmetic; routing below is by DB id.
+    const isRefundCallback = decoded.merchantTransactionId.startsWith('RF');
     const claim = await this.webhooks.record({
       provider: 'phonepe',
-      eventType: `payment.${decoded.state.toLowerCase()}`,
+      eventType: `${isRefundCallback ? 'refund' : 'payment'}.${decoded.state.toLowerCase()}`,
       idempotencyKey: `phonepe:${decoded.merchantTransactionId}`,
       signature,
       rawBody,
@@ -204,6 +210,26 @@ export class PhonepeService {
     }
 
     try {
+      // ── Refund settlement branch ──────────────────────────────────────────
+      // Route a refund callback to RefundsService.settle (idempotent; a callback
+      // racing a recheck settles at most once). Mapping unknown states → PENDING
+      // and all money-state writes live in RefundsService — one source of truth.
+      if (isRefundCallback) {
+        const refund = await this.prisma.refund.findUnique({
+          where: { merchantRefundId: decoded.merchantTransactionId },
+          select: { id: true },
+        });
+        if (!refund) throw new NotFoundException('Refund not found');
+        await this.refunds.settleFromProvider(refund.id, {
+          code: decoded.responseCode ?? 'CALLBACK',
+          state: decoded.state,
+          providerRefundId: decoded.transactionId,
+          raw: decoded,
+        });
+        await this.webhooks.markProcessed(claim.eventId);
+        return { ok: true, state: decoded.state };
+      }
+
       const payment = await this.prisma.payment.findUnique({
         where: { providerTxnId: decoded.merchantTransactionId },
         include: { order: { include: { items: true } } },

@@ -29,7 +29,8 @@ function makeService(): PhonepeService {
   const inventoryStub = {} as never;
   const webhooksStub = {} as never;
   const eventsStub = {} as never;
-  return new PhonepeService(prismaStub, inventoryStub, webhooksStub, eventsStub);
+  const refundsStub = {} as never;
+  return new PhonepeService(prismaStub, inventoryStub, webhooksStub, eventsStub, refundsStub);
 }
 
 function signature(body: string): string {

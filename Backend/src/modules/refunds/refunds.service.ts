@@ -356,4 +356,23 @@ export class RefundsService {
     }
     return this.settle(refundId, mapped, res.providerRefundId, res.raw);
   }
+
+  /**
+   * Failure-honesty escape hatch. Polls PhonePe Check-Status for the order's
+   * active PENDING PhonePe refund and adopts the true state via the same
+   * idempotent `settle` the callback uses — so a recheck racing a late callback
+   * cannot double-apply. No-op target for COD/settled refunds (none PENDING).
+   */
+  async recheck(orderId: string) {
+    const refund = await this.prisma.refund.findFirst({
+      where: { orderId, method: 'PHONEPE', status: 'PENDING' },
+      select: { id: true, merchantRefundId: true },
+    });
+    if (!refund?.merchantRefundId) {
+      throw new NotFoundException('No pending PhonePe refund to re-check for this order.');
+    }
+    const res = await this.phonepe.status(refund.merchantRefundId);
+    await this.settleFromProvider(refund.id, res);
+    return { id: refund.id, state: res.state };
+  }
 }

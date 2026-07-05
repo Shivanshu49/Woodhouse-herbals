@@ -57,3 +57,8 @@ export function isKnownState(name: string): boolean {
 export function stateCodeFor(name: string): string | null {
   return BY_NAME.get(name.trim().toLowerCase())?.code ?? null;
 }
+
+/** The canonically-cased state name (so "delhi" → "Delhi"), or null if unknown. */
+export function canonicalStateName(name: string): string | null {
+  return BY_NAME.get(name.trim().toLowerCase())?.name ?? null;
+}

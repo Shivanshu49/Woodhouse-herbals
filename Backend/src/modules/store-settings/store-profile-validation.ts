@@ -1,4 +1,4 @@
-import { isKnownState, stateCodeFor } from '../../common/gst/indian-states';
+import { canonicalStateName, isKnownState, stateCodeFor } from '../../common/gst/indian-states';
 
 /** Standard 15-char GSTIN: 2 state digits, 5 PAN letters, 4 digits, 1 letter,
  *  1 entity char, 'Z', 1 checksum char. */
@@ -50,8 +50,11 @@ export function validateStoreProfilePatch(patch: StoreProfilePatch): ValidationR
   }
   if (patch.pan !== undefined) {
     const v = patch.pan.trim().toUpperCase();
-    if (v && !/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(v)) errors.pan = 'PAN must be a valid 10-character PAN.';
-    else normalized.pan = v;
+    // Empty/whitespace = "no change" — never blank a previously-set PAN.
+    if (v) {
+      if (!/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(v)) errors.pan = 'PAN must be a valid 10-character PAN.';
+      else normalized.pan = v;
+    }
   }
   if (patch.address !== undefined) {
     const v = patch.address.trim();
@@ -62,8 +65,10 @@ export function validateStoreProfilePatch(patch: StoreProfilePatch): ValidationR
     const v = patch.state.trim();
     if (!isKnownState(v)) errors.state = 'State must be a recognised Indian state or union territory.';
     else {
-      normalized.state = v;
-      // stateCode is authoritative from the state — never trust a client-sent code.
+      // Store the CANONICAL name (so "delhi" → "Delhi") — the invoice matches
+      // buyer state by name, so casing must be canonical. stateCode is authoritative
+      // from the state, never trusted from the client.
+      normalized.state = canonicalStateName(v)!;
       normalized.stateCode = stateCodeFor(v)!;
     }
   }

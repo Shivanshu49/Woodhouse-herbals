@@ -4,7 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { UserRole } from '@prisma/client';
+import { Prisma, UserRole } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { env } from '../../common/config/env';
 import { generateOpaqueToken, hashToken } from '../../common/utils/tokens';
@@ -79,23 +79,46 @@ export class AdminUsersService {
       throw new ConflictException('You cannot deactivate or demote your own account.');
     }
 
-    // Never remove the final active administrator.
     const demotingAdmin = target.role === UserRole.ADMIN && dto.role !== undefined && dto.role !== UserRole.ADMIN;
     const deactivatingAdmin = target.role === UserRole.ADMIN && dto.active === false && target.deletedAt === null;
-    if (demotingAdmin || deactivatingAdmin) {
-      const activeAdmins = await this.prisma.user.count({ where: { role: UserRole.ADMIN, deletedAt: null } });
-      if (activeAdmins <= 1) throw new ConflictException('Cannot remove the last active administrator.');
-    }
+    const deactivating = dto.active === false;
 
     const data: { role?: UserRole; deletedAt?: Date | null } = {};
     if (dto.role !== undefined) data.role = dto.role;
     if (dto.active !== undefined) data.deletedAt = dto.active ? null : new Date();
 
-    const updated = await this.prisma.user.update({
-      where: { id },
-      data,
-      select: { id: true, email: true, fullName: true, role: true, deletedAt: true },
-    });
-    return updated;
+    try {
+      return await this.prisma.$transaction(
+        async (tx) => {
+          // Re-check the last-admin invariant INSIDE a serializable tx so two
+          // concurrent demotes/deactivates can't both pass the count and drop the
+          // number of active admins to zero (TOCTOU).
+          if (demotingAdmin || deactivatingAdmin) {
+            const activeAdmins = await tx.user.count({ where: { role: UserRole.ADMIN, deletedAt: null } });
+            if (activeAdmins <= 1) throw new ConflictException('Cannot remove the last active administrator.');
+          }
+          const updated = await tx.user.update({
+            where: { id },
+            data,
+            select: { id: true, email: true, fullName: true, role: true, deletedAt: true },
+          });
+          // Deactivation must actually revoke access: kill live refresh tokens so
+          // refresh() can't mint new ones (the short-lived access cookie also expires).
+          if (deactivating) {
+            await tx.refreshToken.updateMany({
+              where: { userId: id, revokedAt: null },
+              data: { revokedAt: new Date() },
+            });
+          }
+          return updated;
+        },
+        { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+      );
+    } catch (e) {
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2034') {
+        throw new ConflictException('Another admin change happened concurrently — please retry.');
+      }
+      throw e;
+    }
   }
 }

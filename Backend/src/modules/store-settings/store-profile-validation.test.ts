@@ -37,3 +37,16 @@ test('validateStoreProfilePatch rejects empty required strings', () => {
   assert.equal(r.ok, false);
   assert.ok(r.errors.legalName && r.errors.address);
 });
+
+test('validateStoreProfilePatch canonicalizes state casing (delhi → Delhi)', () => {
+  const r = validateStoreProfilePatch({ state: 'delhi' });
+  assert.equal(r.ok, true);
+  assert.equal(r.normalized.state, 'Delhi');
+  assert.equal(r.normalized.stateCode, '07');
+});
+
+test('validateStoreProfilePatch treats an empty PAN as no-change (never blanks a set PAN)', () => {
+  const r = validateStoreProfilePatch({ pan: '   ' });
+  assert.equal(r.ok, true);
+  assert.equal('pan' in r.normalized, false); // not persisted → existing value kept
+});

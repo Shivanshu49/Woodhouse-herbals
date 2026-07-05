@@ -43,6 +43,22 @@ export class StoreSettingsAdminService {
     const { ok, errors, normalized } = validateStoreProfilePatch(patch);
     if (!ok) throw new BadRequestException({ message: 'Store profile validation failed', errors });
 
+    // A GSTIN's first two digits ARE the seller's GST state code. Cross-check the
+    // MERGED profile (patch over stored) so an admin can't pair, say, a Maharashtra
+    // GSTIN (27…) with a Karnataka state (29) — which would print a self-contradictory
+    // legal invoice AND flip the place-of-supply CGST/SGST-vs-IGST split.
+    const current = await this.getProfile();
+    const mergedGstin = normalized.gstin ?? current.gstin;
+    const mergedStateCode = normalized.stateCode ?? current.stateCode;
+    if (mergedGstin && mergedStateCode && mergedGstin.slice(0, 2) !== mergedStateCode) {
+      throw new BadRequestException({
+        message: 'Store profile validation failed',
+        errors: {
+          gstin: `GSTIN state code (${mergedGstin.slice(0, 2)}) must match the store state code (${mergedStateCode}).`,
+        },
+      });
+    }
+
     const map: Array<[string, Prisma.InputJsonValue]> = [];
     const put = (key: string, v: string | number | undefined) => {
       if (v !== undefined) map.push([key, v]);

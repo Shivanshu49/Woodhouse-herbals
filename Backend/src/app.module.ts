@@ -30,6 +30,7 @@ import { OrderEventsModule } from './modules/order-events/order-events.module';
 import { RefundsModule } from './modules/refunds/refunds.module';
 import { StoreSettingsModule } from './modules/store-settings/store-settings.module';
 import { StorageModule } from './common/storage/storage.module';
+import { InvoicesModule } from './modules/invoices/invoices.module';
 
 @Module({
   imports: [
@@ -63,6 +64,7 @@ import { StorageModule } from './common/storage/storage.module';
     RefundsModule,
     StoreSettingsModule,
     StorageModule,
+    InvoicesModule,
   ],
   controllers: [HealthController],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],

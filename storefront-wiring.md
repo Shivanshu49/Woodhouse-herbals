@@ -15,3 +15,8 @@ them visible to shoppers are batched here (not built now).
   admin-managed; the storefront category nav/tiles should read it (via a public
   tree endpoint) instead of the legacy `ProductCategory` enum / mock data.
 - **Respect `sortOrder`** in the public category ordering (already does).
+
+## Section 3 — Inventory
+- **None.** Inventory management is admin-internal; the storefront already reads
+  `inStock`/`stockStatus`/`stockQty` on products (adjustments flow through those
+  existing fields). No storefront change needed.

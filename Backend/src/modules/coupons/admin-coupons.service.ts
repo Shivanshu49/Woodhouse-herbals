@@ -90,14 +90,14 @@ export class AdminCouponsService {
       });
       return coupon;
     } catch (e) {
-      this.mapPrismaError(e);
+      this.mapCreateError(e);
     }
   }
 
   async update(id: string, dto: UpdateCouponDto) {
     const existing = await this.prisma.coupon.findUnique({
       where: { id },
-      select: { id: true, kind: true, value: true, maxDiscountMinor: true },
+      select: { id: true, kind: true, value: true, categories: { select: { categoryId: true } } },
     });
     if (!existing) throw new NotFoundException('Coupon not found.');
 
@@ -123,13 +123,20 @@ export class AdminCouponsService {
     if (kind === CouponKind.FLAT) data.maxDiscountMinor = null;
     else if (maxDiscountProvided) data.maxDiscountMinor = dto.maxDiscountMinor ?? null;
 
+    // Only rewrite the category join when the set actually changed — an edit
+    // that only touches, say, `active` shouldn't churn the join rows.
+    const currentCats = new Set(existing.categories.map((c) => c.categoryId));
+    const categoriesChanged =
+      dto.categoryIds !== undefined &&
+      (dto.categoryIds.length !== currentCats.size || dto.categoryIds.some((cid) => !currentCats.has(cid)));
+
     try {
       return await this.prisma.$transaction(async (tx) => {
-        if (dto.categoryIds !== undefined) {
+        if (categoriesChanged) {
           await tx.couponCategory.deleteMany({ where: { couponId: id } });
-          if (dto.categoryIds.length) {
+          if (dto.categoryIds!.length) {
             await tx.couponCategory.createMany({
-              data: dto.categoryIds.map((categoryId) => ({ couponId: id, categoryId })),
+              data: dto.categoryIds!.map((categoryId) => ({ couponId: id, categoryId })),
               skipDuplicates: true,
             });
           }
@@ -138,7 +145,7 @@ export class AdminCouponsService {
         return { id };
       });
     } catch (e) {
-      this.mapPrismaError(e);
+      this.mapWriteError(e);
     }
   }
 
@@ -147,7 +154,7 @@ export class AdminCouponsService {
       await this.prisma.coupon.update({ where: { id }, data: { active } });
       return { id, active };
     } catch (e) {
-      this.mapPrismaError(e);
+      this.mapWriteError(e);
     }
   }
 
@@ -204,10 +211,27 @@ export class AdminCouponsService {
     }
   }
 
-  private mapPrismaError(e: unknown): never {
+  private static readonly CATEGORY_GONE = 'A selected category no longer exists — reload and retry.';
+  private static readonly COUPON_GONE = 'Coupon not found — reload and retry.';
+
+  /** create() can only fail on the unique code (P2002) or a missing category
+   *  from the nested `connect` (P2025). */
+  private mapCreateError(e: unknown): never {
     if (e instanceof Prisma.PrismaClientKnownRequestError) {
       if (e.code === 'P2002') throw new ConflictException('That coupon code is already in use.');
-      if (e.code === 'P2025') throw new NotFoundException('A selected category no longer exists — reload and retry.');
+      if (e.code === 'P2025') throw new NotFoundException(AdminCouponsService.CATEGORY_GONE);
+    }
+    throw e;
+  }
+
+  /** update()/setActive() write an existing coupon: a missing category FK on the
+   *  createMany is P2003; the coupon vanishing mid-write is P2025. Distinct codes,
+   *  distinct messages (the old shared mapping mislabeled a missing coupon as a
+   *  category error). */
+  private mapWriteError(e: unknown): never {
+    if (e instanceof Prisma.PrismaClientKnownRequestError) {
+      if (e.code === 'P2003') throw new NotFoundException(AdminCouponsService.CATEGORY_GONE);
+      if (e.code === 'P2025') throw new NotFoundException(AdminCouponsService.COUPON_GONE);
     }
     throw e;
   }

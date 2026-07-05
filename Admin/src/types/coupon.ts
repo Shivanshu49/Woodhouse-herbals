@@ -51,4 +51,18 @@ export interface CreateCouponBody {
   categoryIds?: string[];
 }
 
-export type UpdateCouponBody = Partial<Omit<CreateCouponBody, 'code'>>;
+// Edit sends explicit `null` to CLEAR an optional field (the backend treats an
+// omitted key as "leave unchanged", so clearing must be an explicit null).
+export interface UpdateCouponBody {
+  description?: string;
+  kind?: CouponKind;
+  value?: number;
+  maxDiscountMinor?: number | null;
+  minCartMinor?: number;
+  maxUses?: number | null;
+  perUserLimit?: number | null;
+  startsAt?: string | null;
+  expiresAt?: string | null;
+  active?: boolean;
+  categoryIds?: string[];
+}

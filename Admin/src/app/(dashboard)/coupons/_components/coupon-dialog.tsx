@@ -22,7 +22,16 @@ import type { CouponDetail, CouponKind, CreateCouponBody } from '@/types/coupon'
 
 const selectCls = 'h-9 w-full rounded-md border bg-transparent px-2 text-sm outline-none focus:ring-2 focus:ring-ring';
 const CODE_RE = /^[A-Z0-9_-]{3,32}$/;
-const num = (s: string): number | undefined => (s.trim() ? Math.floor(Number(s)) : undefined);
+/** Parse a whole-number field; undefined for blank/non-integer (never NaN). */
+const num = (s: string): number | undefined => {
+  const t = s.trim();
+  return t && /^\d+$/.test(t) ? parseInt(t, 10) : undefined;
+};
+/** A blank field is valid (optional); a filled one must be an integer in range. */
+const numInRange = (s: string, min: number, max: number): boolean => {
+  const t = s.trim();
+  return !t || (/^\d+$/.test(t) && +t >= min && +t <= max);
+};
 
 export function CouponDialog({
   open,
@@ -67,12 +76,20 @@ export function CouponDialog({
     setCategoryIds(editing?.categories.map((c) => c.id) ?? []);
   }, [open, editing]);
 
-  // Derive the parsed discount value + a per-field validity note.
+  // Derive the parsed discount value + per-field validity so a mistyped field
+  // blocks the (otherwise enabled) Save rather than silently persisting garbage
+  // or firing a request the DTO 400s with no visible reason.
   const percentValid = kind !== 'PERCENT' || (/^\d+$/.test(value.trim()) && +value >= 1 && +value <= 100);
   const flatPaise = kind === 'FLAT' ? rupeesToPaise(value) : null;
   const flatValid = kind !== 'FLAT' || (flatPaise !== null && flatPaise >= 1);
   const codeValid = !editing ? CODE_RE.test(code.trim().toUpperCase()) : true;
-  const valid = codeValid && value.trim() !== '' && percentValid && flatValid;
+  const usesValid = numInRange(maxUses, 1, 2_147_483_647);
+  const perUserValid = numInRange(perUserLimit, 1, 50);
+  // The DTO caps require ≥ 1 paise; a blank means "no cap", but "0" is invalid.
+  const capValid = kind !== 'PERCENT' || !maxDiscount.trim() || (rupeesToPaise(maxDiscount) ?? 0) >= 1;
+  const minCartValid = !minCart.trim() || rupeesToPaise(minCart) !== null;
+  const valid =
+    codeValid && value.trim() !== '' && percentValid && flatValid && usesValid && perUserValid && capValid && minCartValid;
 
   function toggleCat(id: string) {
     setCategoryIds((ids) => (ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id]));
@@ -80,27 +97,45 @@ export function CouponDialog({
 
   function submit() {
     if (!valid) return;
-    const discountValue = kind === 'PERCENT' ? Math.floor(Number(value)) : (flatPaise as number);
-    const body: CreateCouponBody = {
-      code: code.trim().toUpperCase(),
-      description: description.trim() || undefined,
-      kind,
-      value: discountValue,
-      maxDiscountMinor: kind === 'PERCENT' && maxDiscount.trim() ? rupeesToPaise(maxDiscount) ?? undefined : undefined,
-      minCartMinor: minCart.trim() ? rupeesToPaise(minCart) ?? 0 : 0,
-      maxUses: num(maxUses),
-      perUserLimit: num(perUserLimit),
-      startsAt: localToIso(startsAt),
-      expiresAt: localToIso(expiresAt),
-      active,
-      categoryIds,
-    };
+    const discountValue = kind === 'PERCENT' ? parseInt(value, 10) : (flatPaise as number);
+    const capPaise = kind === 'PERCENT' && maxDiscount.trim() ? rupeesToPaise(maxDiscount) ?? undefined : undefined;
     const done = { onSuccess: () => onOpenChange(false) };
+
     if (editing) {
-      // Send the full enforced set (backend merges); omit the immutable code.
-      const { code: _code, ...rest } = body;
-      update.mutate(rest, done);
+      // Edit sends the full enforced set and CLEARS with explicit null/'' — an
+      // omitted key means "leave unchanged" on the backend, so a blanked expiry,
+      // cap, or limit must be sent as null to actually be removed.
+      update.mutate(
+        {
+          description: description.trim(),
+          kind,
+          value: discountValue,
+          maxDiscountMinor: kind === 'PERCENT' ? capPaise ?? null : undefined,
+          minCartMinor: minCart.trim() ? rupeesToPaise(minCart) ?? 0 : 0,
+          maxUses: maxUses.trim() ? num(maxUses) ?? null : null,
+          perUserLimit: perUserLimit.trim() ? num(perUserLimit) ?? null : null,
+          startsAt: localToIso(startsAt) ?? null,
+          expiresAt: localToIso(expiresAt) ?? null,
+          active,
+          categoryIds,
+        },
+        done,
+      );
     } else {
+      const body: CreateCouponBody = {
+        code: code.trim().toUpperCase(),
+        description: description.trim() || undefined,
+        kind,
+        value: discountValue,
+        maxDiscountMinor: capPaise,
+        minCartMinor: minCart.trim() ? rupeesToPaise(minCart) ?? 0 : undefined,
+        maxUses: num(maxUses),
+        perUserLimit: num(perUserLimit),
+        startsAt: localToIso(startsAt),
+        expiresAt: localToIso(expiresAt),
+        active,
+        categoryIds,
+      };
       create.mutate(body, done);
     }
   }
@@ -159,7 +194,7 @@ export function CouponDialog({
           {kind === 'PERCENT' && (
             <div className="space-y-1">
               <Label htmlFor="c-cap">Max discount (₹, optional)</Label>
-              <Input id="c-cap" value={maxDiscount} onChange={(e) => setMaxDiscount(e.target.value)} inputMode="decimal" placeholder="200" />
+              <Input id="c-cap" value={maxDiscount} onChange={(e) => setMaxDiscount(e.target.value)} inputMode="decimal" placeholder="200" className={maxDiscount && !capValid ? 'border-red-500' : ''} />
             </div>
           )}
           <div className="space-y-1">
@@ -171,11 +206,11 @@ export function CouponDialog({
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1">
             <Label htmlFor="c-maxuses">Total uses (blank = unlimited)</Label>
-            <Input id="c-maxuses" value={maxUses} onChange={(e) => setMaxUses(e.target.value)} inputMode="numeric" />
+            <Input id="c-maxuses" value={maxUses} onChange={(e) => setMaxUses(e.target.value)} inputMode="numeric" className={maxUses && !usesValid ? 'border-red-500' : ''} />
           </div>
           <div className="space-y-1">
-            <Label htmlFor="c-peruser">Per-customer limit (blank = none)</Label>
-            <Input id="c-peruser" value={perUserLimit} onChange={(e) => setPerUserLimit(e.target.value)} inputMode="numeric" />
+            <Label htmlFor="c-peruser">Per-customer limit (blank = none, max 50)</Label>
+            <Input id="c-peruser" value={perUserLimit} onChange={(e) => setPerUserLimit(e.target.value)} inputMode="numeric" className={perUserLimit && !perUserValid ? 'border-red-500' : ''} />
           </div>
         </div>
 

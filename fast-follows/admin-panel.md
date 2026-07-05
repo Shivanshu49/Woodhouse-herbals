@@ -274,3 +274,38 @@ restock shows "—" (no link) instead of its order. No WRONG link (a cuid can't
 collide with a `WH-…` number) — just a missing one.
 - **Fix:** pass `reference: order.number` (or set the movement's `orderId` column
   and have `InventoryService.adjust` accept + write it) in the PhonePe callback.
+
+### FF-23 — Testimonial rating can't be CLEARED on edit (same class as FF-16)
+`TestimonialDialog` maps a "None" rating selection to `rating: undefined`, and the
+content service treats an omitted key as "leave unchanged" — so once a testimonial
+has a star rating you can't remove it via the editor. Same optional-scalar-clear
+limitation FF-16 describes; deferred for consistency. Low impact (rating is
+optional decoration on a homepage quote).
+- **Where:** `Admin/.../content/_components/testimonial-dialog.tsx` (submit);
+  `Backend/.../admin-content/admin-content.service.ts::updateTestimonial`;
+  `admin-content/dto/content.dto.ts` (UpdateTestimonialDto rating).
+- **Fix:** send `rating: null` on clear; type the DTO field `number | null` and
+  set `data.rating = dto.rating` when the key is present (null clears).
+
+### FF-24 — Content reorder/toggle have no optimistic cache update (Low, polish)
+`use-content.ts` reorder mutations only `invalidateQueries` on settle, and the
+active/published Switch handlers mutate without touching the cache — so on a slow
+network a dragged row snaps back to its old slot (and a toggled Switch flips back)
+for the request round-trip until the refetch lands. NOT a Section-4 regression:
+the categories feature (`use-admin-categories.ts` reorder + tree toggle) has the
+exact same gap, so this is a shared polish pass, not new debt.
+- **Where:** `Admin/src/hooks/use-content.ts` (useReorder + the tab Switch
+  handlers); same treatment would apply to `use-admin-categories.ts`.
+- **Fix:** `onMutate` → cancelQueries + setQueryData (optimistic reorder/flag) with
+  an `onError` rollback; keep the settle-invalidate as the reconcile.
+
+### FF-25 — ContentImageField duplicates categories' ImageUploadField (Low, DRY)
+`content/_components/content-image-field.tsx` is a near-verbatim superset of
+`categories/_components/image-upload-field.tsx` (adds `folder` + `aspect` props).
+Both also LACK delete-on-remove Cloudinary cleanup (the product media section has
+it), so a removed/replaced banner or category image is orphaned in Cloudinary.
+- **Where:** the two field components above.
+- **Fix:** promote the parameterized field to `Admin/src/components/common/` and
+  have both features consume it; fold in delete-on-remove (call
+  `api.uploads.delete(publicId)` on remove/replace of a just-uploaded asset) while
+  the code is unified.

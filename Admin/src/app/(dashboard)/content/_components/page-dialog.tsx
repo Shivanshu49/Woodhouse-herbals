@@ -13,9 +13,8 @@ import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { pages } from '@/hooks/use-content';
+import { slugifyContent as slugify } from '@/lib/slugify';
 import type { StaticPage } from '@/types/content';
-
-const slugify = (s: string) => s.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
 
 export function PageDialog({
   open,

@@ -18,9 +18,9 @@ import {
   useUpdateCategory,
 } from '@/hooks/use-admin-categories';
 import type { AdminCategory } from '@/types/admin-category';
+import { slugifyContent as slugify } from '@/lib/slugify';
 import { ImageUploadField } from './image-upload-field';
 
-const slugify = (s: string) => s.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
 const selectCls = 'h-9 w-full rounded-md border bg-transparent px-2 text-sm outline-none focus:ring-2 focus:ring-ring';
 
 export function CategoryDialog({

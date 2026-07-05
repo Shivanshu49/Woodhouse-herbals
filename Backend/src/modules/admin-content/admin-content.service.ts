@@ -76,7 +76,7 @@ export class AdminContentService {
     if (dto.accent !== undefined) data.accent = dto.accent || null;
     if (dto.active !== undefined) data.active = dto.active;
     Object.assign(data, this.resolveSchedule(dto, existing));
-    return this.prisma.heroBanner.update({ where: { id }, data });
+    return this.guarded(this.prisma.heroBanner.update({ where: { id }, data }));
   }
 
   deleteBanner(id: string) {
@@ -123,7 +123,7 @@ export class AdminContentService {
     if (dto.href !== undefined) data.href = dto.href || '/shop';
     if (dto.active !== undefined) data.active = dto.active;
     Object.assign(data, this.resolveSchedule(dto, existing));
-    return this.prisma.offerStripItem.update({ where: { id }, data });
+    return this.guarded(this.prisma.offerStripItem.update({ where: { id }, data }));
   }
 
   deleteOfferStripItem(id: string) {
@@ -167,7 +167,7 @@ export class AdminContentService {
     if (dto.rating !== undefined) data.rating = dto.rating;
     if (dto.body !== undefined) data.body = dto.body;
     if (dto.active !== undefined) data.active = dto.active;
-    return this.prisma.testimonial.update({ where: { id }, data });
+    return this.guarded(this.prisma.testimonial.update({ where: { id }, data }));
   }
 
   deleteTestimonial(id: string) {
@@ -207,7 +207,7 @@ export class AdminContentService {
     if (dto.answer !== undefined) data.answer = dto.answer;
     if (dto.category !== undefined) data.category = dto.category || null;
     if (dto.active !== undefined) data.active = dto.active;
-    return this.prisma.faq.update({ where: { id }, data });
+    return this.guarded(this.prisma.faq.update({ where: { id }, data }));
   }
 
   deleteFaq(id: string) {
@@ -281,9 +281,12 @@ export class AdminContentService {
   // The storefront homepage derives its product carousels from PRODUCT FLAGS,
   // not from a curated selection table: bestsellers = a BESTSELLER badge,
   // new arrivals = a NEW badge, combo packs = isCombo (see HomepageService).
-  // This overview mirrors those exact rules so an admin can see — and jump to
-  // edit — which products currently populate each homepage section. It reuses
-  // the flags rather than introducing a parallel selection model.
+  // This lists EVERY non-deleted product carrying each flag — including DRAFT/
+  // SCHEDULED ones — deliberately, so an admin can spot a product they flagged
+  // that isn't actually live. The storefront applies two further filters this
+  // view does NOT (status = PUBLISHED, and a per-section take cap), so a row
+  // here may not appear on the live homepage; the UI labels each row's status
+  // and counts the live ones so nothing is misrepresented as live.
   async homepageSections() {
     const PRODUCT_SELECT = {
       id: true,
@@ -364,6 +367,16 @@ export class AdminContentService {
     try {
       const row = await del();
       return { id: row.id, deleted: true as const };
+    } catch (e) {
+      mapPrismaError(e);
+    }
+  }
+
+  /** Run an update, mapping a P2025 (row deleted between the pre-check and the
+   *  write — a concurrent delete in another tab) to a clean 404 instead of 500. */
+  private async guarded<T>(op: Promise<T>): Promise<T> {
+    try {
+      return await op;
     } catch (e) {
       mapPrismaError(e);
     }

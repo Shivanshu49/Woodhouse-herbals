@@ -13,6 +13,9 @@ const SECTIONS: Array<{ key: 'bestsellers' | 'newArrivals' | 'comboPacks'; title
   { key: 'comboPacks', title: 'Combo packs', flag: 'the “Combo pack” toggle' },
 ];
 
+const isLive = (p: HomepageSectionProduct) => p.status === 'PUBLISHED';
+const statusLabel = (s: string) => (s ? s.charAt(0) + s.slice(1).toLowerCase() : s);
+
 function ProductRow({ p }: { p: HomepageSectionProduct }) {
   return (
     <Link
@@ -26,9 +29,9 @@ function ProductRow({ p }: { p: HomepageSectionProduct }) {
         <div className="h-9 w-9 rounded bg-muted" />
       )}
       <span className="min-w-0 flex-1 truncate font-medium">{p.name}</span>
-      {p.status !== 'PUBLISHED' && (
+      {!isLive(p) && (
         <span className="rounded bg-amber-100 px-1.5 py-0.5 text-xs text-amber-700 dark:bg-amber-950 dark:text-amber-400">
-          {p.status === 'DRAFT' ? 'Draft — not live' : p.status}
+          Not live · {statusLabel(p.status)}
         </span>
       )}
       <span className="text-sm text-muted-foreground">{formatInr(p.priceMinor)}</span>
@@ -43,7 +46,9 @@ export function HomepageSectionsTab() {
     <div className="max-w-3xl space-y-6">
       <p className="text-sm text-muted-foreground">
         Homepage product carousels are driven by <strong>product flags</strong>, not a separate list. To add or remove a
-        product here, open it and toggle the relevant flag. This is a read-only view of what currently qualifies.
+        product, open it and toggle the relevant flag. This lists every product carrying each flag; the storefront also
+        requires a product to be <strong>Published</strong> and shows only the first few per section, so a row marked
+        “Not live” won’t appear on the homepage.
       </p>
 
       {isLoading ? (
@@ -51,11 +56,18 @@ export function HomepageSectionsTab() {
       ) : (
         SECTIONS.map(({ key, title, flag }) => {
           const items = data?.[key] ?? [];
+          const live = items.filter(isLive).length;
           return (
             <section key={key} className="space-y-2">
               <div className="flex items-baseline justify-between">
                 <h3 className="font-medium">{title}</h3>
-                <span className="text-xs text-muted-foreground">{items.length} product{items.length === 1 ? '' : 's'}</span>
+                <span className="text-xs text-muted-foreground">
+                  {items.length === 0
+                    ? '0 products'
+                    : live === items.length
+                      ? `${items.length} live`
+                      : `${live} of ${items.length} live`}
+                </span>
               </div>
               {items.length === 0 ? (
                 <div className="flex items-center gap-2 rounded-md border border-dashed p-3 text-sm text-muted-foreground">

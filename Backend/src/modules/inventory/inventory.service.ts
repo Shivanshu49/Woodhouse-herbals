@@ -195,13 +195,16 @@ export class InventoryService {
 
     return movements.map((m) => {
       const order = (m.orderId && byId.get(m.orderId)) || (m.reference && byNumber.get(m.reference)) || null;
+      // `reference` doubles as an order number (order flows) OR a free-form note
+      // (manual adjust routes its note here). If it isn't an order, show it as a note.
+      const note = m.note ?? (order ? null : m.reference);
       return {
         id: m.id,
         previousQty: m.previousQty,
         newQty: m.newQty,
         delta: m.delta,
         reason: m.reason,
-        note: m.note,
+        note,
         actorName: m.actor?.fullName ?? m.createdBy ?? null,
         order: order ? { id: order.id, number: order.number } : null,
         createdAt: m.createdAt,

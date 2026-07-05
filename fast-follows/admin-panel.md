@@ -226,3 +226,33 @@ orders appear it should be made set-based.
   is a positive delta and can't violate `stockQty >= 0`, so the per-row CAS isn't
   needed here), reconcile `inStock`/`stockStatus` flags, and one
   `inventoryMovement.createMany` for the audit rows — cost independent of line count.
+
+---
+
+## Phase D3 (order detail + GST invoice + refund UI) — recorded at design time
+
+### FF-19 — Credit notes for refunds (Medium, GST-compliance)
+D3 v1 ships GST tax invoices but NOT credit notes. GST-proper refund
+documentation is a **credit note**: its own numbered document that references the
+original invoice number and records the reversed tax. A REFUNDED order's original
+invoice stays immutable (correct); the credit note lands as a follow-up.
+- **Where:** new alongside `Backend/src/modules/invoices/` — a `CreditNote` model
+  (own FY number series referencing `Invoice.number`), generated on a settled
+  refund, rendered like the invoice.
+- **Why deferred:** invoices are the launch blocker; credit notes are needed
+  before the first refund is filed on a GST return, not before go-live.
+
+### FF-20 — GST state-code enum (Low, removes place-of-supply ambiguity)
+The invoice place-of-supply split (CGST/SGST vs IGST) matches buyer vs store
+state by **normalized free-text compare** with an `ambiguousPlaceOfSupply` flag.
+Replacing free-text state with canonical GST state codes removes the ambiguity.
+- **Where:** `Backend/src/modules/invoices/invoice-tax.ts` (state match) + wherever
+  `Order.shippingState` is set.
+- **Fix:** a `GstStateCode` enum + a name→code resolver; drop the ambiguity flag.
+- **Paired with the storefront backlog item below (fixes it at the source).**
+
+### BACKLOG (storefront) — state dropdown at checkout
+`Order.shippingState` is free text today, which forces the invoice's fuzzy
+place-of-supply match. A checkout **state dropdown keyed by GST state codes**
+kills the ambiguity at the source (and enables FF-20 cleanly).
+- **Where:** storefront checkout address form + the order-create DTO.

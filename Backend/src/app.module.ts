@@ -27,6 +27,7 @@ import { UploadsModule } from './modules/uploads/uploads.module';
 import { AdminProductsModule } from './modules/admin-products/admin-products.module';
 import { AdminOrdersModule } from './modules/admin-orders/admin-orders.module';
 import { OrderEventsModule } from './modules/order-events/order-events.module';
+import { RefundsModule } from './modules/refunds/refunds.module';
 
 @Module({
   imports: [
@@ -57,6 +58,7 @@ import { OrderEventsModule } from './modules/order-events/order-events.module';
     UploadsModule,
     AdminProductsModule,
     AdminOrdersModule,
+    RefundsModule,
   ],
   controllers: [HealthController],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],

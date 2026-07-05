@@ -265,3 +265,12 @@ right-aligned amounts, footer) would make it customer-facing-polished.
 - **Where:** `Backend/src/modules/invoices/invoice-pdf.ts` (render only).
 - **Note:** LOGIC UNTOUCHED — the immutable snapshot + tax math don't change; this
   is purely how `renderInvoicePdf` draws the snapshot. Safe, isolated.
+
+### FF-22 — PhonePe auto-cancel movements don't resolve an order link (Low)
+`phonepe.service.ts` sets the restock movement's `reference` to the order *id*
+(cuid), while every other order flow uses the order *number*; the inventory
+history resolves links against `Order.number`, so a payment-failure auto-cancel's
+restock shows "—" (no link) instead of its order. No WRONG link (a cuid can't
+collide with a `WH-…` number) — just a missing one.
+- **Fix:** pass `reference: order.number` (or set the movement's `orderId` column
+  and have `InventoryService.adjust` accept + write it) in the PhonePe callback.

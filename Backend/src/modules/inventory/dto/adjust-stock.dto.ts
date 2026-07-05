@@ -1,6 +1,21 @@
 import { Type } from 'class-transformer';
-import { IsEnum, IsInt, IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsIn, IsInt, IsOptional, IsString, MaxLength } from 'class-validator';
 import { InventoryReason } from '@prisma/client';
+
+// Reasons a HUMAN may set from the manual-adjust endpoint. The automated
+// order/refund/seed reasons (ORDER_*, INITIAL_SEED) are written ONLY by their
+// service flows (which call inventory.adjust directly), never via this endpoint —
+// so a client can't forge an order/seed movement with no order behind it.
+const MANUAL_REASONS: InventoryReason[] = [
+  InventoryReason.RESTOCK,
+  InventoryReason.STOCK_INTAKE,
+  InventoryReason.MANUAL_ADJUSTMENT,
+  InventoryReason.MANUAL_ADJUST,
+  InventoryReason.RECONCILIATION,
+  InventoryReason.DAMAGED,
+  InventoryReason.RETURNED,
+  InventoryReason.RETURN,
+];
 
 /**
  * Manual stock adjustment issued from the admin panel.
@@ -21,11 +36,11 @@ export class AdjustStockDto {
   @IsInt()
   delta!: number;
 
-  // Defaults to MANUAL_ADJUSTMENT in the service when omitted. We accept the
-  // full enum (not just the manual reasons) so Phase D can reuse this endpoint
-  // for reconciliation / damage / return flows.
+  // Defaults to MANUAL_ADJUSTMENT in the service when omitted. Restricted to the
+  // human-settable reasons — automated ORDER_*/INITIAL_SEED reasons are off-limits
+  // here so the ledger's reason semantics can't be forged.
   @IsOptional()
-  @IsEnum(InventoryReason)
+  @IsIn(MANUAL_REASONS)
   reason?: InventoryReason;
 
   @IsOptional()

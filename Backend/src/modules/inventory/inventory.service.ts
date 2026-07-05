@@ -8,7 +8,10 @@ interface AdjustInput {
   delta: number; // signed: -ve for sales/reserves, +ve for intake/returns
   reason: InventoryReason;
   actorId?: string | null;
+  // `reference` is reserved for a genuine order NUMBER (order flows) so history
+  // can resolve an order link from it; free-form admin context goes in `note`.
   reference?: string | null;
+  note?: string | null;
   /**
    * Optional Prisma transaction client. When called from inside an order
    * transaction, the audit row MUST be written in the same tx so a failure
@@ -68,6 +71,7 @@ export class InventoryService {
           reason: input.reason,
           actorId: input.actorId ?? undefined,
           reference: input.reference ?? undefined,
+          note: input.note ?? undefined,
         },
       });
 
@@ -79,9 +83,9 @@ export class InventoryService {
 
   /**
    * Manual, admin-initiated stock adjustment. Thin wrapper over `adjust` that
-   * defaults the reason to MANUAL_ADJUSTMENT and maps the admin note onto the
-   * ledger `reference`. Flag reconciliation now lives in `adjust` itself, so
-   * this needs no extra transaction.
+   * defaults the reason to MANUAL_ADJUSTMENT and stores the admin note in the
+   * `note` column — NOT `reference`, which is reserved for order numbers so a
+   * note that happens to look like an order id can't forge an order link.
    */
   async adminAdjust(input: {
     productId: string;
@@ -95,7 +99,7 @@ export class InventoryService {
       delta: input.delta,
       reason: input.reason ?? InventoryReason.MANUAL_ADJUSTMENT,
       actorId: input.actorId,
-      reference: input.note ?? null,
+      note: input.note ?? null,
     });
   }
 

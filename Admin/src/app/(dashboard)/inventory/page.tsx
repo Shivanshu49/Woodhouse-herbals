@@ -16,10 +16,18 @@ export default function InventoryPage() {
   // Low-stock is the default view — that's what needs attention first.
   const [lowStockOnly, setLowStockOnly] = useState(true);
   const [q, setQ] = useState('');
+  const [page, setPage] = useState(1);
   const [adjusting, setAdjusting] = useState<InventoryRow | null>(null);
   const [historyFor, setHistoryFor] = useState<InventoryRow | null>(null);
 
-  const { data, isLoading } = useInventory({ q: q.trim() || undefined, lowStockOnly, page: 1 });
+  // Reset to page 1 whenever the filter/search changes.
+  function setFilter(fn: () => void) {
+    fn();
+    setPage(1);
+  }
+
+  const { data, isLoading } = useInventory({ q: q.trim() || undefined, lowStockOnly, page });
+  const totalPages = data ? Math.max(1, Math.ceil(data.total / data.perPage)) : 1;
 
   return (
     <div>
@@ -28,12 +36,12 @@ export default function InventoryPage() {
       <div className="mb-4 flex flex-wrap items-center gap-4">
         <Input
           value={q}
-          onChange={(e) => setQ(e.target.value)}
+          onChange={(e) => setFilter(() => setQ(e.target.value))}
           placeholder="Search name or SKU…"
           className="max-w-xs"
         />
         <div className="flex items-center gap-2">
-          <Switch id="low-only" checked={lowStockOnly} onCheckedChange={setLowStockOnly} />
+          <Switch id="low-only" checked={lowStockOnly} onCheckedChange={(v) => setFilter(() => setLowStockOnly(v))} />
           <Label htmlFor="low-only" className="text-sm">Low stock only</Label>
         </div>
         {data && <span className="text-sm text-muted-foreground">{data.total} product{data.total === 1 ? '' : 's'}</span>}
@@ -98,6 +106,18 @@ export default function InventoryPage() {
             ))}
           </tbody>
         </table>
+      )}
+
+      {data && totalPages > 1 && (
+        <div className="mt-4 flex items-center justify-end gap-2 text-sm">
+          <Button size="sm" variant="outline" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
+            Previous
+          </Button>
+          <span className="text-muted-foreground">Page {page} of {totalPages}</span>
+          <Button size="sm" variant="outline" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>
+            Next
+          </Button>
+        </div>
       )}
 
       <AdjustDialog row={adjusting} onOpenChange={(o) => !o && setAdjusting(null)} />

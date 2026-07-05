@@ -78,6 +78,11 @@ export function HistoryDialog({
                 ))}
               </tbody>
             </table>
+            {data.length >= 200 && (
+              <p className="pt-2 text-center text-xs text-muted-foreground">
+                Showing the 200 most recent movements.
+              </p>
+            )}
           </div>
         )}
       </DialogContent>

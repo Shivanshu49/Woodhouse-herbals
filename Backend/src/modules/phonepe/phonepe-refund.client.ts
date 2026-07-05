@@ -7,6 +7,11 @@ export interface PhonepeRefundResult {
   code: string;
   state: string;
   providerRefundId?: string;
+  /** HTTP status of the call — lets settlement distinguish a definitive 4xx
+   *  rejection (→ FAILED, release the payment) from a 5xx/transient (→ PENDING). */
+  httpStatus?: number;
+  /** PhonePe top-level `success` flag, when present. */
+  success?: boolean;
   raw: unknown;
 }
 
@@ -50,27 +55,29 @@ export class PhonepeRefundClient {
       saltKey,
       saltIndex,
     );
-    const res = await this.post(`${base}/pg/v1/refund`, { request: base64 }, checksum);
-    return this.parse(res);
+    const { json, httpStatus } = await this.post(`${base}/pg/v1/refund`, { request: base64 }, checksum);
+    return this.parse(json, httpStatus);
   }
 
   async status(merchantRefundId: string): Promise<PhonepeRefundResult> {
     const { merchantId, saltKey, saltIndex, base } = this.creds();
     const path = `/pg/v1/status/${merchantId}/${merchantRefundId}`;
-    const res = await this.get(`${base}${path}`, statusChecksum(path, saltKey, saltIndex), merchantId);
-    return this.parse(res);
+    const { json, httpStatus } = await this.get(`${base}${path}`, statusChecksum(path, saltKey, saltIndex), merchantId);
+    return this.parse(json, httpStatus);
   }
 
-  private parse(json: any): PhonepeRefundResult {
+  private parse(json: any, httpStatus: number): PhonepeRefundResult {
     return {
       code: json?.code ?? 'UNKNOWN',
       state: json?.data?.state ?? 'PENDING',
       providerRefundId: json?.data?.transactionId as string | undefined,
+      httpStatus,
+      success: typeof json?.success === 'boolean' ? json.success : undefined,
       raw: json,
     };
   }
 
-  private async post(url: string, body: unknown, checksum: string): Promise<unknown> {
+  private async post(url: string, body: unknown, checksum: string): Promise<{ json: unknown; httpStatus: number }> {
     const r = await fetch(url, {
       method: 'POST',
       signal: AbortSignal.timeout(15_000),
@@ -81,10 +88,10 @@ export class PhonepeRefundClient {
       },
       body: JSON.stringify(body),
     });
-    return r.json();
+    return { json: await r.json().catch(() => ({})), httpStatus: r.status };
   }
 
-  private async get(url: string, checksum: string, merchantId: string): Promise<unknown> {
+  private async get(url: string, checksum: string, merchantId: string): Promise<{ json: unknown; httpStatus: number }> {
     const r = await fetch(url, {
       method: 'GET',
       signal: AbortSignal.timeout(15_000),
@@ -95,6 +102,6 @@ export class PhonepeRefundClient {
         accept: 'application/json',
       },
     });
-    return r.json();
+    return { json: await r.json().catch(() => ({})), httpStatus: r.status };
   }
 }

@@ -220,13 +220,19 @@ export class PhonepeService {
           select: { id: true },
         });
         if (!refund) throw new NotFoundException('Refund not found');
-        await this.refunds.settleFromProvider(refund.id, {
+        const mapped = await this.refunds.settleFromProvider(refund.id, {
           code: decoded.responseCode ?? 'CALLBACK',
           state: decoded.state,
           providerRefundId: decoded.transactionId,
           raw: decoded,
         });
-        await this.webhooks.markProcessed(claim.eventId);
+        // Only burn the shared idempotency key (merchantRefundId) on a TERMINAL
+        // settlement. A non-terminal refund callback (PENDING / unmodeled state)
+        // must leave the webhook unprocessed so the later terminal callback with
+        // the same key is not dropped — mirrors the payment PENDING branch below.
+        if (mapped !== 'PENDING') {
+          await this.webhooks.markProcessed(claim.eventId);
+        }
         return { ok: true, state: decoded.state };
       }
 

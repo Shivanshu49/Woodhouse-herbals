@@ -41,6 +41,23 @@ test('mapRefundState maps PhonePe states to a RefundStatus token', () => {
   assert.equal(mapRefundState('SOMETHING_ELSE'), 'PENDING'); // unknown → not terminal
 });
 
+test('mapRefundState treats a definitive rejection as FAILED (releases the payment)', () => {
+  // HTTP 4xx hard reject (EXCESS_REFUND_AMOUNT / TXN_OLDER_THAN_LIMIT / NOT_FOUND).
+  assert.equal(mapRefundState('PENDING', { httpStatus: 400, success: false }), 'FAILED');
+  assert.equal(mapRefundState('SOMETHING_ELSE', { httpStatus: 404 }), 'FAILED');
+  // 200 with an explicit success:false is still a rejection.
+  assert.equal(mapRefundState('PENDING', { httpStatus: 200, success: false }), 'FAILED');
+  // A terminal COMPLETED/FAILED always wins over the outcome.
+  assert.equal(mapRefundState('COMPLETED', { httpStatus: 500 }), 'PROCESSED');
+  assert.equal(mapRefundState('FAILED', { httpStatus: 200, success: true }), 'FAILED');
+});
+
+test('mapRefundState parks PENDING for transient/accepted responses (never guesses)', () => {
+  assert.equal(mapRefundState('PENDING', { httpStatus: 500 }), 'PENDING'); // transient — recheck
+  assert.equal(mapRefundState('PENDING', { httpStatus: 200, success: true }), 'PENDING'); // accepted-pending
+  assert.equal(mapRefundState('WEIRD', { httpStatus: 200, success: true }), 'PENDING'); // unknown but accepted
+});
+
 test('shouldRestock only for RETURNED', () => {
   assert.equal(shouldRestock(RefundDisposition.RETURNED), true);
   assert.equal(shouldRestock(RefundDisposition.DAMAGED), false);

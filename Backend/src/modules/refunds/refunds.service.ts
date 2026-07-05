@@ -4,7 +4,7 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { InventoryReason, OrderStatus, Prisma } from '@prisma/client';
+import { InventoryReason, OrderStatus, Prisma, RefundDisposition } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { OrderEventsService } from '../order-events/order-events.service';
 import { OrderEventType } from '../order-events/order-event-types';
@@ -38,6 +38,27 @@ export class RefundsService {
   ) {}
 
   /**
+   * Whether THIS refund attempt should credit stock. One physical return restocks
+   * exactly once, regardless of money attempts:
+   *  - only a restocking disposition (RETURNED) ever credits stock;
+   *  - a CANCELLED order was already restocked by the pre-shipment cancel
+   *    (reason ORDER_CANCELLED) — refunding it must not credit the goods twice;
+   *  - a prior refund on this order that already restocked (a RETURNED refund, incl.
+   *    a FAILED one whose restock is never reversed) means the goods are already back,
+   *    so a retry re-attempts only the money.
+   */
+  private restockApplies(
+    status: OrderStatus,
+    disposition: RefundDisposition,
+    priorDispositions: RefundDisposition[],
+  ): boolean {
+    if (!shouldRestock(disposition)) return false;
+    if (status === OrderStatus.CANCELLED) return false;
+    if (priorDispositions.some((d) => d === RefundDisposition.RETURNED)) return false;
+    return true;
+  }
+
+  /**
    * COD manual refund — one transaction, immediately PROCESSED. The admin has
    * already transferred the money out of band; the mandatory `utrReference`
    * proves it. Guards: the order must be in a refundable state AND be COD (no
@@ -55,6 +76,7 @@ export class RefundsService {
         totalMinor: true,
         items: { select: { productId: true, quantity: true } },
         payments: { where: { status: 'SUCCESS' }, select: { id: true } },
+        refunds: { select: { disposition: true } },
       },
     });
     if (!order) throw new NotFoundException('Order not found');
@@ -64,6 +86,11 @@ export class RefundsService {
         'This order was paid online — use the PhonePe refund, not the manual (COD) refund.',
       );
     }
+    const restock = this.restockApplies(
+      order.status,
+      dto.disposition,
+      order.refunds.map((r) => r.disposition),
+    );
 
     try {
       return await this.prisma.$transaction(
@@ -82,7 +109,7 @@ export class RefundsService {
             select: { id: true, status: true },
           });
 
-          if (shouldRestock(dto.disposition)) {
+          if (restock) {
             for (const it of order.items) {
               await this.inventory.adjust({
                 productId: it.productId,
@@ -163,18 +190,24 @@ export class RefundsService {
           orderBy: { createdAt: 'desc' },
           select: { id: true, providerTxnId: true },
         },
-        // Any non-FAILED refund means one is already in flight (or done). Fetched
-        // so an in-progress refund yields an HONEST "already in progress" 409 —
-        // NOT the misleading "no online payment" message that would otherwise
-        // fire once the payment has been flipped to REFUND_PENDING.
-        refunds: { where: { status: { not: 'FAILED' } }, select: { id: true } },
+        // ALL refunds (status + disposition): a non-FAILED one means a refund is
+        // already in flight (→ honest "already in progress" 409, not the misleading
+        // "no online payment" message once the payment is REFUND_PENDING); a prior
+        // RETURNED one (incl. FAILED) means the goods were already restocked, so a
+        // retry must not credit them again.
+        refunds: { select: { status: true, disposition: true } },
       },
     });
     if (!order) throw new NotFoundException('Order not found');
     assertRefundable(order.status);
-    if (order.refunds.length > 0) {
+    if (order.refunds.some((r) => r.status !== 'FAILED')) {
       throw new ConflictException('A refund is already in progress for this order.');
     }
+    const restock = this.restockApplies(
+      order.status,
+      dto.disposition,
+      order.refunds.map((r) => r.disposition),
+    );
     const payment = order.payments[0];
     if (!payment) {
       throw new ConflictException(
@@ -216,7 +249,7 @@ export class RefundsService {
           const merchantRefundId = deriveMerchantRefundId(created.id);
           await tx.refund.update({ where: { id: created.id }, data: { merchantRefundId } });
 
-          if (shouldRestock(dto.disposition)) {
+          if (restock) {
             for (const it of order.items) {
               await this.inventory.adjust({
                 productId: it.productId,
@@ -273,13 +306,17 @@ export class RefundsService {
           data: { providerRefundId: res.providerRefundId },
         });
       }
-      await this.settleFromProvider(refund.id, res);
+      // Report the ACTUAL post-settlement status, not an optimistic PENDING: an
+      // immediate provider COMPLETED shows PROCESSED, a hard rejection shows FAILED
+      // (payment already released), an accepted async refund shows PENDING.
+      const settled = await this.settleFromProvider(refund.id, res);
+      return { id: refund.id, status: settled };
     } catch {
-      // Intentionally swallow — the intent is persisted. Do NOT log the payload
-      // (may echo signed material); a bare scope line is enough for ops.
+      // Provider unreachable / timeout — the intent is persisted and stays PENDING
+      // for `recheck`. Do NOT log the payload (may echo signed material).
       this.logger.error(`refund:initiate provider call failed refundId=${refund.id} — left PENDING`);
+      return { id: refund.id, status: 'PENDING' as const };
     }
-    return { id: refund.id, status: 'PENDING' as const };
   }
 
   /**
@@ -355,14 +392,24 @@ export class RefundsService {
    * states map to PENDING (never guessed as SUCCESS/FAILED) and are logged so
    * ops can see a refund that PhonePe reported in a shape we don't model yet.
    */
-  async settleFromProvider(refundId: string, res: PhonepeRefundResult): Promise<void> {
-    const mapped = mapRefundState(res.state);
-    if (mapped === 'PENDING' && res.state !== 'PENDING') {
+  async settleFromProvider(
+    refundId: string,
+    res: PhonepeRefundResult,
+  ): Promise<'PROCESSED' | 'FAILED' | 'PENDING'> {
+    const mapped = mapRefundState(res.state, { httpStatus: res.httpStatus, success: res.success });
+    if (mapped === 'FAILED' && res.state !== 'FAILED') {
+      // FAILED via a definitive provider rejection (not a terminal FAILED state) —
+      // e.g. EXCESS_REFUND_AMOUNT / TXN_OLDER_THAN_LIMIT / NOT_FOUND. Log for ops.
       this.logger.warn(
-        `refund:settle unknown provider state — parking PENDING refundId=${refundId} state=${res.state} code=${res.code}`,
+        `refund:settle provider rejected — marking FAILED refundId=${refundId} state=${res.state} code=${res.code} http=${res.httpStatus}`,
+      );
+    } else if (mapped === 'PENDING' && res.state !== 'PENDING') {
+      this.logger.warn(
+        `refund:settle unknown provider state — parking PENDING refundId=${refundId} state=${res.state} code=${res.code} http=${res.httpStatus}`,
       );
     }
-    return this.settle(refundId, mapped, res.providerRefundId, res.raw);
+    await this.settle(refundId, mapped, res.providerRefundId, res.raw);
+    return mapped;
   }
 
   /**

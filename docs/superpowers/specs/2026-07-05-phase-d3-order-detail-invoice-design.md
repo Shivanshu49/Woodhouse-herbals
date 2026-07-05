@@ -271,6 +271,17 @@ the **same `<RefundDialog order />`**; the rules live in exactly one place. Othe
 4. Invoice-number sequence → §3.1 (`InvoiceCounter`, FY series).
 5/6. Inventory reasons + OrderEvent writer → already in place from D1/D1b.
 
+## 9a. Pre-launch checklist (must clear before go-live — NOT part of the D3 build)
+
+- **Replace the placeholder store invoice profile with REAL values** — `store.legalName`,
+  real `store.gstin`, `store.pan`, registered `store.address`, `store.state` +
+  `store.stateCode`. The D3 build seeds *placeholder* values (fake GSTIN
+  `29ABCDE1234F1Z5`) so generation doesn't 503 in dev; **the fake GSTIN must never
+  survive to production.** `StoreProfileService` 503s until every required field is set.
+  (Sits alongside the D1b pre-launch item: real PhonePe SANDBOX refund verification.)
+- **Configure R2** (`R2_ACCOUNT_ID`/`R2_ACCESS_KEY_ID`/`R2_SECRET_ACCESS_KEY`/`R2_BUCKET`)
+  so invoice PDFs persist to R2 rather than the `pdfBytes` dev fallback.
+
 ## 9. Out of scope — fast-follows / backlog
 
 - **FF — Credit notes for refunds.** GST-proper refund documentation references the

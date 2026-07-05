@@ -256,3 +256,12 @@ Replacing free-text state with canonical GST state codes removes the ambiguity.
 place-of-supply match. A checkout **state dropdown keyed by GST state codes**
 kills the ambiguity at the source (and enables FF-20 cleanly).
 - **Where:** storefront checkout address form + the order-create DTO.
+
+### FF-21 — Invoice letterhead styling pass (Low, cosmetic)
+The D3 GST invoice PDF renders as plain functional columnar text (pdfkit) — the
+numbers are unambiguous, which is what the T11 legal review needed, but it's not
+a designed document. A styling pass (logo/letterhead, bordered line table,
+right-aligned amounts, footer) would make it customer-facing-polished.
+- **Where:** `Backend/src/modules/invoices/invoice-pdf.ts` (render only).
+- **Note:** LOGIC UNTOUCHED — the immutable snapshot + tax math don't change; this
+  is purely how `renderInvoicePdf` draws the snapshot. Safe, isolated.

@@ -63,6 +63,12 @@ import type {
   StaticPageBody,
   ReorderBody,
 } from '@/types/content';
+import type {
+  CouponSummary,
+  CouponDetail,
+  CreateCouponBody,
+  UpdateCouponBody,
+} from '@/types/coupon';
 
 const API_BASE = `${env.apiUrl}/api`;
 
@@ -309,5 +315,13 @@ export const api = {
     deletePage: (id: string) => request<{ id: string; deleted: true }>('DELETE', `/admin/content/pages/${id}`),
     // Homepage sections overview (read-only)
     homepageSections: () => request<HomepageSections>('GET', '/admin/content/homepage-sections'),
+  },
+  coupons: {
+    list: () => request<CouponSummary[]>('GET', '/admin/coupons'),
+    get: (id: string) => request<CouponDetail>('GET', `/admin/coupons/${id}`),
+    create: (body: CreateCouponBody) => request<{ id: string }>('POST', '/admin/coupons', body),
+    update: (id: string, body: UpdateCouponBody) => request<{ id: string }>('PATCH', `/admin/coupons/${id}`, body),
+    setActive: (id: string, active: boolean) =>
+      request<{ id: string; active: boolean }>('PATCH', `/admin/coupons/${id}/active`, { active }),
   },
 };

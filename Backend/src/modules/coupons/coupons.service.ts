@@ -1,9 +1,4 @@
-import {
-  BadRequestException,
-  ConflictException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { computeDiscount, type CouponPolicy } from './coupon-pricing';
@@ -159,32 +154,6 @@ export class CouponsService {
       .reduce((acc, l) => acc + l.unitPriceMinor * l.quantity, 0);
   }
 
-  // ──────────────────────────────────────────────────────────────────
-  // Admin operations (RBAC-guarded by the controller)
-  // ──────────────────────────────────────────────────────────────────
-
-  async create(
-    data: Prisma.CouponCreateInput,
-  ): Promise<{ id: string; code: string }> {
-    if (data.code) data.code = (data.code as string).toUpperCase();
-    const coupon = await this.prisma.coupon.create({ data, select: { id: true, code: true } });
-    return coupon;
-  }
-
-  async deactivate(id: string): Promise<void> {
-    const res = await this.prisma.coupon.updateMany({
-      where: { id, active: true },
-      data: { active: false },
-    });
-    if (res.count !== 1) throw new BadRequestException('Coupon not active or not found');
-  }
-
-  list() {
-    return this.prisma.coupon.findMany({
-      orderBy: { createdAt: 'desc' },
-      include: {
-        _count: { select: { redemptions: true } },
-      },
-    });
-  }
+  // Coupon MANAGEMENT (create/list/edit/activate) lives in AdminCouponsService.
+  // This service is the redemption path only — kept deliberately minimal.
 }

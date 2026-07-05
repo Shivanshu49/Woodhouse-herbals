@@ -32,4 +32,8 @@ export const qk = {
     pages: ['content', 'pages'] as const,
     homepageSections: ['content', 'homepage-sections'] as const,
   },
+  coupons: {
+    all: ['coupons'] as const,
+    detail: (id: string) => ['coupons', 'detail', id] as const,
+  },
 };

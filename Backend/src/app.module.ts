@@ -28,6 +28,8 @@ import { AdminProductsModule } from './modules/admin-products/admin-products.mod
 import { AdminOrdersModule } from './modules/admin-orders/admin-orders.module';
 import { OrderEventsModule } from './modules/order-events/order-events.module';
 import { RefundsModule } from './modules/refunds/refunds.module';
+import { StoreSettingsModule } from './modules/store-settings/store-settings.module';
+import { StorageModule } from './common/storage/storage.module';
 
 @Module({
   imports: [
@@ -59,6 +61,8 @@ import { RefundsModule } from './modules/refunds/refunds.module';
     AdminProductsModule,
     AdminOrdersModule,
     RefundsModule,
+    StoreSettingsModule,
+    StorageModule,
   ],
   controllers: [HealthController],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],

@@ -673,11 +673,35 @@ model Order {
   notes             OrderNote[]
   events            OrderEvent[]
   refunds           Refund[]
+  invoice           Invoice?
   placedAt          DateTime           @default(now())
   updatedAt         DateTime           @updatedAt
 
   @@index([userId, placedAt])
   @@index([status, placedAt])
+}
+
+/// A GST tax invoice — legal document, one per order, immutable once created.
+/// `snapshot` is the frozen computed invoice; the PDF is a deterministic render
+/// of it, cached in R2 (`r2Key`) or, when R2 is unconfigured, `pdfBytes`.
+model Invoice {
+  id        String   @id @default(cuid())
+  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  orderId   String   @unique
+  number    String   @unique
+  fy        String
+  snapshot  Json
+  r2Key     String?
+  pdfBytes  Bytes?
+  issuedAt  DateTime @default(now())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+/// Atomic per-financial-year invoice-number counter (gap-free `INV-YYYY-YY-NNNNN`).
+model InvoiceCounter {
+  fy   String @id
+  next Int    @default(1)
 }
 
 model OrderItem {
@@ -690,6 +714,10 @@ model OrderItem {
   productNameSnapshot  String
   productImageSnapshot String
   skuSnapshot          String
+  // Tax snapshot at order time (for a compliant invoice). Null on orders placed
+  // before this feature → the invoice falls back to the product's current values.
+  hsnSnapshot          String?
+  gstRateSnapshot      Int? // integer percent: 0/5/12/18/28
   variant              ProductVariant? @relation(fields: [variantId], references: [id], onDelete: SetNull)
   variantId            String?
   variantNameSnapshot  String?

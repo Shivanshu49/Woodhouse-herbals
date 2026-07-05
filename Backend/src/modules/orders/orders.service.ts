@@ -15,6 +15,7 @@ import { InventoryService } from '../inventory/inventory.service';
 import { CouponsService } from '../coupons/coupons.service';
 import { CreateOrderDto } from './dto/order.dto';
 import { computeOrderTotals } from './order-pricing';
+import { gstRatePercent } from '../invoices/gst-rate';
 
 interface OwnershipContext {
   userId?: string;
@@ -172,6 +173,10 @@ export class OrdersService {
                 productNameSnapshot: p.name,
                 productImageSnapshot: p.thumbnailUrl,
                 skuSnapshot: p.sku,
+                // Tax snapshot at sale time — the invoice reflects the rate/HSN as
+                // it was when purchased, not the current catalogue value.
+                hsnSnapshot: p.hsnCode ?? null,
+                gstRateSnapshot: gstRatePercent(p.gstRate),
                 quantity: l.quantity,
                 unitPriceMinor: p.priceMinor,
                 lineTotalMinor: p.priceMinor * l.quantity,

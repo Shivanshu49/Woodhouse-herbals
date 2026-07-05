@@ -4,9 +4,20 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { buildCategoryTree, wouldCycle } from './category-tree';
 import { CreateCategoryDto, ReorderCategoriesDto, UpdateCategoryDto } from './dto/category.dto';
+
+/** Map Prisma unique/not-found errors to clean HTTP codes (no app-wide filter exists). */
+function mapPrismaError(e: unknown): never {
+  if (e instanceof Prisma.PrismaClientKnownRequestError) {
+    if (e.code === 'P2002') throw new ConflictException('That slug is already in use.');
+    if (e.code === 'P2025') throw new NotFoundException('A category in the request no longer exists — reload and retry.');
+    if (e.code === 'P2034') throw new ConflictException('A concurrent category change interfered — please retry.');
+  }
+  throw e;
+}
 
 const slugify = (s: string) =>
   s.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
@@ -60,18 +71,23 @@ export class AdminCategoriesService {
       where: { parentId: dto.parentId ?? null, deletedAt: null },
       _max: { sortOrder: true },
     });
-    return this.prisma.category.create({
-      data: {
-        name: dto.name.trim(),
-        slug,
-        description: dto.description ?? null,
-        imageUrl: dto.imageUrl ?? null,
-        parentId: dto.parentId ?? null,
-        isActive: dto.isActive ?? true,
-        sortOrder: (siblingMax._max.sortOrder ?? 0) + 1,
-      },
-      select: SELECT,
-    });
+    try {
+      return await this.prisma.category.create({
+        data: {
+          name: dto.name.trim(),
+          slug,
+          description: dto.description ?? null,
+          imageUrl: dto.imageUrl ?? null,
+          parentId: dto.parentId ?? null,
+          isActive: dto.isActive ?? true,
+          sortOrder: (siblingMax._max.sortOrder ?? 0) + 1,
+        },
+        select: SELECT,
+      });
+    } catch (e) {
+      // Loses a slug race to the DB @unique even though slugCheck passed → 409.
+      mapPrismaError(e);
+    }
   }
 
   async update(id: string, dto: UpdateCategoryDto) {
@@ -90,23 +106,40 @@ export class AdminCategoriesService {
       data.slug = slug;
     }
     if (dto.parentId !== undefined) {
-      if (dto.parentId) {
-        await this.assertParentExists(dto.parentId);
-        const flat = await this.prisma.category.findMany({ where: { deletedAt: null }, select: { id: true, parentId: true, sortOrder: true } });
-        if (wouldCycle(flat, id, dto.parentId)) {
-          throw new BadRequestException('A category cannot be moved under itself or one of its descendants.');
-        }
-      }
+      if (dto.parentId) await this.assertParentExists(dto.parentId);
       data.parentId = dto.parentId || null;
     }
-    return this.prisma.category.update({ where: { id }, data, select: SELECT });
+    try {
+      return await this.prisma.$transaction(
+        async (tx) => {
+          // Re-check the cycle guard INSIDE the tx (serializable) so two concurrent
+          // re-parents can't each pass on a stale read and orphan both categories.
+          if (dto.parentId) {
+            const flat = await tx.category.findMany({ where: { deletedAt: null }, select: { id: true, parentId: true, sortOrder: true } });
+            if (wouldCycle(flat, id, dto.parentId)) {
+              throw new BadRequestException('A category cannot be moved under itself or one of its descendants.');
+            }
+          }
+          return tx.category.update({ where: { id }, data, select: SELECT });
+        },
+        { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+      );
+    } catch (e) {
+      if (e instanceof BadRequestException) throw e;
+      mapPrismaError(e);
+    }
   }
 
   /** Bulk sort-order update (drag-to-reorder), one transaction. */
   async reorder(dto: ReorderCategoriesDto) {
-    await this.prisma.$transaction(
-      dto.items.map((it) => this.prisma.category.update({ where: { id: it.id }, data: { sortOrder: it.sortOrder } })),
-    );
+    try {
+      await this.prisma.$transaction(
+        dto.items.map((it) => this.prisma.category.update({ where: { id: it.id }, data: { sortOrder: it.sortOrder } })),
+      );
+    } catch (e) {
+      // A stale client tree (an id deleted in another tab) → P2025 → clean 404, not 500.
+      mapPrismaError(e);
+    }
     return { ok: true };
   }
 
@@ -115,25 +148,41 @@ export class AdminCategoriesService {
    * sub-category still points at this category, so nothing is silently orphaned.
    */
   async remove(id: string) {
-    const cat = await this.prisma.category.findFirst({ where: { id, deletedAt: null }, select: { id: true } });
-    if (!cat) throw new NotFoundException('Category not found.');
+    // The whole guard + soft-delete runs in one serializable tx so a product/child
+    // created concurrently between the count and the delete can't slip through and
+    // orphan itself.
+    return this.prisma.$transaction(
+      async (tx) => {
+        const cat = await tx.category.findFirst({ where: { id, deletedAt: null }, select: { id: true, category: true } });
+        if (!cat) throw new NotFoundException('Category not found.');
 
-    const products = await this.prisma.product.count({
-      where: { deletedAt: null, OR: [{ categoryRefId: id }, { categoryLinks: { some: { categoryId: id } } }] },
-    });
-    if (products > 0) {
-      throw new ConflictException(
-        `This category still has ${products} product${products === 1 ? '' : 's'}. Reassign or remove them before deleting the category.`,
-      );
-    }
-    const children = await this.prisma.category.count({ where: { parentId: id, deletedAt: null } });
-    if (children > 0) {
-      throw new ConflictException(
-        `This category has ${children} sub-categor${children === 1 ? 'y' : 'ies'}. Move or delete them first.`,
-      );
-    }
-    await this.prisma.category.update({ where: { id }, data: { deletedAt: new Date() } });
-    return { id, deleted: true };
+        const products = await tx.product.count({
+          where: {
+            deletedAt: null,
+            OR: [
+              { categoryRefId: id },
+              { categoryLinks: { some: { categoryId: id } } },
+              // Original-nine categories also linked via the legacy enum column.
+              ...(cat.category ? [{ category: cat.category }] : []),
+            ],
+          },
+        });
+        if (products > 0) {
+          throw new ConflictException(
+            `This category still has ${products} product${products === 1 ? '' : 's'}. Reassign or remove them before deleting the category.`,
+          );
+        }
+        const children = await tx.category.count({ where: { parentId: id, deletedAt: null } });
+        if (children > 0) {
+          throw new ConflictException(
+            `This category has ${children} sub-categor${children === 1 ? 'y' : 'ies'}. Move or delete them first.`,
+          );
+        }
+        await tx.category.update({ where: { id }, data: { deletedAt: new Date() } });
+        return { id, deleted: true };
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+    );
   }
 
   private async assertParentExists(parentId: string) {

@@ -18,8 +18,10 @@ import { AdminAuditInterceptor } from '../../common/audit/admin-audit.intercepto
 import { AdminCategoriesService } from './admin-categories.service';
 import { CreateCategoryDto, ReorderCategoriesDto, UpdateCategoryDto } from './dto/category.dto';
 
-// Catalogue management is ADMIN + MANAGER (like products/orders).
+// Catalogue WRITES are ADMIN + MANAGER; READS also include STAFF (so a STAFF who
+// edits products can list categories to classify them — matches admin-products).
 const ROLES = [UserRole.ADMIN, UserRole.MANAGER];
+const READ_ROLES = [UserRole.ADMIN, UserRole.MANAGER, UserRole.STAFF];
 
 @Controller('admin/categories')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -27,14 +29,14 @@ const ROLES = [UserRole.ADMIN, UserRole.MANAGER];
 export class AdminCategoriesController {
   constructor(private readonly categories: AdminCategoriesService) {}
 
-  @Roles(...ROLES)
+  @Roles(...READ_ROLES)
   @Get()
   list() {
     return this.categories.list();
   }
 
   // Declared BEFORE ':id' routes so "slug-check" / "reorder" aren't matched as ids.
-  @Roles(...ROLES)
+  @Roles(...READ_ROLES)
   @Get('slug-check')
   slugCheck(@Query('slug') slug: string, @Query('excludeId') excludeId?: string) {
     return this.categories.slugCheck(slug ?? '', excludeId);

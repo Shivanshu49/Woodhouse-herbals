@@ -26,6 +26,17 @@ function flatten(nodes: AdminCategory[], acc: AdminCategory[] = []): AdminCatego
   return acc;
 }
 
+/** A node's own id + all descendant ids — excluded as parent options to avoid a cycle. */
+function subtreeIds(node: AdminCategory): Set<string> {
+  const ids = new Set<string>();
+  const walk = (n: AdminCategory) => {
+    ids.add(n.id);
+    n.children.forEach(walk);
+  };
+  walk(node);
+  return ids;
+}
+
 export default function CategoriesPage() {
   const { data: tree, isLoading } = useAdminCategories();
   const del = useDeleteCategory();
@@ -70,7 +81,11 @@ export default function CategoriesPage() {
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         editing={editing}
-        parentOptions={editing ? parentOptions.filter((o) => o.id !== editing.id) : parentOptions}
+        parentOptions={
+          editing
+            ? parentOptions.filter((o) => !subtreeIds(editing).has(o.id)) // no self/descendant → no cycle
+            : parentOptions
+        }
       />
 
       <Dialog open={!!deleting} onOpenChange={(o) => !o && setDeleting(null)}>

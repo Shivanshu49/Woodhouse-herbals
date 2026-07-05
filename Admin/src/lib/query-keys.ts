@@ -24,4 +24,12 @@ export const qk = {
   },
   categories: ['categories'] as const,
   concerns: ['concerns'] as const,
+  content: {
+    banners: ['content', 'banners'] as const,
+    offerStrip: ['content', 'offer-strip'] as const,
+    testimonials: ['content', 'testimonials'] as const,
+    faqs: ['content', 'faqs'] as const,
+    pages: ['content', 'pages'] as const,
+    homepageSections: ['content', 'homepage-sections'] as const,
+  },
 };

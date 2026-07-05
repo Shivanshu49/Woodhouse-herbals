@@ -49,6 +49,20 @@ import type {
   CancelOrderBody,
   OrderDetail,
 } from '@/types/order';
+import type {
+  HeroBanner,
+  OfferStripItem,
+  Testimonial,
+  Faq,
+  StaticPage,
+  HomepageSections,
+  BannerBody,
+  OfferStripBody,
+  TestimonialBody,
+  FaqBody,
+  StaticPageBody,
+  ReorderBody,
+} from '@/types/content';
 
 const API_BASE = `${env.apiUrl}/api`;
 
@@ -254,5 +268,46 @@ export const api = {
     list: () => request<StaffUser[]>('GET', '/admin/users'),
     create: (body: CreateStaffBody) => request<CreateStaffResult>('POST', '/admin/users', body),
     update: (id: string, body: UpdateStaffBody) => request<StaffUser>('PATCH', `/admin/users/${id}`, body),
+  },
+  content: {
+    // Hero banners
+    listBanners: () => request<HeroBanner[]>('GET', '/admin/content/banners'),
+    createBanner: (body: BannerBody) => request<HeroBanner>('POST', '/admin/content/banners', body),
+    updateBanner: (id: string, body: Partial<BannerBody>) =>
+      request<HeroBanner>('PATCH', `/admin/content/banners/${id}`, body),
+    deleteBanner: (id: string) => request<{ id: string; deleted: true }>('DELETE', `/admin/content/banners/${id}`),
+    reorderBanners: (body: ReorderBody) => request<{ ok: true }>('PATCH', '/admin/content/banners/reorder', body),
+    // Offer strip
+    listOfferStrip: () => request<OfferStripItem[]>('GET', '/admin/content/offer-strip'),
+    createOfferStripItem: (body: OfferStripBody) => request<OfferStripItem>('POST', '/admin/content/offer-strip', body),
+    updateOfferStripItem: (id: string, body: Partial<OfferStripBody>) =>
+      request<OfferStripItem>('PATCH', `/admin/content/offer-strip/${id}`, body),
+    deleteOfferStripItem: (id: string) =>
+      request<{ id: string; deleted: true }>('DELETE', `/admin/content/offer-strip/${id}`),
+    reorderOfferStrip: (body: ReorderBody) => request<{ ok: true }>('PATCH', '/admin/content/offer-strip/reorder', body),
+    // Testimonials
+    listTestimonials: () => request<Testimonial[]>('GET', '/admin/content/testimonials'),
+    createTestimonial: (body: TestimonialBody) => request<Testimonial>('POST', '/admin/content/testimonials', body),
+    updateTestimonial: (id: string, body: Partial<TestimonialBody>) =>
+      request<Testimonial>('PATCH', `/admin/content/testimonials/${id}`, body),
+    deleteTestimonial: (id: string) =>
+      request<{ id: string; deleted: true }>('DELETE', `/admin/content/testimonials/${id}`),
+    reorderTestimonials: (body: ReorderBody) =>
+      request<{ ok: true }>('PATCH', '/admin/content/testimonials/reorder', body),
+    // FAQs
+    listFaqs: () => request<Faq[]>('GET', '/admin/content/faqs'),
+    createFaq: (body: FaqBody) => request<Faq>('POST', '/admin/content/faqs', body),
+    updateFaq: (id: string, body: Partial<FaqBody>) => request<Faq>('PATCH', `/admin/content/faqs/${id}`, body),
+    deleteFaq: (id: string) => request<{ id: string; deleted: true }>('DELETE', `/admin/content/faqs/${id}`),
+    reorderFaqs: (body: ReorderBody) => request<{ ok: true }>('PATCH', '/admin/content/faqs/reorder', body),
+    // Static pages
+    listPages: () => request<StaticPage[]>('GET', '/admin/content/pages'),
+    getPage: (id: string) => request<StaticPage>('GET', `/admin/content/pages/${id}`),
+    createPage: (body: StaticPageBody) => request<StaticPage>('POST', '/admin/content/pages', body),
+    updatePage: (id: string, body: Partial<StaticPageBody>) =>
+      request<StaticPage>('PATCH', `/admin/content/pages/${id}`, body),
+    deletePage: (id: string) => request<{ id: string; deleted: true }>('DELETE', `/admin/content/pages/${id}`),
+    // Homepage sections overview (read-only)
+    homepageSections: () => request<HomepageSections>('GET', '/admin/content/homepage-sections'),
   },
 };

@@ -33,6 +33,7 @@ import { StorageModule } from './common/storage/storage.module';
 import { InvoicesModule } from './modules/invoices/invoices.module';
 import { AdminUsersModule } from './modules/admin-users/admin-users.module';
 import { AdminCategoriesModule } from './modules/admin-categories/admin-categories.module';
+import { AdminContentModule } from './modules/admin-content/admin-content.module';
 
 @Module({
   imports: [
@@ -69,6 +70,7 @@ import { AdminCategoriesModule } from './modules/admin-categories/admin-categori
     InvoicesModule,
     AdminUsersModule,
     AdminCategoriesModule,
+    AdminContentModule,
   ],
   controllers: [HealthController],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],

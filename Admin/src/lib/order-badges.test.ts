@@ -3,6 +3,9 @@ import assert from 'node:assert/strict';
 import {
   paymentBadge,
   canCancelOrderStatus,
+  canRefundOrderStatus,
+  refundGate,
+  canDownloadInvoice,
   ORDER_STATUS_LABEL,
   ORDER_STATUS_TONE,
 } from './order-badges';
@@ -68,4 +71,32 @@ test('every OrderStatus has a label and a tone', () => {
     assert.ok(ORDER_STATUS_LABEL[s], `label for ${s}`);
     assert.ok(ORDER_STATUS_TONE[s], `tone for ${s}`);
   }
+});
+
+test('canRefundOrderStatus mirrors the backend REFUNDABLE_STATUSES', () => {
+  for (const s of ['SHIPPED', 'DELIVERED', 'CANCELLED'] as const) {
+    assert.equal(canRefundOrderStatus(s), true);
+  }
+  for (const s of ['PENDING', 'PAID', 'PROCESSING', 'REFUNDED'] as const) {
+    assert.equal(canRefundOrderStatus(s), false);
+  }
+});
+
+test('refundGate requires a refundable status AND the ADMIN role', () => {
+  assert.equal(refundGate({ status: 'DELIVERED' }, 'ADMIN').allowed, true);
+  const mgr = refundGate({ status: 'DELIVERED' }, 'MANAGER');
+  assert.equal(mgr.allowed, false);
+  assert.match(mgr.reason!, /ADMIN-only/i);
+  const bad = refundGate({ status: 'PENDING' }, 'ADMIN');
+  assert.equal(bad.allowed, false);
+  assert.match(bad.reason!, /cannot be refunded/i);
+});
+
+test('canDownloadInvoice: COD from PROCESSING, prepaid from PAID; never PENDING/CANCELLED', () => {
+  assert.equal(canDownloadInvoice('PROCESSING', 'COD'), true);
+  assert.equal(canDownloadInvoice('PAID', 'PREPAID'), true);
+  assert.equal(canDownloadInvoice('PAID', 'COD'), false);
+  assert.equal(canDownloadInvoice('PENDING', 'PREPAID'), false);
+  assert.equal(canDownloadInvoice('CANCELLED', 'COD'), false);
+  assert.equal(canDownloadInvoice('DELIVERED', 'COD'), true);
 });

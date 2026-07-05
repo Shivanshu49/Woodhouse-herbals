@@ -24,6 +24,9 @@ import type {
   ProductDetail,
 } from '@/types/product';
 import type {
+  InvoiceMeta,
+  ManualRefundBody,
+  RefundBody,
   AddOrderNoteBody,
   AdminOrderListParams,
   AdminOrdersList,
@@ -188,5 +191,22 @@ export const api = {
       request<{ id: string }>('POST', `/admin/orders/${id}/notes`, body),
     cancel: (id: string, body: CancelOrderBody) =>
       request<{ id: string; status: string }>('POST', `/admin/orders/${id}/cancel`, body),
+    refund: (id: string, body: RefundBody) =>
+      request<{ id: string; status: string }>('POST', `/admin/orders/${id}/refund`, body),
+    manualRefund: (id: string, body: ManualRefundBody) =>
+      request<{ id: string; status: string }>('POST', `/admin/orders/${id}/refund/manual`, body),
+    recheckRefund: (id: string) =>
+      request<{ id: string; state: string }>('POST', `/admin/orders/${id}/refund/recheck`, {}),
+    getInvoice: (id: string) =>
+      request<InvoiceMeta | null>('GET', `/admin/orders/${id}/invoice`),
+    generateInvoice: (id: string) =>
+      request<InvoiceMeta>('POST', `/admin/orders/${id}/invoice`),
+    /** Streams the PDF as a Blob via the credentialed client — httpOnly cookies
+     *  won't ride a cross-origin <a href> in prod; a blob download does. */
+    invoicePdf: async (id: string): Promise<Blob> => {
+      const res = await fetch(`${API_BASE}/admin/orders/${id}/invoice/pdf`, { credentials: 'include' });
+      if (!res.ok) throw new ApiError(res.status, 'Failed to download invoice');
+      return res.blob();
+    },
   },
 };

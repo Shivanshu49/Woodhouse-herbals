@@ -69,6 +69,47 @@ export interface OrderItemDetail {
   lineTotalMinor: number;
 }
 
+export type RefundMethod = 'PHONEPE' | 'MANUAL';
+export type RefundStatus = 'PENDING' | 'PROCESSED' | 'FAILED';
+export type RefundDisposition = 'RETURNED' | 'DAMAGED' | 'LOST';
+
+export interface Refund {
+  id: string;
+  method: RefundMethod;
+  status: RefundStatus;
+  disposition: RefundDisposition;
+  amountMinor: number;
+  utrReference: string | null;
+  merchantRefundId: string | null;
+  providerRefundId: string | null;
+  reason: string | null;
+  createdAt: string;
+}
+
+export interface InvoiceMeta {
+  number: string;
+  fy: string;
+  issuedAt: string;
+}
+
+export interface ShipmentDetail {
+  id: string;
+  courier: string;
+  trackingNumber: string | null;
+  status: string;
+  events: Array<{ id: string; status: string; description: string | null; occurredAt: string }>;
+}
+
+export interface RefundBody {
+  disposition: RefundDisposition;
+  reason?: string;
+}
+export interface ManualRefundBody {
+  utrReference: string;
+  disposition: RefundDisposition;
+  reason?: string;
+}
+
 export interface OrderEventDetail {
   id: string;
   type: string;
@@ -104,6 +145,8 @@ export interface OrderDetail {
   events: OrderEventDetail[];
   notes: Array<{ id: string; body: string; isCustomerVisible: boolean; createdAt: string }>;
   payments: Array<{ id: string; provider: string; providerTxnId: string | null; amountMinor: number; status: PaymentStatus }>;
-  refunds: unknown[];
+  refunds: Refund[];
+  shipments: ShipmentDetail[];
+  invoice: InvoiceMeta | null;
   user: { id: string; fullName: string; email: string | null; phone: string | null } | null;
 }

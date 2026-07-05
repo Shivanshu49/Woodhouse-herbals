@@ -18,3 +18,12 @@ export function useOrders(params: AdminOrderListParams) {
     refetchInterval: 30_000,
   });
 }
+
+/** A single order's full detail (items, payments, shipments, refunds, timeline, invoice). */
+export function useOrder(id: string) {
+  return useQuery({
+    queryKey: qk.orders.detail(id),
+    queryFn: () => api.orders.get(id),
+    staleTime: 10_000,
+  });
+}

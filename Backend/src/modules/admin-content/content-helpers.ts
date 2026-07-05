@@ -25,11 +25,6 @@ export function dateWindowError(
   return null;
 }
 
-/** URL-safe slug for a static page: lowercase, hyphenate, trim (same as categories). */
-export function normalizePageSlug(input: string): string {
-  return input
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '');
-}
+/** URL-safe slug for a static page — the shared editorial slug (same rule as
+ *  categories); see common/utils/slug.ts. */
+export { contentSlug as normalizePageSlug } from '../../common/utils/slug';

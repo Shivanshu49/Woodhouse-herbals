@@ -3,7 +3,7 @@
 import { useMutation, useQueryClient, type QueryKey } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { api } from '@/lib/api';
+import { api, toMessage } from '@/lib/api';
 import { qk } from '@/lib/query-keys';
 import { adjustStockInView, applyBulkToView, dropIdFromView } from '@/lib/products-optimistic';
 import type {
@@ -13,10 +13,6 @@ import type {
   BulkAction,
   BulkProductsBody,
 } from '@/types/product';
-
-function toMessage(err: unknown): string {
-  return err instanceof Error && err.message ? err.message : 'Something went wrong';
-}
 
 /** The list params live at index 2 of the query key: ['products','list',params]. */
 function paramsOf(key: QueryKey): AdminProductListParams {

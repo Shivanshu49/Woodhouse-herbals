@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { api } from '@/lib/api';
+import { api, toMessage } from '@/lib/api';
 import type { StoreProfilePatch, UpdateStaffBody } from '@/types/settings';
 
 const KEYS = {
@@ -8,10 +8,6 @@ const KEYS = {
   integrations: ['settings', 'integrations'] as const,
   users: ['admin-users'] as const,
 };
-
-function toMessage(err: unknown): string {
-  return err instanceof Error && err.message ? err.message : 'Something went wrong';
-}
 
 export function useStoreProfile() {
   return useQuery({ queryKey: KEYS.store, queryFn: () => api.settings.getStore() });

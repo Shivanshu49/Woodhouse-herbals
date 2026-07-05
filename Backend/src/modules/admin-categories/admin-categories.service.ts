@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { contentSlug as slugify } from '../../common/utils/slug';
 import { buildCategoryTree, wouldCycle } from './category-tree';
 import { CreateCategoryDto, ReorderCategoriesDto, UpdateCategoryDto } from './dto/category.dto';
 
@@ -18,9 +19,6 @@ function mapPrismaError(e: unknown): never {
   }
   throw e;
 }
-
-const slugify = (s: string) =>
-  s.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
 
 const SELECT = {
   id: true,

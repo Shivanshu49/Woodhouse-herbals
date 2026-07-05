@@ -2,13 +2,9 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { api } from '@/lib/api';
+import { api, toMessage } from '@/lib/api';
 import { qk } from '@/lib/query-keys';
 import type { ReorderBody } from '@/types/content';
-
-function toMessage(err: unknown): string {
-  return err instanceof Error && err.message ? err.message : 'Something went wrong';
-}
 
 /**
  * Build the query + mutation hooks for one content resource. Every mutation

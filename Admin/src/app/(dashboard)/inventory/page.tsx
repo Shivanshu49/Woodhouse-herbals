@@ -8,11 +8,16 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useInventory } from '@/hooks/use-inventory';
+import { useAdminUser } from '@/hooks/use-admin-auth';
 import type { InventoryRow } from '@/types/inventory';
 import { AdjustDialog } from './_components/adjust-dialog';
 import { HistoryDialog } from './_components/history-dialog';
 
 export default function InventoryPage() {
+  // Reads (overview/history) allow STAFF; the adjust WRITE is ADMIN+MANAGER only,
+  // so only show the Adjust control to roles that can actually use it.
+  const admin = useAdminUser();
+  const canAdjust = admin.data?.role === 'ADMIN' || admin.data?.role === 'MANAGER';
   // Low-stock is the default view — that's what needs attention first.
   const [lowStockOnly, setLowStockOnly] = useState(true);
   const [q, setQ] = useState('');
@@ -100,7 +105,9 @@ export default function InventoryPage() {
                 </td>
                 <td className="py-2 text-right">
                   <Button size="sm" variant="ghost" onClick={() => setHistoryFor(r)}>History</Button>
-                  <Button size="sm" variant="outline" onClick={() => setAdjusting(r)}>Adjust</Button>
+                  {canAdjust && (
+                    <Button size="sm" variant="outline" onClick={() => setAdjusting(r)}>Adjust</Button>
+                  )}
                 </td>
               </tr>
             ))}

@@ -3,7 +3,8 @@
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { api } from '@/lib/api';
+import { api, toMessage } from '@/lib/api';
+import { qk } from '@/lib/query-keys';
 import type {
   CreateCategoryBody,
   ReorderCategoriesBody,
@@ -11,11 +12,15 @@ import type {
 } from '@/types/admin-category';
 
 const KEY = ['admin-categories'] as const;
-const SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
-function toMessage(err: unknown): string {
-  return err instanceof Error && err.message ? err.message : 'Something went wrong';
+/** Invalidate BOTH the admin category tree AND the shared public category list
+ *  (qk.categories) that the coupon + product-bulk category pickers read — a new
+ *  or removed category must appear in those dropdowns immediately. */
+function invalidateCategories(qc: ReturnType<typeof useQueryClient>) {
+  void qc.invalidateQueries({ queryKey: KEY });
+  void qc.invalidateQueries({ queryKey: qk.categories });
 }
+const SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
 export function useAdminCategories() {
   return useQuery({ queryKey: KEY, queryFn: () => api.adminCategories.list() });
@@ -26,7 +31,7 @@ export function useCreateCategory() {
   return useMutation({
     mutationFn: (body: CreateCategoryBody) => api.adminCategories.create(body),
     onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: KEY });
+      invalidateCategories(qc);
       toast.success('Category created');
     },
     onError: (e) => toast.error(toMessage(e)),
@@ -38,7 +43,7 @@ export function useUpdateCategory(id: string) {
   return useMutation({
     mutationFn: (body: UpdateCategoryBody) => api.adminCategories.update(id, body),
     onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: KEY });
+      invalidateCategories(qc);
       toast.success('Category updated');
     },
     onError: (e) => toast.error(toMessage(e)),
@@ -50,7 +55,7 @@ export function useReorderCategories() {
   return useMutation({
     mutationFn: (body: ReorderCategoriesBody) => api.adminCategories.reorder(body),
     onError: (e) => toast.error(toMessage(e)),
-    onSettled: () => void qc.invalidateQueries({ queryKey: KEY }),
+    onSettled: () => invalidateCategories(qc),
   });
 }
 
@@ -59,7 +64,7 @@ export function useDeleteCategory() {
   return useMutation({
     mutationFn: (id: string) => api.adminCategories.remove(id),
     onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: KEY });
+      invalidateCategories(qc);
       toast.success('Category deleted');
     },
     // A 409 (has products/children) surfaces the backend's clear message verbatim.

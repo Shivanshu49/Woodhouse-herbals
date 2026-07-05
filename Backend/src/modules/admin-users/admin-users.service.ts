@@ -79,7 +79,11 @@ export class AdminUsersService {
       throw new ConflictException('You cannot deactivate or demote your own account.');
     }
 
-    const demotingAdmin = target.role === UserRole.ADMIN && dto.role !== undefined && dto.role !== UserRole.ADMIN;
+    // Both guards only apply to a currently-ACTIVE admin: demoting/deactivating an
+    // already-deactivated admin can't reduce the active-admin count, so it must not
+    // trip the last-active-admin invariant.
+    const demotingAdmin =
+      target.role === UserRole.ADMIN && target.deletedAt === null && dto.role !== undefined && dto.role !== UserRole.ADMIN;
     const deactivatingAdmin = target.role === UserRole.ADMIN && dto.active === false && target.deletedAt === null;
     const deactivating = dto.active === false;
 

@@ -2,13 +2,9 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { api } from '@/lib/api';
+import { api, toMessage } from '@/lib/api';
 import { qk } from '@/lib/query-keys';
 import type { CreateCouponBody, UpdateCouponBody } from '@/types/coupon';
-
-function toMessage(err: unknown): string {
-  return err instanceof Error && err.message ? err.message : 'Something went wrong';
-}
 
 export function useCoupons() {
   return useQuery({ queryKey: qk.coupons.all, queryFn: api.coupons.list });

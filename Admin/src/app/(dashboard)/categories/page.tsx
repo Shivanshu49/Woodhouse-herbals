@@ -14,6 +14,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { useAdminCategories, useDeleteCategory } from '@/hooks/use-admin-categories';
+import { useAdminUser } from '@/hooks/use-admin-auth';
 import type { AdminCategory } from '@/types/admin-category';
 import { CategoryTree } from './_components/category-tree';
 import { CategoryDialog } from './_components/category-dialog';
@@ -40,6 +41,10 @@ function subtreeIds(node: AdminCategory): Set<string> {
 export default function CategoriesPage() {
   const { data: tree, isLoading } = useAdminCategories();
   const del = useDeleteCategory();
+  // Category writes are ADMIN+MANAGER; reads allow STAFF — so a STAFF viewer sees
+  // the tree read-only (no New / Edit / Delete / active-toggle controls).
+  const admin = useAdminUser();
+  const canManage = admin.data?.role === 'ADMIN' || admin.data?.role === 'MANAGER';
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<AdminCategory | null>(null);
   const [deleting, setDeleting] = useState<AdminCategory | null>(null);
@@ -60,7 +65,7 @@ export default function CategoriesPage() {
     <div>
       <div className="flex items-center justify-between">
         <PageHeader title="Categories" description="Organize your catalog into shoppable groups." />
-        <Button onClick={openNew}>New category</Button>
+        {canManage && <Button onClick={openNew}>New category</Button>}
       </div>
 
       {isLoading ? (
@@ -73,7 +78,7 @@ export default function CategoriesPage() {
         />
       ) : (
         <div className="max-w-3xl">
-          <CategoryTree nodes={tree} onEdit={openEdit} onDelete={setDeleting} />
+          <CategoryTree nodes={tree} onEdit={openEdit} onDelete={setDeleting} canManage={canManage} />
         </div>
       )}
 

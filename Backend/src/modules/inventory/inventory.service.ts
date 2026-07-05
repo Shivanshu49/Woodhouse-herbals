@@ -2,6 +2,7 @@ import { ConflictException, Injectable, NotFoundException } from '@nestjs/common
 import { InventoryReason, Prisma } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { stockFlagsFor } from './stock-flags';
+import { isLowStock } from './inventory-flags';
 
 interface AdjustInput {
   productId: string;
@@ -164,10 +165,7 @@ export class InventoryService {
       this.prisma.product.count({ where }),
     ]);
 
-    const items = rows.map((p) => ({
-      ...p,
-      isLow: p.trackInventory && p.stockQty <= p.lowStockThreshold,
-    }));
+    const items = rows.map((p) => ({ ...p, isLow: isLowStock(p) }));
     return { items, total, page, perPage };
   }
 

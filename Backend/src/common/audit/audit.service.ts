@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { redactSecrets } from './audit-redact';
 
 export interface AuditEntry {
   actorId?: string;
@@ -13,20 +14,7 @@ export interface AuditEntry {
   userAgent?: string;
 }
 
-/** Keys whose VALUES are secrets/live tokens and must never land in the audit log. */
-const SECRET_KEY = /token|password|secret|inviteurl|reseturl|apikey|credential|x-verify/i;
-
-/** Deep-redact secret-bearing values so the append-only audit log never persists
- *  a live token (e.g. a staff invite's password-reset URL) or credential. */
-export function redactSecrets(value: unknown, depth = 0): unknown {
-  if (depth > 6 || value === null || typeof value !== 'object') return value;
-  if (Array.isArray(value)) return value.map((v) => redactSecrets(v, depth + 1));
-  const out: Record<string, unknown> = {};
-  for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
-    out[k] = SECRET_KEY.test(k) ? '[redacted]' : redactSecrets(v, depth + 1);
-  }
-  return out;
-}
+export { redactSecrets };
 
 @Injectable()
 export class AuditService {

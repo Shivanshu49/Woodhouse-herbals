@@ -82,6 +82,11 @@ export class ApiError extends Error {
   }
 }
 
+/** User-facing message from a thrown error (ApiError or any Error), for toasts. */
+export function toMessage(err: unknown): string {
+  return err instanceof Error && err.message ? err.message : 'Something went wrong';
+}
+
 /**
  * Decide whether a failed response should trigger one refresh+retry.
  * Only 401s, and never for the refresh call itself or the login call
@@ -98,9 +103,16 @@ export function shouldAttemptRefresh(status: number, path: string): boolean {
 async function parseError(res: Response): Promise<ApiError> {
   let message = `Request failed (${res.status})`;
   try {
-    const body = (await res.json()) as { message?: string | string[] };
+    const body = (await res.json()) as { message?: string | string[]; errors?: Record<string, unknown> };
     if (body?.message) {
       message = Array.isArray(body.message) ? body.message.join(' ') : body.message;
+    }
+    // Some endpoints (e.g. store-profile validation) return per-field details in
+    // an `errors` map alongside a generic `message`; surface them so the toast is
+    // actionable ("...: GSTIN state code (27) must match...") instead of generic.
+    if (body?.errors && typeof body.errors === 'object') {
+      const details = Object.values(body.errors).filter((v): v is string => typeof v === 'string');
+      if (details.length) message = `${message}: ${details.join(' ')}`;
     }
   } catch {
     /* non-JSON error body — keep the status-based message */

@@ -25,19 +25,28 @@ function Row({
   node,
   onEdit,
   onDelete,
+  canManage,
 }: {
   node: AdminCategory;
   onEdit: (c: AdminCategory) => void;
   onDelete: (c: AdminCategory) => void;
+  canManage: boolean;
 }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: node.id });
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: node.id,
+    disabled: !canManage,
+  });
   const update = useUpdateCategory(node.id);
   return (
     <div ref={setNodeRef} style={{ transform: CSS.Transform.toString(transform), transition }} className={isDragging ? 'opacity-60' : ''}>
       <div className="flex items-center gap-3 rounded-md border p-2">
-        <button className="cursor-grab text-muted-foreground" {...attributes} {...listeners} aria-label="Drag to reorder">
-          <GripVertical className="h-4 w-4" />
-        </button>
+        {canManage ? (
+          <button className="cursor-grab text-muted-foreground" {...attributes} {...listeners} aria-label="Drag to reorder">
+            <GripVertical className="h-4 w-4" />
+          </button>
+        ) : (
+          <span className="w-4" />
+        )}
         {node.imageUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={node.imageUrl} alt="" className="h-9 w-9 rounded object-cover" />
@@ -51,21 +60,26 @@ function Row({
           </div>
           <div className="truncate text-xs text-muted-foreground">/{node.slug} · {node.productCount} product{node.productCount === 1 ? '' : 's'}</div>
         </div>
-        <Switch
-          checked={node.isActive}
-          onCheckedChange={(v) => update.mutate({ isActive: v })}
-          aria-label="Active"
-        />
-        <Button size="sm" variant="ghost" onClick={() => onEdit(node)} aria-label="Edit">
-          <Pencil className="h-4 w-4" />
-        </Button>
-        <Button size="sm" variant="ghost" onClick={() => onDelete(node)} aria-label="Delete">
-          <Trash2 className="h-4 w-4 text-red-600" />
-        </Button>
+        {!node.isActive && !canManage && <span className="text-xs text-muted-foreground">hidden</span>}
+        {canManage && (
+          <>
+            <Switch
+              checked={node.isActive}
+              onCheckedChange={(v) => update.mutate({ isActive: v })}
+              aria-label="Active"
+            />
+            <Button size="sm" variant="ghost" onClick={() => onEdit(node)} aria-label="Edit">
+              <Pencil className="h-4 w-4" />
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => onDelete(node)} aria-label="Delete">
+              <Trash2 className="h-4 w-4 text-red-600" />
+            </Button>
+          </>
+        )}
       </div>
       {node.children.length > 0 && (
         <div className="ml-8 mt-2 space-y-2">
-          <CategoryTree nodes={node.children} onEdit={onEdit} onDelete={onDelete} />
+          <CategoryTree nodes={node.children} onEdit={onEdit} onDelete={onDelete} canManage={canManage} />
         </div>
       )}
     </div>
@@ -78,10 +92,12 @@ export function CategoryTree({
   nodes,
   onEdit,
   onDelete,
+  canManage,
 }: {
   nodes: AdminCategory[];
   onEdit: (c: AdminCategory) => void;
   onDelete: (c: AdminCategory) => void;
+  canManage: boolean;
 }) {
   const reorder = useReorderCategories();
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
@@ -101,7 +117,7 @@ export function CategoryTree({
       <SortableContext items={nodes.map((n) => n.id)} strategy={verticalListSortingStrategy}>
         <div className="space-y-2">
           {nodes.map((n) => (
-            <Row key={n.id} node={n} onEdit={onEdit} onDelete={onDelete} />
+            <Row key={n.id} node={n} onEdit={onEdit} onDelete={onDelete} canManage={canManage} />
           ))}
         </div>
       </SortableContext>

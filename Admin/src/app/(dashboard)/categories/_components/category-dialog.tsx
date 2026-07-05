@@ -76,7 +76,11 @@ export function CategoryDialog({
       isActive,
     };
     const done = { onSuccess: () => onOpenChange(false) };
-    if (editing) update.mutate({ ...body, imageUrl: imageUrl ?? '', description: description.trim() }, done);
+    if (editing)
+      // On edit, clear-to-empty is explicit: '' un-nests to top level / clears the
+      // image / clears the description (create omits them instead). An omitted key
+      // means "leave unchanged" on the backend, so a blanked parent needs ''.
+      update.mutate({ ...body, imageUrl: imageUrl ?? '', description: description.trim(), parentId: parentId || '' }, done);
     else create.mutate(body, done);
   }
 

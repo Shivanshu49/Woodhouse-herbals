@@ -13,3 +13,18 @@ export function slugify(input: string): string {
     .replace(/-+/g, '-')
     .replace(/^-+|-+$/g, '');
 }
+
+/**
+ * Editorial slug for categories & static pages: collapses ANY run of
+ * non-alphanumerics to a single hyphen. Differs from `slugify` above (which
+ * strips punctuation without inserting a hyphen, so "a&b" → "ab"); this one
+ * gives "a-b". Byte-for-byte mirror of the admin-categories and admin-content
+ * backend normalizers, so the client preview matches what the server stores.
+ */
+export function slugifyContent(input: string): string {
+  return input
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}

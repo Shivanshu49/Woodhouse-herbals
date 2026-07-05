@@ -265,3 +265,80 @@ right-aligned amounts, footer) would make it customer-facing-polished.
 - **Where:** `Backend/src/modules/invoices/invoice-pdf.ts` (render only).
 - **Note:** LOGIC UNTOUCHED — the immutable snapshot + tax math don't change; this
   is purely how `renderInvoicePdf` draws the snapshot. Safe, isolated.
+
+### FF-22 — PhonePe auto-cancel movements don't resolve an order link (Low)
+`phonepe.service.ts` sets the restock movement's `reference` to the order *id*
+(cuid), while every other order flow uses the order *number*; the inventory
+history resolves links against `Order.number`, so a payment-failure auto-cancel's
+restock shows "—" (no link) instead of its order. No WRONG link (a cuid can't
+collide with a `WH-…` number) — just a missing one.
+- **Fix:** pass `reference: order.number` (or set the movement's `orderId` column
+  and have `InventoryService.adjust` accept + write it) in the PhonePe callback.
+
+### FF-23 — Testimonial rating can't be CLEARED on edit (same class as FF-16)
+`TestimonialDialog` maps a "None" rating selection to `rating: undefined`, and the
+content service treats an omitted key as "leave unchanged" — so once a testimonial
+has a star rating you can't remove it via the editor. Same optional-scalar-clear
+limitation FF-16 describes; deferred for consistency. Low impact (rating is
+optional decoration on a homepage quote).
+- **Where:** `Admin/.../content/_components/testimonial-dialog.tsx` (submit);
+  `Backend/.../admin-content/admin-content.service.ts::updateTestimonial`;
+  `admin-content/dto/content.dto.ts` (UpdateTestimonialDto rating).
+- **Fix:** send `rating: null` on clear; type the DTO field `number | null` and
+  set `data.rating = dto.rating` when the key is present (null clears).
+
+### FF-24 — Content reorder/toggle have no optimistic cache update (Low, polish)
+`use-content.ts` reorder mutations only `invalidateQueries` on settle, and the
+active/published Switch handlers mutate without touching the cache — so on a slow
+network a dragged row snaps back to its old slot (and a toggled Switch flips back)
+for the request round-trip until the refetch lands. NOT a Section-4 regression:
+the categories feature (`use-admin-categories.ts` reorder + tree toggle) has the
+exact same gap, so this is a shared polish pass, not new debt.
+- **Where:** `Admin/src/hooks/use-content.ts` (useReorder + the tab Switch
+  handlers); same treatment would apply to `use-admin-categories.ts`.
+- **Fix:** `onMutate` → cancelQueries + setQueryData (optimistic reorder/flag) with
+  an `onError` rollback; keep the settle-invalidate as the reconcile.
+
+### FF-25 — ContentImageField duplicates categories' ImageUploadField (Low, DRY)
+`content/_components/content-image-field.tsx` is a near-verbatim superset of
+`categories/_components/image-upload-field.tsx` (adds `folder` + `aspect` props).
+Both also LACK delete-on-remove Cloudinary cleanup (the product media section has
+it), so a removed/replaced banner or category image is orphaned in Cloudinary.
+- **Where:** the two field components above.
+- **Fix:** promote the parameterized field to `Admin/src/components/common/` and
+  have both features consume it; fold in delete-on-remove (call
+  `api.uploads.delete(publicId)` on remove/replace of a just-uploaded asset) while
+  the code is unified.
+
+## Coupon-redemption enforcement gaps (each is its own money-path phase)
+The §5 Coupons admin is scoped to what `CouponsService.preview`/`redeem` actually
+enforces (PERCENT/FLAT + category restriction + usage caps + schedule). The
+`Coupon` model carries more columns that the redeem path ignores; the admin DTOs
+REJECT them (400) rather than persist dead config. Enforcing each is deferred —
+and because it touches the ATOMIC redeem/pricing path, each is its own specced
+phase with money-grade TDD + review, NOT a rider on a CRUD change.
+
+### FF-26 — Coupon eligibility (FIRST_TIME / SPECIFIC) + CouponUser targeting
+`Coupon.eligibility` and the `CouponUser` join are enforced nowhere: `preview`
+checks `active`/dates/`maxUses`/`perUserLimit` but never `eligibility` or whether
+the user is in `coupon.users`. A "first-time only" or "specific-users" coupon
+would today apply to everyone.
+- **Requires:** its own phase touching `coupons.service.ts::preview`/`redeem`
+  (needs the customer's prior-order count for FIRST_TIME, and a `users` membership
+  check for SPECIFIC), money-grade review. Then re-admit the fields to the admin DTO.
+
+### FF-27 — Coupon concern / product restriction
+`applicableSubtotal` only honors the CATEGORY restriction; `CouponConcern` and
+`CouponProduct` (incl. the `excluded` flag) are ignored. Worse, a concern-ONLY
+coupon (no categories) currently computes applicableSubtotal = 0 and always fails.
+- **Requires:** plumb the line's concern ids + product id through `PreviewInput.lines`
+  and extend `applicableSubtotal` to honor concern/product scope + exclusions;
+  money-grade review. Then re-admit `concernIds`/`productIds` to the admin DTO.
+
+### FF-28 — FREE_SHIPPING / BXGY discount kinds
+`computeDiscount` implements only PERCENT/FLAT; FREE_SHIPPING and BXGY fall through
+to FLAT math (wrong discount). FREE_SHIPPING needs the shipping amount in the
+pricing scope; BXGY needs line-level buy/get logic (`buyQty`/`getQty`).
+- **Requires:** its own phase extending `coupon-pricing.ts` + the order-pricing
+  shipping wiring, TDD + money-grade review. Then re-admit those kinds to the
+  admin DTO's `@IsIn`.

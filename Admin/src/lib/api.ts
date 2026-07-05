@@ -24,6 +24,22 @@ import type {
   ProductDetail,
 } from '@/types/product';
 import type {
+  AdminCategory,
+  CreateCategoryBody,
+  UpdateCategoryBody,
+  ReorderCategoriesBody,
+} from '@/types/admin-category';
+import type { InventoryList, InventoryMovement } from '@/types/inventory';
+import type {
+  StoreProfile,
+  StoreProfilePatch,
+  IntegrationsStatus,
+  StaffUser,
+  CreateStaffBody,
+  CreateStaffResult,
+  UpdateStaffBody,
+} from '@/types/settings';
+import type {
   InvoiceMeta,
   ManualRefundBody,
   RefundBody,
@@ -33,6 +49,26 @@ import type {
   CancelOrderBody,
   OrderDetail,
 } from '@/types/order';
+import type {
+  HeroBanner,
+  OfferStripItem,
+  Testimonial,
+  Faq,
+  StaticPage,
+  HomepageSections,
+  BannerBody,
+  OfferStripBody,
+  TestimonialBody,
+  FaqBody,
+  StaticPageBody,
+  ReorderBody,
+} from '@/types/content';
+import type {
+  CouponSummary,
+  CouponDetail,
+  CreateCouponBody,
+  UpdateCouponBody,
+} from '@/types/coupon';
 
 const API_BASE = `${env.apiUrl}/api`;
 
@@ -44,6 +80,11 @@ export class ApiError extends Error {
     super(message);
     this.name = 'ApiError';
   }
+}
+
+/** User-facing message from a thrown error (ApiError or any Error), for toasts. */
+export function toMessage(err: unknown): string {
+  return err instanceof Error && err.message ? err.message : 'Something went wrong';
 }
 
 /**
@@ -62,9 +103,16 @@ export function shouldAttemptRefresh(status: number, path: string): boolean {
 async function parseError(res: Response): Promise<ApiError> {
   let message = `Request failed (${res.status})`;
   try {
-    const body = (await res.json()) as { message?: string | string[] };
+    const body = (await res.json()) as { message?: string | string[]; errors?: Record<string, unknown> };
     if (body?.message) {
       message = Array.isArray(body.message) ? body.message.join(' ') : body.message;
+    }
+    // Some endpoints (e.g. store-profile validation) return per-field details in
+    // an `errors` map alongside a generic `message`; surface them so the toast is
+    // actionable ("...: GSTIN state code (27) must match...") instead of generic.
+    if (body?.errors && typeof body.errors === 'object') {
+      const details = Object.values(body.errors).filter((v): v is string => typeof v === 'string');
+      if (details.length) message = `${message}: ${details.join(' ')}`;
     }
   } catch {
     /* non-JSON error body — keep the status-based message */
@@ -171,6 +219,9 @@ export const api = {
     restore: (id: string) => request<{ ok: true }>('POST', `/admin/products/${id}/restore`),
   },
   inventory: {
+    overview: (params: { q?: string; lowStockOnly?: boolean; page?: number; perPage?: number }) =>
+      request<InventoryList>('GET', `/admin/inventory${toQuery(params as Record<string, string | number | boolean | undefined>)}`),
+    history: (productId: string) => request<InventoryMovement[]>('GET', `/admin/inventory/${productId}/history`),
     adjust: (body: AdjustStockBody) =>
       request<AdjustStockResult>('POST', '/admin/inventory/adjust', body),
   },
@@ -216,5 +267,73 @@ export const api = {
       if (!res.ok) throw new ApiError(res.status, 'Failed to download invoice');
       return res.blob();
     },
+  },
+  adminCategories: {
+    list: () => request<AdminCategory[]>('GET', '/admin/categories'),
+    slugCheck: (slug: string, excludeId?: string) =>
+      request<{ available: boolean }>('GET', `/admin/categories/slug-check${toQuery({ slug, excludeId })}`),
+    create: (body: CreateCategoryBody) => request<AdminCategory>('POST', '/admin/categories', body),
+    update: (id: string, body: UpdateCategoryBody) => request<AdminCategory>('PATCH', `/admin/categories/${id}`, body),
+    reorder: (body: ReorderCategoriesBody) => request<{ ok: true }>('PATCH', '/admin/categories/reorder', body),
+    remove: (id: string) => request<{ id: string; deleted: true }>('DELETE', `/admin/categories/${id}`),
+  },
+  settings: {
+    getStore: () => request<StoreProfile>('GET', '/admin/settings/store'),
+    updateStore: (body: StoreProfilePatch) => request<StoreProfile>('PATCH', '/admin/settings/store', body),
+    integrations: () => request<IntegrationsStatus>('GET', '/admin/settings/integrations'),
+  },
+  users: {
+    list: () => request<StaffUser[]>('GET', '/admin/users'),
+    create: (body: CreateStaffBody) => request<CreateStaffResult>('POST', '/admin/users', body),
+    update: (id: string, body: UpdateStaffBody) => request<StaffUser>('PATCH', `/admin/users/${id}`, body),
+  },
+  content: {
+    // Hero banners
+    listBanners: () => request<HeroBanner[]>('GET', '/admin/content/banners'),
+    createBanner: (body: BannerBody) => request<HeroBanner>('POST', '/admin/content/banners', body),
+    updateBanner: (id: string, body: Partial<BannerBody>) =>
+      request<HeroBanner>('PATCH', `/admin/content/banners/${id}`, body),
+    deleteBanner: (id: string) => request<{ id: string; deleted: true }>('DELETE', `/admin/content/banners/${id}`),
+    reorderBanners: (body: ReorderBody) => request<{ ok: true }>('PATCH', '/admin/content/banners/reorder', body),
+    // Offer strip
+    listOfferStrip: () => request<OfferStripItem[]>('GET', '/admin/content/offer-strip'),
+    createOfferStripItem: (body: OfferStripBody) => request<OfferStripItem>('POST', '/admin/content/offer-strip', body),
+    updateOfferStripItem: (id: string, body: Partial<OfferStripBody>) =>
+      request<OfferStripItem>('PATCH', `/admin/content/offer-strip/${id}`, body),
+    deleteOfferStripItem: (id: string) =>
+      request<{ id: string; deleted: true }>('DELETE', `/admin/content/offer-strip/${id}`),
+    reorderOfferStrip: (body: ReorderBody) => request<{ ok: true }>('PATCH', '/admin/content/offer-strip/reorder', body),
+    // Testimonials
+    listTestimonials: () => request<Testimonial[]>('GET', '/admin/content/testimonials'),
+    createTestimonial: (body: TestimonialBody) => request<Testimonial>('POST', '/admin/content/testimonials', body),
+    updateTestimonial: (id: string, body: Partial<TestimonialBody>) =>
+      request<Testimonial>('PATCH', `/admin/content/testimonials/${id}`, body),
+    deleteTestimonial: (id: string) =>
+      request<{ id: string; deleted: true }>('DELETE', `/admin/content/testimonials/${id}`),
+    reorderTestimonials: (body: ReorderBody) =>
+      request<{ ok: true }>('PATCH', '/admin/content/testimonials/reorder', body),
+    // FAQs
+    listFaqs: () => request<Faq[]>('GET', '/admin/content/faqs'),
+    createFaq: (body: FaqBody) => request<Faq>('POST', '/admin/content/faqs', body),
+    updateFaq: (id: string, body: Partial<FaqBody>) => request<Faq>('PATCH', `/admin/content/faqs/${id}`, body),
+    deleteFaq: (id: string) => request<{ id: string; deleted: true }>('DELETE', `/admin/content/faqs/${id}`),
+    reorderFaqs: (body: ReorderBody) => request<{ ok: true }>('PATCH', '/admin/content/faqs/reorder', body),
+    // Static pages
+    listPages: () => request<StaticPage[]>('GET', '/admin/content/pages'),
+    getPage: (id: string) => request<StaticPage>('GET', `/admin/content/pages/${id}`),
+    createPage: (body: StaticPageBody) => request<StaticPage>('POST', '/admin/content/pages', body),
+    updatePage: (id: string, body: Partial<StaticPageBody>) =>
+      request<StaticPage>('PATCH', `/admin/content/pages/${id}`, body),
+    deletePage: (id: string) => request<{ id: string; deleted: true }>('DELETE', `/admin/content/pages/${id}`),
+    // Homepage sections overview (read-only)
+    homepageSections: () => request<HomepageSections>('GET', '/admin/content/homepage-sections'),
+  },
+  coupons: {
+    list: () => request<CouponSummary[]>('GET', '/admin/coupons'),
+    get: (id: string) => request<CouponDetail>('GET', `/admin/coupons/${id}`),
+    create: (body: CreateCouponBody) => request<{ id: string }>('POST', '/admin/coupons', body),
+    update: (id: string, body: UpdateCouponBody) => request<{ id: string }>('PATCH', `/admin/coupons/${id}`, body),
+    setActive: (id: string, active: boolean) =>
+      request<{ id: string; active: boolean }>('PATCH', `/admin/coupons/${id}/active`, { active }),
   },
 };

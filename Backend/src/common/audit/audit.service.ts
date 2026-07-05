@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { redactSecrets } from './audit-redact';
 
 export interface AuditEntry {
   actorId?: string;
@@ -12,6 +13,8 @@ export interface AuditEntry {
   ip?: string;
   userAgent?: string;
 }
+
+export { redactSecrets };
 
 @Injectable()
 export class AuditService {
@@ -31,8 +34,8 @@ export class AuditService {
           action: entry.action,
           entityType: entry.entityType,
           entityId: entry.entityId ?? null,
-          before: (entry.before ?? undefined) as Prisma.InputJsonValue | undefined,
-          after: (entry.after ?? undefined) as Prisma.InputJsonValue | undefined,
+          before: (redactSecrets(entry.before) ?? undefined) as Prisma.InputJsonValue | undefined,
+          after: (redactSecrets(entry.after) ?? undefined) as Prisma.InputJsonValue | undefined,
           ip: entry.ip ?? null,
           userAgent: entry.userAgent?.slice(0, 512) ?? null,
         },

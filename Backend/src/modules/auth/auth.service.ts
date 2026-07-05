@@ -135,6 +135,22 @@ export class AuthService {
       throw new UnauthorizedException('Invalid email or password');
     }
 
+    // A deactivated (soft-deleted) account cannot log in — this is what makes the
+    // admin "deactivate user" action actually revoke access. Same opaque message
+    // as a bad password so it is not an enumeration/state oracle; the dummy
+    // bcrypt compare keeps response timing uniform with the wrong-password path.
+    if (user.deletedAt) {
+      await verifyPassword(dto.password, DUMMY_PASSWORD_HASH);
+      await this.events.record({
+        userId: user.id,
+        type: 'LOGIN_FAILURE',
+        ip: ctx.ip,
+        userAgent: ctx.userAgent,
+        meta: { reason: 'deactivated' },
+      });
+      throw new UnauthorizedException('Invalid email or password');
+    }
+
     if (user.lockedUntil && user.lockedUntil > new Date()) {
       await this.events.record({
         userId: user.id,
@@ -468,6 +484,17 @@ export class AuthService {
     method: 'phone_otp' | 'google',
     ctx: RequestContext,
   ) {
+    // Deactivated (soft-deleted) accounts cannot sign in via ANY method — this is
+    // the single choke point for Google + phone-OTP (login() guards the password
+    // path). Opaque failure so it is not a state oracle.
+    const live = await this.prisma.user.findUnique({
+      where: { id: user.id },
+      select: { deletedAt: true },
+    });
+    if (live?.deletedAt) {
+      await this.events.record({ userId: user.id, type: 'LOGIN_FAILURE', ip: ctx.ip, userAgent: ctx.userAgent, meta: { reason: 'deactivated', method } });
+      throw new UnauthorizedException('Invalid credentials');
+    }
     await this.prisma.user.update({
       where: { id: user.id },
       data: {
@@ -567,9 +594,18 @@ export class AuthService {
 
     const user = await this.prisma.user.findUnique({
       where: { id: stored.userId },
-      select: { id: true, email: true, role: true },
+      select: { id: true, email: true, role: true, deletedAt: true },
     });
     if (!user) throw new UnauthorizedException();
+    // A deactivated user must not be able to refresh a live session into new
+    // tokens. Burn the whole family so no rotation can resurrect access.
+    if (user.deletedAt) {
+      await this.prisma.refreshToken.updateMany({
+        where: { familyId: stored.familyId, revokedAt: null },
+        data: { revokedAt: new Date() },
+      });
+      throw new UnauthorizedException('Session revoked — please log in again');
+    }
 
     const newJti = randomUUID();
     const tokens = await this.issueTokens(user.id, user.email, user.role, newJti, ctx, stored.familyId);

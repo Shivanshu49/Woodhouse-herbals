@@ -37,9 +37,9 @@ export function BestSellerCarousel() {
   const scrollNext = () => emblaApi?.scrollNext();
 
   return (
-    <section aria-label="Best sellers" className="bg-brand-teal py-20">
+    <section aria-label="Best sellers" className="bg-brand-teal py-10 md:py-16">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 md:px-10">
-        <div className="relative mb-10 md:mb-14">
+        <div className="relative mb-6 md:mb-12">
           <h2 className="font-display text-4xl sm:text-5xl text-brand-forest leading-none text-center">
             <span className="font-bold not-italic">Best</span>{' '}
             <span className="font-normal italic">Seller</span>
@@ -78,7 +78,7 @@ export function BestSellerCarousel() {
             </div>
           </div>
 
-          <div className="mt-8 flex md:hidden items-center justify-center gap-3">
+          <div className="mt-6 flex md:hidden items-center justify-center gap-3">
             <button
               onClick={scrollPrev}
               disabled={!canPrev}

@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import Image from 'next/image';
+import { getImageProps } from 'next/image';
 import Link from 'next/link';
 import useEmblaCarousel from 'embla-carousel-react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
@@ -9,36 +9,45 @@ import { cn } from '@/lib/cn';
 
 interface Banner {
   src: string;
+  mobileSrc: string;
   alt: string;
   href: string;
 }
 
-// Brand hero banners (2.5:1) carried over from the live storefront. Marketing
-// copy + "Shop Now" are baked into the artwork, so each slide is just a
-// clickable image linking to the relevant catalogue view.
+// Brand hero banners carried over from the live storefront. Marketing copy +
+// "Shop Now" are baked into the artwork, so each slide is just a clickable
+// image linking to the relevant catalogue view. Each desktop banner (2.5:1)
+// has an art-directed mobile variant (12:13, /banners/mobile/) — serum,
+// facewash and night-gel are the original woodhouseherbals.com mobile
+// creatives; sunscreen and face-washes are composed from the desktop sources.
 const BANNERS: Banner[] = [
   {
     src: '/banners/banner-serum.jpg',
+    mobileSrc: '/banners/mobile/banner-serum.jpg',
     alt: 'Wood House Vitamin C & Niacinamide face serum — shop now',
     href: '/shop?category=serum',
   },
   {
     src: '/banners/banner-facewash.jpg',
+    mobileSrc: '/banners/mobile/banner-facewash.jpg',
     alt: 'Wood House Vitamin C & Salicylic face washes — shop now',
     href: '/shop?category=face-wash',
   },
   {
     src: '/banners/banner-night-gel.jpg',
+    mobileSrc: '/banners/mobile/banner-night-gel.jpg',
     alt: 'Wood House Green Tea night gel — no more pimples, no more scars',
     href: '/shop/green-tea-night-repair-gel',
   },
   {
     src: '/banners/banner-sunscreen.jpg',
+    mobileSrc: '/banners/mobile/banner-sunscreen.jpg',
     alt: 'Wood House Super UV SPF 50 sunscreen — shop now',
     href: '/shop',
   },
   {
     src: '/banners/banner-face-washes.jpg',
+    mobileSrc: '/banners/mobile/banner-face-washes.jpg',
     alt: 'Wood House advanced face washes — nature-powered skincare',
     href: '/shop?category=face-wash',
   },
@@ -101,15 +110,36 @@ export function Hero() {
               aria-label={`${i + 1} of ${BANNERS.length}`}
             >
               <Link href={b.href} aria-label={b.alt} tabIndex={selected === i ? 0 : -1}>
-                <Image
-                  src={b.src}
-                  alt={b.alt}
-                  width={2000}
-                  height={800}
-                  priority={i === 0}
-                  sizes="100vw"
-                  className="w-full h-auto"
-                />
+                {/* Art direction (taller crop on phones) needs <picture>; both
+                    sources go through getImageProps so the optimizer + srcset
+                    aren't lost. The .98px keeps the source and Tailwind's sm:
+                    (min-width 640) breakpoints gap-free at fractional widths. */}
+                {(() => {
+                  const priority = i === 0;
+                  const { props: mobile } = getImageProps({
+                    src: b.mobileSrc, alt: b.alt, width: 1200, height: 1300, sizes: '100vw', priority,
+                  });
+                  const { props: desktop } = getImageProps({
+                    src: b.src, alt: b.alt, width: 2000, height: 800, sizes: '100vw', priority,
+                  });
+                  return (
+                    <picture>
+                      <source
+                        media="(max-width: 639.98px)"
+                        srcSet={mobile.srcSet}
+                        sizes={mobile.sizes}
+                        width={mobile.width}
+                        height={mobile.height}
+                      />
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        {...desktop}
+                        alt={b.alt}
+                        className="w-full h-auto aspect-[12/13] sm:aspect-[5/2] object-cover"
+                      />
+                    </picture>
+                  );
+                })()}
               </Link>
             </div>
           ))}

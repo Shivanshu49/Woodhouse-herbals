@@ -6,19 +6,21 @@ import { homepage } from '@/data/homepage';
 import { cn } from '@/lib/cn';
 
 /**
- * Concern tiles. Each concern sits on its own flat, soothing pastel — no
- * gradients — with the product photo blended onto the pastel (mix-blend-multiply
- * drops the near-white product background so it floats on the colour) and calm
- * navy text below.
+ * Concern tiles. Client-specified backgrounds cycled in order by tile index:
+ * olive → peach → lemon → teal → butter. The product photo renders in its
+ * ORIGINAL colors (no blend mode / overlay) — the tile color only shows behind
+ * the text block and around the image edges. Olive and teal are mid-tone, so
+ * those tiles switch copy to navy-950: on olive the /80 sub still clears AA
+ * (4.7:1), on teal it must stay full-opacity (5.6:1; /80 composites to 4.0:1).
+ * The three light tiles keep the standard navy/muted/brand palette.
  */
-const PASTEL: Record<string, string> = {
-  mint:     'bg-pastel-mint',
-  butter:   'bg-pastel-butter',
-  sky:      'bg-pastel-sky',
-  sand:     'bg-pastel-sand',
-  blush:    'bg-pastel-blush',
-  lavender: 'bg-pastel-lavender',
-};
+const TILE_STYLES = [
+  { bg: 'bg-tile-olive',  heading: 'text-navy-950', sub: 'text-navy-950/80', link: 'text-navy-950' },
+  { bg: 'bg-tile-peach',  heading: 'text-navy-900', sub: 'text-ink-muted',   link: 'text-navy-900' },
+  { bg: 'bg-tile-lemon',  heading: 'text-navy-900', sub: 'text-ink-muted',   link: 'text-brand-800' },
+  { bg: 'bg-tile-teal',   heading: 'text-navy-950', sub: 'text-navy-950',    link: 'text-navy-950' },
+  { bg: 'bg-tile-butter', heading: 'text-navy-900', sub: 'text-ink-muted',   link: 'text-brand-800' },
+];
 
 export function ShopByConcern() {
   return (
@@ -33,37 +35,40 @@ export function ShopByConcern() {
         />
 
         <div className="grid grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4 lg:gap-5">
-          {homepage.concerns.map((c) => (
-            <Link
-              key={c.slug}
-              href={`/shop?concern=${c.slug}`}
-              className={cn(
-                'group flex flex-col overflow-hidden rounded-[1.75rem] shadow-soft ring-1 ring-navy-900/5 transition-all duration-300 hover:shadow-lift hover:-translate-y-0.5',
-                PASTEL[c.accent] ?? PASTEL.mint,
-              )}
-            >
-              <div className="relative aspect-[5/4] overflow-hidden">
-                <Image
-                  src={c.imageUrl}
-                  alt=""
-                  fill
-                  sizes="(min-width: 768px) 33vw, 50vw"
-                  className="object-cover object-[center_40%] mix-blend-multiply transition-transform duration-700 group-hover:scale-105"
-                />
-              </div>
+          {homepage.concerns.map((c, i) => {
+            const tile = TILE_STYLES[i % TILE_STYLES.length];
+            return (
+              <Link
+                key={c.slug}
+                href={`/shop?concern=${c.slug}`}
+                className={cn(
+                  'group flex flex-col overflow-hidden rounded-[1.75rem] shadow-soft ring-1 ring-navy-900/5 transition-all duration-300 hover:shadow-lift hover:-translate-y-0.5',
+                  tile.bg,
+                )}
+              >
+                <div className="relative aspect-[5/4] overflow-hidden">
+                  <Image
+                    src={c.imageUrl}
+                    alt=""
+                    fill
+                    sizes="(min-width: 768px) 33vw, 50vw"
+                    className="object-cover object-[center_40%] transition-transform duration-700 group-hover:scale-105"
+                  />
+                </div>
 
-              <div className="flex-1 px-4 pb-4 pt-1 sm:px-5 sm:pb-5">
-                <h3 className="font-display text-base sm:text-xl font-semibold text-navy-900 leading-tight">
-                  {c.title}
-                </h3>
-                <p className="mt-1 text-[12px] sm:text-[13px] text-ink-muted line-clamp-2">{c.description}</p>
-                <span className="mt-2.5 inline-flex items-center gap-1.5 text-[12px] sm:text-[13px] font-bold text-brand-700">
-                  Explore
-                  <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
-                </span>
-              </div>
-            </Link>
-          ))}
+                <div className="flex-1 px-4 pb-4 pt-2 sm:px-5 sm:pb-5">
+                  <h3 className={cn('font-display text-base sm:text-xl font-semibold leading-tight', tile.heading)}>
+                    {c.title}
+                  </h3>
+                  <p className={cn('mt-1 text-[12px] sm:text-[13px] line-clamp-2', tile.sub)}>{c.description}</p>
+                  <span className={cn('mt-2.5 inline-flex items-center gap-1.5 text-[12px] sm:text-[13px] font-bold', tile.link)}>
+                    Explore
+                    <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
+                  </span>
+                </div>
+              </Link>
+            );
+          })}
         </div>
       </div>
     </section>

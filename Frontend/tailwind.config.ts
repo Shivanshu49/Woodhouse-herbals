@@ -58,6 +58,16 @@ const config: Config = {
           muted:   '#475569',
           subtle:  '#94a3b8',
         },
+        // Client-specified "Shop by concern" tile backgrounds (July 2026 feedback
+        // round). Cycled in order: olive → peach → lemon → teal → butter.
+        // Product photos render at original colors ON these — never blended.
+        tile: {
+          olive:  '#A5AF79',
+          peach:  '#FFBDA3',
+          lemon:  '#FAFFC4',
+          teal:   '#34A99D',
+          butter: '#FFF3C8',
+        },
         // Soothing pastels for the "Shop by concern" tiles — flat, calm,
         // botanical tones (no gradients). Light enough that a white-background
         // product photo blends onto them cleanly via mix-blend-multiply.

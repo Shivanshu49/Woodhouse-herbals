@@ -21,7 +21,7 @@ export function AICta() {
               New · Powered by AI
             </span>
             <h3 className="mt-4 text-display-md text-cream text-balance leading-tight">
-              Not sure where to start? <span className="text-brand-300 italic font-light">Take our 60-second skin quiz.</span>
+              Customised solution <span className="text-brand-300 italic font-light">for your skin concern.</span>
             </h3>
             <p className="mt-3 text-cream/75 text-balance leading-relaxed">
               Tell us your concerns and our AI ritual builder will recommend the exact products and routine for your skin or hair.
@@ -29,7 +29,7 @@ export function AICta() {
           </div>
           <Link
             href="/ai/skin-analysis"
-            className="inline-flex items-center gap-2 rounded-full bg-brand-500 text-white h-14 px-7 text-base font-bold shadow-glow hover:bg-brand-600 active:scale-[0.98] transition-all"
+            className="inline-flex w-full sm:w-auto items-center justify-center gap-2 rounded-full bg-brand-500 text-white h-14 px-7 text-base font-bold shadow-glow hover:bg-brand-600 active:scale-[0.98] transition-all"
           >
             Start the quiz
             <ArrowRight className="h-4 w-4" />

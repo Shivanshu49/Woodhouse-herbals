@@ -93,12 +93,12 @@ export function ReelsSection() {
   const scrollNext = () => emblaApi?.scrollNext();
 
   return (
-    <section aria-label="Instagram reels" className="bg-white py-20">
+    <section aria-label="Trending now" className="bg-white py-10 sm:py-16">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 md:px-10">
         <div className="relative mb-4">
           <h2 className="font-display text-4xl sm:text-5xl text-brand-forest leading-none text-center">
-            <span className="font-bold not-italic">Watch It.</span>{' '}
-            <span className="font-normal italic">Love It.</span>
+            <span className="font-bold not-italic">TRENDING</span>{' '}
+            <span className="font-normal italic">NOW</span>
           </h2>
           <div className="hidden md:flex items-center gap-3 absolute right-0 bottom-0">
             <button
@@ -120,7 +120,7 @@ export function ReelsSection() {
           </div>
         </div>
 
-        <p className="text-center font-inter text-brand-forest/70 mb-10 md:mb-14">
+        <p className="text-center font-inter text-brand-forest/70 mb-6 md:mb-10">
           Real routines, real glow — fresh from{' '}
           <a
             href={INSTAGRAM_URL}

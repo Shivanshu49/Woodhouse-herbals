@@ -1,4 +1,5 @@
-import { products } from './products';
+import type { ProductSummary } from '@/types';
+import { products, productSummaries } from './products';
 
 export interface BestsellerProduct {
   slug: string;
@@ -10,6 +11,8 @@ export interface BestsellerProduct {
   compareAtPrice?: number;
   rating: number;
   image: string;
+  /** Full summary — needed by add-to-cart (cart lines key off summary fields). */
+  summary: ProductSummary;
 }
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -43,15 +46,15 @@ function ingredientLine(names: string[]): string {
 /**
  * Best-seller carousel data, DERIVED from the canonical product catalog.
  *
- * Previously this was a hand-authored list with its own slugs and rupee
- * prices, which drifted from `products.ts` — every carousel link 404'd because
- * its slugs (e.g. `vitamin-c-face-wash`) didn't exist on any product page.
- * Deriving from `products` keeps a single source of truth: slugs always
- * resolve to a real PDP and prices stay in sync. Ordered by review count as a
- * reasonable "best seller" proxy.
+ * Only products carrying the BESTSELLER badge flag qualify (client feedback:
+ * the carousel must not show the whole catalog), ordered by review count and
+ * capped at 8. When the storefront wires to the admin API this becomes the
+ * `/homepage` bestsellers (badge-flag) query — see storefront-wiring.md.
  */
 export const bestsellerProducts: BestsellerProduct[] = [...products]
+  .filter((p) => p.badges?.some((b) => b.tone === 'bestseller'))
   .sort((a, b) => b.reviewCount - a.reviewCount)
+  .slice(0, 8)
   .map((p) => ({
     slug: p.slug,
     name: p.name,
@@ -62,4 +65,5 @@ export const bestsellerProducts: BestsellerProduct[] = [...products]
     compareAtPrice: p.compareAtPrice ? Math.round(p.compareAtPrice.amount / 100) : undefined,
     rating: p.rating,
     image: p.thumbnail.url,
+    summary: productSummaries.find((s) => s.id === p.id)!,
   }));

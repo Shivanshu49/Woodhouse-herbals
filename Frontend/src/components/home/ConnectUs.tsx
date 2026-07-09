@@ -2,9 +2,17 @@
 
 import { useRef, useState } from 'react';
 import { Mail, Paperclip, Phone, Send, X } from 'lucide-react';
+import {
+  ATTACHMENT_ACCEPT,
+  ATTACHMENT_SIZE_ERROR,
+  ATTACHMENT_TYPE_ERROR,
+  MAX_ATTACHMENT_BYTES,
+  MAX_ATTACHMENT_LABEL,
+  attachmentLooksAllowed,
+} from '@/lib/connect';
 
-const MAX_ATTACHMENT_BYTES = 5 * 1024 * 1024;
-const ALLOWED_ATTACHMENT = /^(image\/(jpeg|png|webp|gif|heic|heif)|application\/pdf)$/;
+// Submit-error focus order mirrors the visual field order.
+const FIELD_ORDER = ['name', 'phone', 'email', 'message', 'attachment'] as const;
 
 const inputClass =
   'w-full rounded-xl border border-navy-900/10 bg-white px-4 py-2.5 text-sm text-navy-900 placeholder:text-ink-subtle focus:border-brand-500 transition-colors';
@@ -13,8 +21,9 @@ type Status = 'idle' | 'submitting' | 'sent' | 'error';
 
 /**
  * "Connect With Us" — compact contact form (name/phone/email/message + one
- * image/PDF attachment, 5MB client-validated) posting to /api/connect, with
- * the store's phone/email beside it. Sits just above the newsletter/footer.
+ * image/PDF attachment, client-validated against the shared @/lib/connect
+ * rules) posting to /api/connect, with the store's phone/email beside it.
+ * Sits just above the newsletter/footer.
  */
 export function ConnectUs() {
   const [status, setStatus] = useState<Status>('idle');
@@ -32,13 +41,13 @@ export function ConnectUs() {
       return;
     }
     if (file.size > MAX_ATTACHMENT_BYTES) {
-      setErrors((e) => ({ ...e, attachment: 'Attachment must be 5MB or smaller.' }));
+      setErrors((e) => ({ ...e, attachment: ATTACHMENT_SIZE_ERROR }));
       setFileName(null);
       if (fileRef.current) fileRef.current.value = '';
       return;
     }
-    if (!ALLOWED_ATTACHMENT.test(file.type)) {
-      setErrors((e) => ({ ...e, attachment: 'Attach an image or a PDF.' }));
+    if (!attachmentLooksAllowed(file)) {
+      setErrors((e) => ({ ...e, attachment: ATTACHMENT_TYPE_ERROR }));
       setFileName(null);
       if (fileRef.current) fileRef.current.value = '';
       return;
@@ -69,10 +78,20 @@ export function ConnectUs() {
       } else {
         setStatus('error');
         setErrors(body.errors ?? {});
-        setServerError(body.errors ? null : body.error ?? 'Something went wrong. Please try again.');
+        // Field errors also get a live-region summary + focus on the first
+        // invalid field — the per-field messages alone are silent to screen
+        // readers and invisible to anyone scrolled past them.
+        if (body.errors) {
+          setServerError('Please fix the highlighted fields below.');
+          const first = FIELD_ORDER.find((f) => body.errors[f]);
+          if (first) document.getElementById(`connect-${first}`)?.focus();
+        } else {
+          setServerError(body.error ?? 'Something went wrong. Please try again.');
+        }
       }
     } catch {
       setStatus('error');
+      setErrors({});
       setServerError('Something went wrong. Please check your connection and try again.');
     }
   }
@@ -109,68 +128,85 @@ export function ConnectUs() {
               </ul>
             </div>
 
-            <form ref={formRef} onSubmit={onSubmit} className="lg:col-span-7" noValidate>
-              {/* Honeypot — hidden from people, filled by bots */}
-              <input type="text" name="company" tabIndex={-1} autoComplete="off" aria-hidden="true" className="hidden" />
+            <form
+              ref={formRef}
+              onSubmit={onSubmit}
+              onInput={() => {
+                // A fresh draft shouldn't sit next to a stale "Message sent" line.
+                if (status === 'sent') setStatus('idle');
+              }}
+              className="lg:col-span-7"
+              noValidate
+            >
+              {/* Honeypot — hidden from people, filled by bots. Meaningless name
+                  on purpose: real tokens like "company" get browser-autofilled,
+                  which makes genuine submissions look like bots. */}
+              <input type="text" name="_gotcha" tabIndex={-1} autoComplete="off" aria-hidden="true" className="hidden" />
 
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
                   <label htmlFor="connect-name" className="block text-xs font-bold text-navy-900 uppercase tracking-wide mb-1.5">Name</label>
-                  <input id="connect-name" name="name" required maxLength={120} autoComplete="name" placeholder="Your name" className={inputClass} />
-                  {errors.name && <p className="mt-1 text-xs text-blush-600">{errors.name}</p>}
+                  <input id="connect-name" name="name" required maxLength={120} autoComplete="name" placeholder="Your name" className={inputClass} aria-invalid={!!errors.name || undefined} aria-describedby={errors.name ? 'connect-name-error' : undefined} />
+                  {errors.name && <p id="connect-name-error" className="mt-1 text-xs text-blush-600">{errors.name}</p>}
                 </div>
                 <div>
                   <label htmlFor="connect-phone" className="block text-xs font-bold text-navy-900 uppercase tracking-wide mb-1.5">Phone</label>
-                  <input id="connect-phone" name="phone" required type="tel" autoComplete="tel" placeholder="+91 98XXXXXXXX" className={inputClass} />
-                  {errors.phone && <p className="mt-1 text-xs text-blush-600">{errors.phone}</p>}
+                  <input id="connect-phone" name="phone" required type="tel" autoComplete="tel" placeholder="+91 98XXXXXXXX" className={inputClass} aria-invalid={!!errors.phone || undefined} aria-describedby={errors.phone ? 'connect-phone-error' : undefined} />
+                  {errors.phone && <p id="connect-phone-error" className="mt-1 text-xs text-blush-600">{errors.phone}</p>}
                 </div>
                 <div className="sm:col-span-2">
                   <label htmlFor="connect-email" className="block text-xs font-bold text-navy-900 uppercase tracking-wide mb-1.5">Email</label>
-                  <input id="connect-email" name="email" required type="email" autoComplete="email" placeholder="you@example.com" className={inputClass} />
-                  {errors.email && <p className="mt-1 text-xs text-blush-600">{errors.email}</p>}
+                  <input id="connect-email" name="email" required type="email" autoComplete="email" placeholder="you@example.com" className={inputClass} aria-invalid={!!errors.email || undefined} aria-describedby={errors.email ? 'connect-email-error' : undefined} />
+                  {errors.email && <p id="connect-email-error" className="mt-1 text-xs text-blush-600">{errors.email}</p>}
                 </div>
                 <div className="sm:col-span-2">
                   <label htmlFor="connect-message" className="block text-xs font-bold text-navy-900 uppercase tracking-wide mb-1.5">Message</label>
-                  <textarea id="connect-message" name="message" required rows={4} maxLength={5000} placeholder="How can we help?" className={`${inputClass} resize-y min-h-[96px]`} />
-                  {errors.message && <p className="mt-1 text-xs text-blush-600">{errors.message}</p>}
+                  <textarea id="connect-message" name="message" required rows={4} maxLength={5000} placeholder="How can we help?" className={`${inputClass} resize-y min-h-[96px]`} aria-invalid={!!errors.message || undefined} aria-describedby={errors.message ? 'connect-message-error' : undefined} />
+                  {errors.message && <p id="connect-message-error" className="mt-1 text-xs text-blush-600">{errors.message}</p>}
                 </div>
                 <div className="sm:col-span-2">
-                  <input
-                    ref={fileRef}
-                    id="connect-attachment"
-                    name="attachment"
-                    type="file"
-                    accept="image/*,application/pdf"
-                    onChange={onFileChange}
-                    className="sr-only"
-                  />
                   <div className="flex flex-wrap items-center gap-3">
-                    <label
-                      htmlFor="connect-attachment"
-                      className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-navy-900/10 bg-white px-4 py-2 text-[13px] font-semibold text-navy-900 hover:border-brand-500 hover:text-brand-700 transition-colors"
-                    >
+                    {/* The sr-only input lives INSIDE the label so focus-within can
+                        paint a visible ring on the pill — the input's own focus ring
+                        is clipped to 1px with it. */}
+                    <label className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-navy-900/10 bg-white px-4 py-2 text-[13px] font-semibold text-navy-900 hover:border-brand-500 hover:text-brand-700 transition-colors focus-within:ring-2 focus-within:ring-brand-500 focus-within:ring-offset-2">
+                      <input
+                        ref={fileRef}
+                        id="connect-attachment"
+                        name="attachment"
+                        type="file"
+                        accept={ATTACHMENT_ACCEPT}
+                        onChange={onFileChange}
+                        className="sr-only"
+                        aria-invalid={!!errors.attachment || undefined}
+                        aria-describedby={errors.attachment ? 'connect-attachment-error' : undefined}
+                      />
                       <Paperclip className="h-3.5 w-3.5" />
                       {fileName ? 'Change attachment' : 'Attach image or PDF'}
                     </label>
                     {fileName && (
                       <span className="inline-flex items-center gap-2 text-[13px] text-ink-muted">
                         <span className="max-w-[220px] truncate">{fileName}</span>
-                        <button type="button" onClick={clearFile} aria-label="Remove attachment" className="text-ink-subtle hover:text-blush-600">
+                        <button type="button" onClick={clearFile} aria-label="Remove attachment" className="p-3 -m-2 text-ink-subtle hover:text-blush-600">
                           <X className="h-4 w-4" />
                         </button>
                       </span>
                     )}
-                    <span className="text-[12px] text-ink-subtle">Optional · max 5MB</span>
+                    <span className="text-[12px] text-ink-subtle">Optional · max {MAX_ATTACHMENT_LABEL}</span>
                   </div>
-                  {errors.attachment && <p className="mt-1 text-xs text-blush-600">{errors.attachment}</p>}
+                  {/* Picker rejections happen without a submit round-trip, so this
+                      one is its own live region. */}
+                  {errors.attachment && <p id="connect-attachment-error" role="alert" className="mt-1 text-xs text-blush-600">{errors.attachment}</p>}
                 </div>
               </div>
 
               <div className="mt-5 flex flex-col sm:flex-row sm:items-center gap-3">
+                {/* aria-disabled (not disabled) — disabling the focused button drops
+                    keyboard focus to <body>; onSubmit already guards re-entry. */}
                 <button
                   type="submit"
-                  disabled={status === 'submitting'}
-                  className="btn-primary h-12 px-7 text-sm w-full sm:w-auto disabled:opacity-60"
+                  aria-disabled={status === 'submitting'}
+                  className="btn-primary h-12 px-7 text-sm w-full sm:w-auto aria-disabled:opacity-60"
                 >
                   <Send className="h-4 w-4" />
                   {status === 'submitting' ? 'Sending…' : 'Send message'}

@@ -1,4 +1,5 @@
 import type { ProductSummary } from '@/types';
+import { categoryCardLabel } from './categories';
 import { products, productSummaries } from './products';
 
 export interface BestsellerProduct {
@@ -13,26 +14,6 @@ export interface BestsellerProduct {
   image: string;
   /** Full summary — needed by add-to-cart (cart lines key off summary fields). */
   summary: ProductSummary;
-}
-
-const CATEGORY_LABELS: Record<string, string> = {
-  'face-wash': 'Face Wash',
-  serum: 'Face Serum',
-  scrub: 'Face Scrub',
-  cream: 'Face Cream',
-  'hair-oil': 'Hair Oil',
-  shampoo: 'Shampoo',
-  combo: 'Combo Kit',
-};
-
-function prettyCategory(category: string): string {
-  return (
-    CATEGORY_LABELS[category] ??
-    category
-      .split('-')
-      .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-      .join(' ')
-  );
 }
 
 /** Short "With X & Y" line from the first couple of hero ingredients. */
@@ -58,7 +39,7 @@ export const bestsellerProducts: BestsellerProduct[] = [...products]
   .map((p) => ({
     slug: p.slug,
     name: p.name,
-    type: prettyCategory(p.category),
+    type: categoryCardLabel(p.category),
     size: p.size ?? '',
     ingredientLine: ingredientLine(p.ingredients.map((i) => i.name)),
     price: Math.round(p.price.amount / 100),

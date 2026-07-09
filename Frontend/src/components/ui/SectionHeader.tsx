@@ -10,6 +10,9 @@ export interface SectionHeaderProps {
   ctaHref?: string;
   align?: 'left' | 'center';
   className?: string;
+  /** Extra classes on the <h2> — e.g. `uppercase` where the presentation is
+   *  shouty but the copy should stay normal-cased for screen readers. */
+  titleClassName?: string;
 }
 
 export function SectionHeader({
@@ -20,6 +23,7 @@ export function SectionHeader({
   ctaHref,
   align = 'left',
   className,
+  titleClassName,
 }: SectionHeaderProps) {
   return (
     <div
@@ -32,7 +36,7 @@ export function SectionHeader({
     >
       <div className={cn('max-w-2xl flex flex-col gap-3', align === 'center' && 'items-center text-center')}>
         {eyebrow && <span className="eyebrow">{eyebrow}</span>}
-        <h2 className="text-display-lg text-balance">{title}</h2>
+        <h2 className={cn('text-display-lg text-balance', titleClassName)}>{title}</h2>
         {subtitle && (
           <p className="text-ink-muted text-base sm:text-lg max-w-prose text-balance leading-relaxed">
             {subtitle}

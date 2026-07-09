@@ -68,17 +68,6 @@ const config: Config = {
           teal:   '#34A99D',
           butter: '#FFF3C8',
         },
-        // Soothing pastels for the "Shop by concern" tiles — flat, calm,
-        // botanical tones (no gradients). Light enough that a white-background
-        // product photo blends onto them cleanly via mix-blend-multiply.
-        pastel: {
-          mint:     '#D8EBE0',
-          butter:   '#FAEFCB',
-          sky:      '#DCE9EE',
-          sand:     '#F0E6D4',
-          blush:    '#F6DEE2',
-          lavender: '#E7E1F2',
-        },
         // Category accents (used sparingly for chips, badges, gradients)
         citrus:    { DEFAULT: '#F5A524', 100: '#fff2d6', 600: '#c97f10' },
         violet:    { DEFAULT: '#7C5CCB', 100: '#ece4ff', 600: '#5a3eaa' },

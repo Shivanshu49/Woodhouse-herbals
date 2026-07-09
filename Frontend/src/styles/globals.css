@@ -58,8 +58,10 @@
     @apply bg-white/85 backdrop-blur-md border border-white/70 shadow-soft;
   }
 
+  /* Mobile rhythm tightened per July 2026 client feedback (gaps too large at
+     390px); sm/lg values unchanged so desktop doesn't regress. */
   .section {
-    @apply py-14 sm:py-20 lg:py-24;
+    @apply py-10 sm:py-20 lg:py-24;
   }
 
   /* Editorial eyebrow tag — short hyphenated label, navy text on brand-tinted pill */

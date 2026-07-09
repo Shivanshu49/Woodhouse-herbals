@@ -24,7 +24,7 @@ export function SectionHeader({
   return (
     <div
       className={cn(
-        'mb-8 sm:mb-10 lg:mb-14 flex flex-col gap-3',
+        'mb-6 sm:mb-10 lg:mb-14 flex flex-col gap-3',
         align === 'center' && 'items-center text-center',
         ctaHref && 'sm:flex-row sm:items-end sm:justify-between sm:gap-8',
         className,

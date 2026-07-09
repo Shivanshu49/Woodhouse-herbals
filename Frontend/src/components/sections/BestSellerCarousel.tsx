@@ -1,10 +1,10 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
 import useEmblaCarousel from 'embla-carousel-react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { bestsellerProducts } from '@/data/bestsellers';
 import { BestsellerCard } from '@/components/ui/BestsellerCard';
+import { useCarouselArrows } from '@/hooks/use-carousel-arrows';
 import { cn } from '@/lib/cn';
 
 export function BestSellerCarousel() {
@@ -14,30 +14,12 @@ export function BestSellerCarousel() {
     slidesToScroll: 1,
     containScroll: 'trimSnaps',
   });
-  const [canPrev, setCanPrev] = useState(false);
-  const [canNext, setCanNext] = useState(true);
-
-  const updateButtons = useCallback(() => {
-    if (!emblaApi) return;
-    setCanPrev(emblaApi.canScrollPrev());
-    setCanNext(emblaApi.canScrollNext());
-  }, [emblaApi]);
-
-  useEffect(() => {
-    if (!emblaApi) return;
-    updateButtons();
-    emblaApi.on('select', updateButtons);
-    emblaApi.on('reInit', updateButtons);
-    return () => {
-      emblaApi.off('select', updateButtons);
-      emblaApi.off('reInit', updateButtons);
-    };
-  }, [emblaApi, updateButtons]);
+  const { canPrev, canNext, scrollPrev, scrollNext } = useCarouselArrows(emblaApi);
 
   // aria-disabled (not the disabled attribute) so a keyboard user's focus
   // isn't dropped to <body> the moment an arrow hides at either end.
   const arrowClass =
-    'pointer-events-auto absolute top-1/2 -translate-y-1/2 h-10 w-10 inline-flex items-center justify-center rounded-full bg-white/90 text-brand-forest shadow-lift ring-1 ring-black/5 backdrop-blur-sm transition-opacity hover:bg-white';
+    'pointer-events-auto absolute top-1/2 -translate-y-1/2 h-11 w-11 inline-flex items-center justify-center rounded-full bg-white/90 text-brand-forest shadow-lift ring-1 ring-black/5 backdrop-blur-sm transition-opacity hover:bg-white';
 
   return (
     <section aria-label="Best sellers" className="bg-brand-teal pt-6 pb-10 md:py-16">
@@ -68,7 +50,7 @@ export function BestSellerCarousel() {
           <div className="pointer-events-none absolute inset-x-0 top-0 aspect-[2/1] md:aspect-[3/1] lg:aspect-[4/1]">
             <button
               type="button"
-              onClick={() => canPrev && emblaApi?.scrollPrev()}
+              onClick={scrollPrev}
               aria-disabled={!canPrev}
               tabIndex={canPrev ? 0 : -1}
               aria-label="Previous products"
@@ -78,7 +60,7 @@ export function BestSellerCarousel() {
             </button>
             <button
               type="button"
-              onClick={() => canNext && emblaApi?.scrollNext()}
+              onClick={scrollNext}
               aria-disabled={!canNext}
               tabIndex={canNext ? 0 : -1}
               aria-label="Next products"

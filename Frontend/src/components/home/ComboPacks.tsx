@@ -1,6 +1,5 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import useEmblaCarousel from 'embla-carousel-react';
@@ -9,6 +8,7 @@ import { SectionHeader } from '@/components/ui/SectionHeader';
 import { homepage } from '@/data/homepage';
 import { formatPrice, discountPercent } from '@/lib/format';
 import { Badge } from '@/components/ui/Badge';
+import { useCarouselArrows } from '@/hooks/use-carousel-arrows';
 import { cn } from '@/lib/cn';
 
 /**
@@ -18,30 +18,12 @@ import { cn } from '@/lib/cn';
  */
 export function ComboPacks() {
   const [emblaRef, emblaApi] = useEmblaCarousel({ align: 'start', loop: false });
-  const [canPrev, setCanPrev] = useState(false);
-  const [canNext, setCanNext] = useState(true);
-
-  const updateButtons = useCallback(() => {
-    if (!emblaApi) return;
-    setCanPrev(emblaApi.canScrollPrev());
-    setCanNext(emblaApi.canScrollNext());
-  }, [emblaApi]);
-
-  useEffect(() => {
-    if (!emblaApi) return;
-    updateButtons();
-    emblaApi.on('select', updateButtons);
-    emblaApi.on('reInit', updateButtons);
-    return () => {
-      emblaApi.off('select', updateButtons);
-      emblaApi.off('reInit', updateButtons);
-    };
-  }, [emblaApi, updateButtons]);
+  const { canPrev, canNext, scrollPrev, scrollNext } = useCarouselArrows(emblaApi);
 
   // aria-disabled (not the disabled attribute) so a keyboard user's focus
   // isn't dropped to <body> the moment an arrow hides at either end.
   const arrowClass =
-    'absolute top-1/2 -translate-y-1/2 z-10 h-10 w-10 inline-flex items-center justify-center rounded-full bg-white/90 text-navy-900 shadow-lift ring-1 ring-black/5 backdrop-blur-sm transition-opacity hover:bg-white';
+    'absolute top-1/2 -translate-y-1/2 z-10 h-11 w-11 inline-flex items-center justify-center rounded-full bg-white/90 text-navy-900 shadow-lift ring-1 ring-black/5 backdrop-blur-sm transition-opacity hover:bg-white';
 
   if (homepage.comboPacks.length === 0) return null;
   return (
@@ -67,14 +49,19 @@ export function ComboPacks() {
                       href={`/shop/${p.slug}`}
                       className="group relative block overflow-hidden rounded-[2.25rem] shadow-soft hover:shadow-lift transition-all duration-300"
                       style={{
+                        // Dark end of the green sits at the TOP, under the text
+                        // column (stacked above the image on mobile) — white copy
+                        // over the original #7AC143 start measured well below
+                        // WCAG 4.5:1 (stops re-measured from rendered pixels).
+                        // The brand green survives at the image end.
                         backgroundImage: isPrimary
-                          ? 'linear-gradient(135deg, #7AC143 0%, #5fa430 60%, #487d25 100%)'
+                          ? 'linear-gradient(160deg, #33661a 0%, #3d761e 55%, #68a938 100%)'
                           : 'linear-gradient(135deg, #1B3F5E 0%, #23506c 60%, #1F4360 100%)',
                       }}
                     >
                       {/* Decorative wash */}
                       <div
-                        className="absolute -top-20 -right-20 h-60 w-60 rounded-full blur-3xl opacity-50"
+                        className="absolute -bottom-20 -right-20 h-60 w-60 rounded-full blur-3xl opacity-40"
                         style={{ background: isPrimary ? '#a7e167' : '#7AC143' }}
                         aria-hidden="true"
                       />
@@ -87,11 +74,11 @@ export function ComboPacks() {
                           <h3 className="font-display text-2xl sm:text-3xl lg:text-[34px] font-semibold leading-tight text-white text-balance">
                             {p.name}
                           </h3>
-                          <p className="text-white/85 text-sm leading-relaxed">{p.shortDescription}</p>
+                          <p className="text-white text-sm leading-relaxed">{p.shortDescription}</p>
                           <div className="flex items-baseline gap-2 mt-1">
                             <span className="text-2xl sm:text-3xl font-bold">{formatPrice(p.price)}</span>
                             {p.compareAtPrice && (
-                              <span className="text-sm text-white/55 line-through">
+                              <span className="text-sm text-white/80 line-through">
                                 {formatPrice(p.compareAtPrice)}
                               </span>
                             )}
@@ -121,7 +108,7 @@ export function ComboPacks() {
 
           <button
             type="button"
-            onClick={() => canPrev && emblaApi?.scrollPrev()}
+            onClick={scrollPrev}
             aria-disabled={!canPrev}
             tabIndex={canPrev ? 0 : -1}
             aria-label="Previous combo"
@@ -131,7 +118,7 @@ export function ComboPacks() {
           </button>
           <button
             type="button"
-            onClick={() => canNext && emblaApi?.scrollNext()}
+            onClick={scrollNext}
             aria-disabled={!canNext}
             tabIndex={canNext ? 0 : -1}
             aria-label="Next combo"

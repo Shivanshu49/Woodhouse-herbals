@@ -119,11 +119,23 @@ export function Hero() {
                   const { props: mobile } = getImageProps({
                     src: b.mobileSrc, alt: b.alt, width: 1200, height: 1300, sizes: '100vw', priority,
                   });
+                  // Spread keeps getImageProps' camelCase fetchPriority — the
+                  // installed React 18.3.1 knows that prop on <img> and warns on
+                  // the lowercase form (verified against the dev console).
                   const { props: desktop } = getImageProps({
                     src: b.src, alt: b.alt, width: 2000, height: 800, sizes: '100vw', priority,
                   });
                   return (
                     <picture>
+                      {/* <Image priority> would have preloaded the LCP banner; the
+                          getImageProps migration loses that, so hoist media-scoped
+                          preload links for slide 0 ourselves. */}
+                      {priority && (
+                        <>
+                          <link rel="preload" as="image" imageSrcSet={mobile.srcSet} imageSizes={mobile.sizes} media="(max-width: 639.98px)" />
+                          <link rel="preload" as="image" imageSrcSet={desktop.srcSet} imageSizes={desktop.sizes} media="(min-width: 640px)" />
+                        </>
+                      )}
                       <source
                         media="(max-width: 639.98px)"
                         srcSet={mobile.srcSet}

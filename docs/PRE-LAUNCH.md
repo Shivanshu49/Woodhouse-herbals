@@ -43,6 +43,14 @@ Content · Coupons all code-complete on `feat/admin-phase-e`).
       until set) and MSG91 keys (real phone-OTP SMS; dev echoes the code).
 - [ ] Admin app (`Admin/`, port 3001): set `NEXT_PUBLIC_API_URL` / `ADMIN_ORIGIN`
       for the deployed API; rotate the dev admin (`owner@woodhouseherbals.test`).
+- [ ] **Connect Us form delivery (`/api/connect`).** Set `RESEND_API_KEY`,
+      `CONNECT_FROM_EMAIL` on a **verified** Resend domain (the
+      `onboarding@resend.dev` fallback only delivers to the Resend account
+      owner), and `CONNECT_TO_EMAIL`. **Without the key the route returns
+      `ok: true` to customers but the submission is irrecoverably discarded** —
+      the DPDP-redacted log line keeps no name/phone/message content, only a
+      submission id + presence flags (plus a keyed email digest when
+      `CONNECT_LOG_KEY` is set, for correlating complaints).
 
 ## 5. Storefront wiring — Phase-E management is DARK until built
 Everything the admin now manages is invisible to shoppers until the storefront is

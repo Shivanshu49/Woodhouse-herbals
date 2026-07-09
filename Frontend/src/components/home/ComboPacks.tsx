@@ -49,13 +49,11 @@ export function ComboPacks() {
                       href={`/shop/${p.slug}`}
                       className="group relative block overflow-hidden rounded-[2.25rem] shadow-soft hover:shadow-lift transition-all duration-300"
                       style={{
-                        // Dark end of the green sits at the TOP, under the text
-                        // column (stacked above the image on mobile) — white copy
-                        // over the original #7AC143 start measured well below
-                        // WCAG 4.5:1 (stops re-measured from rendered pixels).
-                        // The brand green survives at the image end.
+                        // Brand green stays the card fill (client call); the
+                        // white copy gets its contrast from the scrim panel
+                        // behind the text block, not from darkening the brand.
                         backgroundImage: isPrimary
-                          ? 'linear-gradient(160deg, #33661a 0%, #3d761e 55%, #68a938 100%)'
+                          ? 'linear-gradient(135deg, #7AC143 0%, #5fa430 60%, #487d25 100%)'
                           : 'linear-gradient(135deg, #1B3F5E 0%, #23506c 60%, #1F4360 100%)',
                       }}
                     >
@@ -67,7 +65,21 @@ export function ComboPacks() {
                       />
 
                       <div className="grid sm:grid-cols-2 gap-5 sm:gap-6 p-5 sm:p-7 lg:p-8 text-white relative">
-                        <div className="flex flex-col gap-4 justify-center">
+                        <div className="relative flex flex-col justify-center">
+                          {/* Scrim behind the TEXT BLOCK only — white copy over
+                              raw #7AC143 measures ~2:1; this panel carries the
+                              copy past 4.5:1 while the brand green stays the
+                              card fill (ratios re-measured from rendered
+                              pixels at 390 and 1440). Darker end at the BOTTOM,
+                              under the small price/compare row; the navy slide
+                              is dark already and gets no scrim. */}
+                          {isPrimary && (
+                            <div
+                              aria-hidden="true"
+                              className="absolute -inset-3 sm:-inset-4 rounded-[1.5rem] bg-gradient-to-b from-black/40 to-black/50"
+                            />
+                          )}
+                          <div className="relative flex flex-col gap-4">
                           <Badge tone={isPrimary ? 'limited' : 'new'} className="self-start">
                             <Gift className="h-3 w-3" /> Save {off ?? 28}%
                           </Badge>
@@ -77,17 +89,21 @@ export function ComboPacks() {
                           <p className="text-white text-sm leading-relaxed">{p.shortDescription}</p>
                           <div className="flex items-baseline gap-2 mt-1">
                             <span className="text-2xl sm:text-3xl font-bold">{formatPrice(p.price)}</span>
+                            {/* Full white: at /80 the blend over the scrim's
+                                lightest sampled pixel drops to ~3.6:1 —
+                                strikethrough + size carry the hierarchy. */}
                             {p.compareAtPrice && (
-                              <span className="text-sm text-white/80 line-through">
+                              <span className="text-sm text-white line-through">
                                 {formatPrice(p.compareAtPrice)}
                               </span>
                             )}
                           </div>
-                          <span className="inline-flex items-center gap-2 rounded-full bg-white/20 backdrop-blur-sm border border-white/25 self-start px-4 py-2 text-[13px] font-bold transition-colors group-hover:bg-white/30">
-                            <Sparkles className="h-3.5 w-3.5" />
-                            Shop the kit
-                            <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
-                          </span>
+                            <span className="inline-flex items-center gap-2 rounded-full bg-white/20 backdrop-blur-sm border border-white/25 self-start px-4 py-2 text-[13px] font-bold transition-colors group-hover:bg-white/30">
+                              <Sparkles className="h-3.5 w-3.5" />
+                              Shop the kit
+                              <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
+                            </span>
+                          </div>
                         </div>
                         <div className="relative aspect-square sm:aspect-auto sm:h-full rounded-[1.75rem] overflow-hidden bg-white/10 ring-1 ring-white/20">
                           <Image

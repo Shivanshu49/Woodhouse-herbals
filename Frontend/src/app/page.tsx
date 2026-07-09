@@ -9,6 +9,7 @@ import { NewArrivals } from '@/components/home/NewArrivals';
 import { ReelsSection } from '@/components/sections/ReelsSection';
 import { Testimonials } from '@/components/home/Testimonials';
 import { AICta } from '@/components/home/AICta';
+import { ConnectUs } from '@/components/home/ConnectUs';
 
 // Section order per the July 2026 client feedback round — category bar first
 // (offer strip + navbar live in the root layout above), trust badges relocated
@@ -27,6 +28,7 @@ export default function HomePage() {
       <ReelsSection />
       <Testimonials />
       <AICta />
+      <ConnectUs />
     </>
   );
 }

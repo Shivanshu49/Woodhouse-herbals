@@ -107,7 +107,7 @@ export default function SkinAnalysisPage() {
           {step === 1 && (
             <>
               <h2 className="font-display text-2xl text-navy-900">What are your top concerns?</h2>
-              <p className="text-ink-muted mt-1">Choose up to 3 — we’ll prioritise them.</p>
+              <p className="text-ink-muted mt-1">Choose up to 3, and we’ll prioritise them.</p>
               <div className="mt-5 flex flex-wrap gap-2">
                 {CONCERNS.map((c) => (
                   <Chip

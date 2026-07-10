@@ -16,7 +16,7 @@ export function Testimonials() {
           eyebrow="Tried · Tested · Loved"
           title="Loved by millions of customers"
           titleClassName="uppercase"
-          subtitle="Real reviews from real customers — see why they keep coming back."
+          subtitle="Real reviews from real customers. See why they keep coming back."
         />
         <div className="grid md:grid-cols-3 gap-5 sm:gap-6">
           {testimonials.map((t, i) => (

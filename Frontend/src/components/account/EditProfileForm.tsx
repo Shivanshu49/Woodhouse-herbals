@@ -70,7 +70,7 @@ function PhoneChanger({ currentPhone }: { currentPhone: string | null }) {
   return (
     <div>
       <label htmlFor="pf-phone" className={labelCls}>
-        Phone (used for OTP sign-in — verified by code)
+        Phone (used for OTP sign-in, verified by code)
       </label>
       <div className="flex gap-2">
         <div className="relative flex-1">
@@ -102,7 +102,7 @@ function PhoneChanger({ currentPhone }: { currentPhone: string | null }) {
         <div className="mt-3 space-y-2">
           {devCode ? (
             <p className="rounded-2xl bg-sage-100 px-4 py-2 font-inter text-sm text-brand-800">
-              Dev mode — your code is <strong data-testid="dev-otp-change">{devCode}</strong>
+              Dev mode: your code is <strong data-testid="dev-otp-change">{devCode}</strong>
             </p>
           ) : (
             <p className="font-inter text-sm text-ink-muted">Enter the 6-digit code we sent to +91 {draft}.</p>

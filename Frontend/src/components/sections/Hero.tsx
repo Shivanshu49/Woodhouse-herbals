@@ -24,31 +24,31 @@ const BANNERS: Banner[] = [
   {
     src: '/banners/banner-serum.jpg',
     mobileSrc: '/banners/mobile/banner-serum.jpg',
-    alt: 'Wood House Vitamin C & Niacinamide face serum — shop now',
+    alt: 'Wood House Vitamin C & Niacinamide face serum, shop now',
     href: '/shop?category=serum',
   },
   {
     src: '/banners/banner-facewash.jpg',
     mobileSrc: '/banners/mobile/banner-facewash.jpg',
-    alt: 'Wood House Vitamin C & Salicylic face washes — shop now',
+    alt: 'Wood House Vitamin C & Salicylic face washes, shop now',
     href: '/shop?category=face-wash',
   },
   {
     src: '/banners/banner-night-gel.jpg',
     mobileSrc: '/banners/mobile/banner-night-gel.jpg',
-    alt: 'Wood House Green Tea night gel — no more pimples, no more scars',
+    alt: 'Wood House Green Tea night gel: no more pimples, no more scars',
     href: '/shop/green-tea-night-repair-gel',
   },
   {
     src: '/banners/banner-sunscreen.jpg',
     mobileSrc: '/banners/mobile/banner-sunscreen.jpg',
-    alt: 'Wood House Super UV SPF 50 sunscreen — shop now',
+    alt: 'Wood House Super UV SPF 50 sunscreen, shop now',
     href: '/shop',
   },
   {
     src: '/banners/banner-face-washes.jpg',
     mobileSrc: '/banners/mobile/banner-face-washes.jpg',
-    alt: 'Wood House advanced face washes — nature-powered skincare',
+    alt: 'Wood House advanced face washes, nature-powered skincare',
     href: '/shop?category=face-wash',
   },
 ];

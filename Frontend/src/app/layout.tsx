@@ -32,7 +32,7 @@ const fontInter = Inter({
 export const metadata: Metadata = {
   metadataBase: new URL('https://woodhouseherbals.com'),
   title: {
-    default: 'Wood House Herbals — Natural skincare crafted in India',
+    default: 'Wood House Herbals: Natural skincare crafted in India',
     template: '%s · Wood House Herbals',
   },
   description:

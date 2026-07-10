@@ -49,7 +49,7 @@ export const testimonials = [
     handle: 'Bengaluru',
     avatar: 'https://images.unsplash.com/photo-1599566150163-29194dcaad36?w=200&q=80&auto=format&fit=crop&crop=faces',
     quote:
-      'Bhringraj oil is the real deal — I have noticeably less hair fall and my scalp feels calmer.',
+      'Bhringraj oil is the real deal. I have noticeably less hair fall and my scalp feels calmer.',
   },
   {
     name: 'Riya V.',

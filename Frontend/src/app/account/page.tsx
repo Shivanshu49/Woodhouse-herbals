@@ -75,7 +75,7 @@ export default function AccountPage() {
                 </span>
               ) : (
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-cream px-3 py-1.5 font-inter text-xs font-semibold text-ink-muted border border-navy-900/10">
-                  <ShieldQuestion className="h-3.5 w-3.5" /> No password — signs in with OTP{profile.hasGoogle ? ' / Google' : ''}
+                  <ShieldQuestion className="h-3.5 w-3.5" /> No password, signs in with OTP{profile.hasGoogle ? ' / Google' : ''}
                 </span>
               )}
             </div>

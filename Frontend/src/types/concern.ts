@@ -5,4 +5,6 @@ export interface ConcernCard {
   title: string;
   description: string;
   imageUrl: string;
+  /** Line announced but not launched — the tile carries a Coming-soon overlay. */
+  comingSoon?: boolean;
 }

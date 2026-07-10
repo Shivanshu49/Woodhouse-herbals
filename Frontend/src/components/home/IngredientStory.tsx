@@ -19,7 +19,7 @@ export function IngredientStory() {
               Real botanicals. Real science. <span className="italic font-light text-brand-600">Honest</span> formulations.
             </h2>
             <p className="mt-4 text-ink-muted max-w-md text-balance leading-relaxed">
-              Every Wood House product is built around ingredients that are clinically proven, ethically sourced and gentle on your skin and the planet. Free from sulphates, silicones, parabens, dyes — and animal testing.
+              Every Wood House product is built around ingredients that are clinically proven, ethically sourced and gentle on your skin and the planet. Free from sulphates, silicones, parabens, dyes and animal testing.
             </p>
             <Link
               href="/about"

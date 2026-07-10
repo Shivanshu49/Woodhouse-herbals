@@ -31,7 +31,7 @@ function OrdersList() {
 
   if (isPending) return <div className="h-40 rounded-3xl bg-navy-900/5 animate-pulse" />;
   if (isError || !data) {
-    return <p className="font-inter text-sm text-ink-muted">Could not load orders right now — try again in a bit.</p>;
+    return <p className="font-inter text-sm text-ink-muted">Could not load orders right now. Try again in a bit.</p>;
   }
   if (data.length === 0) {
     return (
@@ -39,7 +39,7 @@ function OrdersList() {
         <span className="mx-auto inline-flex h-14 w-14 items-center justify-center rounded-full bg-cream text-ink-muted">
           <Package className="h-7 w-7" />
         </span>
-        <p className="mt-4 font-inter text-[15px] text-ink-muted">No orders yet — your rituals await.</p>
+        <p className="mt-4 font-inter text-[15px] text-ink-muted">No orders yet. Your rituals await.</p>
         <Link href="/shop">
           <Button className="mt-6">Browse the shop</Button>
         </Link>

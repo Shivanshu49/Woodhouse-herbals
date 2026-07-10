@@ -11,9 +11,9 @@ import { Testimonials } from '@/components/home/Testimonials';
 import { AICta } from '@/components/home/AICta';
 import { ConnectUs } from '@/components/home/ConnectUs';
 
-// Section order per the July 2026 client feedback round — category bar first
-// (offer strip + navbar live in the root layout above), trust badges relocated
-// below the concern/combo block, Trending Now directly after New Arrivals.
+// Section order per the July 2026 client feedback rounds — category bar first
+// (offer strip + navbar live in the root layout above), skin-quiz CTA directly
+// above Trending Now, trust badges directly after Loved by Millions.
 export default function HomePage() {
   return (
     <>
@@ -22,12 +22,12 @@ export default function HomePage() {
       <BestSellerCarousel />
       <ShopByConcern />
       <ComboPacks />
-      <TrustStrip />
       <IngredientStory />
       <NewArrivals />
+      <AICta />
       <ReelsSection />
       <Testimonials />
-      <AICta />
+      <TrustStrip />
       <ConnectUs />
     </>
   );

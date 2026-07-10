@@ -112,7 +112,7 @@ export function ReelsSection() {
         </div>
 
         <p className="text-center font-inter text-brand-forest/70 mb-6 md:mb-10">
-          Real routines, real glow — fresh from{' '}
+          Real routines, real glow, fresh from{' '}
           <a
             href={INSTAGRAM_URL}
             target="_blank"

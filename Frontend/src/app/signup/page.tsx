@@ -87,7 +87,7 @@ export default function SignupPage() {
     <AuthShell
       titleBold="Create"
       titleItalic="account."
-      subtitle="Join the ritual — faster checkout, order tracking and member offers."
+      subtitle="Join the ritual: faster checkout, order tracking and member offers."
       footer={
         <>
           Already have an account? <AuthFooterLink href="/login">Sign in</AuthFooterLink>
@@ -139,7 +139,7 @@ export default function SignupPage() {
       <GoogleSignInButton text="signup_with" onCredential={googleSignup} onError={setError} />
 
       <p className="mt-6 text-center font-inter text-xs text-ink-subtle">
-        Prefer OTP? <AuthFooterLink href="/login">Sign in with your phone number</AuthFooterLink> — an
+        Prefer OTP? <AuthFooterLink href="/login">Sign in with your phone number</AuthFooterLink> and an
         account is created automatically.
       </p>
     </AuthShell>

@@ -14,7 +14,8 @@ import { cn } from '@/lib/cn';
 /**
  * Combo packs & gift hampers — one-per-view slider (client feedback: exactly
  * one combo visible at a time, swipe gesture + on-screen arrows). Each slide
- * keeps the wide gradient-banner card; first card brand-green, second navy.
+ * keeps the wide gradient-banner card; first card teal (client picked the
+ * concern-tile teal over brand green, July 2026 round), second navy.
  */
 export function ComboPacks() {
   const [emblaRef, emblaApi] = useEmblaCarousel({ align: 'start', loop: false });
@@ -32,7 +33,7 @@ export function ComboPacks() {
         <SectionHeader
           eyebrow="Better together"
           title="Combo Packs & Gift Hampers"
-          subtitle="Hand-picked rituals at curated kit prices — the easiest way to start a complete routine."
+          subtitle="Hand-picked rituals & curated kits at pocket friendly prices, the easiest way to start a complete routine."
           ctaLabel="See all combos"
           ctaHref="/shop?category=combo"
         />
@@ -49,30 +50,30 @@ export function ComboPacks() {
                       href={`/shop/${p.slug}`}
                       className="group relative block overflow-hidden rounded-[2.25rem] shadow-soft hover:shadow-lift transition-all duration-300"
                       style={{
-                        // Brand green stays the card fill (client call); the
-                        // white copy gets its contrast from the scrim panel
-                        // behind the text block, not from darkening the brand.
+                        // Concern-tile teal (#34A99D) is the card fill (client
+                        // call, matching the Shop-by-Concern teal tile); white
+                        // copy still gets its contrast from the scrim panel
+                        // behind the text block, not from darkening the fill.
                         backgroundImage: isPrimary
-                          ? 'linear-gradient(135deg, #7AC143 0%, #5fa430 60%, #487d25 100%)'
+                          ? 'linear-gradient(135deg, #34A99D 0%, #2b8c82 60%, #216b64 100%)'
                           : 'linear-gradient(135deg, #1B3F5E 0%, #23506c 60%, #1F4360 100%)',
                       }}
                     >
                       {/* Decorative wash */}
                       <div
                         className="absolute -bottom-20 -right-20 h-60 w-60 rounded-full blur-3xl opacity-40"
-                        style={{ background: isPrimary ? '#a7e167' : '#7AC143' }}
+                        style={{ background: isPrimary ? '#7fd8cd' : '#7AC143' }}
                         aria-hidden="true"
                       />
 
                       <div className="grid sm:grid-cols-2 gap-5 sm:gap-6 p-5 sm:p-7 lg:p-8 text-white relative">
                         <div className="relative flex flex-col justify-center">
                           {/* Scrim behind the TEXT BLOCK only — white copy over
-                              raw #7AC143 measures ~2:1; this panel carries the
-                              copy past 4.5:1 while the brand green stays the
-                              card fill (ratios re-measured from rendered
-                              pixels at 390 and 1440). Darker end at the BOTTOM,
-                              under the small price/compare row; the navy slide
-                              is dark already and gets no scrim. */}
+                              raw #34A99D measures ~2.6:1; this panel carries
+                              the copy past 4.5:1 while the teal stays the card
+                              fill. Darker end at the BOTTOM, under the small
+                              price/compare row; the navy slide is dark already
+                              and gets no scrim. */}
                           {isPrimary && (
                             <div
                               aria-hidden="true"

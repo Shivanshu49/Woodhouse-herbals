@@ -182,6 +182,45 @@ test('redaction invariant: the log-only fallback emits no PII — only id, time,
   assert.deepEqual(payload.fields, { name: true, phone: true, email: true, message: true, attachment: true });
 });
 
+test('delivery success: the emailed path logs NOTHING — no console line carries the submission', async () => {
+  const ip = 'rt-resend-success';
+  process.env.RESEND_API_KEY = 're_test_key';
+  const fetchMock = mock.method(globalThis, 'fetch', async () =>
+    new Response('{"id":"email_123"}', { status: 200 }),
+  );
+  const logMock = mock.method(console, 'log', () => {});
+  const infoMock = mock.method(console, 'info', () => {});
+  warnMock.mock.resetCalls();
+  errorMock.mock.resetCalls();
+  const pii = {
+    name: 'Zephyrina Quixote',
+    phone: '9876501234',
+    email: 'Zephyrina.Quixote@example.com',
+    message: 'SECRET-MESSAGE-CONTENT-XYZZY',
+  };
+  try {
+    const res = await POST(request(pii, {
+      ip,
+      file: { filename: 'rx-photo.png', type: 'image/png', data: PNG_BYTES },
+    }));
+    assert.equal(res.status, 200);
+    assert.equal((await res.json()).ok, true);
+    assert.equal(fetchMock.mock.calls.length, 1, 'the submission must actually go out via Resend');
+
+    for (const [consoleName, consoleMock] of Object.entries({ log: logMock, info: infoMock, warn: warnMock, error: errorMock })) {
+      assert.equal(
+        consoleMock.mock.calls.length, 0,
+        `success path must not console.${consoleName} at all — got: ${consoleMock.mock.calls.map((c) => c.arguments.map(String).join(' ')).join(' | ')}`,
+      );
+    }
+  } finally {
+    fetchMock.mock.restore();
+    logMock.mock.restore();
+    infoMock.mock.restore();
+    delete process.env.RESEND_API_KEY;
+  }
+});
+
 test('delivery failure: 502 logs a sanitized message (no Resend body) and refunds the claim', async () => {
   const ip = 'rt-resend-fail';
   process.env.RESEND_API_KEY = 're_test_key';

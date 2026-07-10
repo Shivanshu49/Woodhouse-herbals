@@ -24,9 +24,8 @@ export function BestSellerCarousel() {
   return (
     <section aria-label="Best sellers" className="bg-brand-teal pt-6 pb-10 md:py-16">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 md:px-10">
-        <h2 className="mb-5 md:mb-12 font-display text-4xl sm:text-5xl text-brand-forest leading-none text-center">
-          <span className="font-bold not-italic">Best</span>{' '}
-          <span className="font-normal italic">Seller</span>
+        <h2 className="mb-5 md:mb-12 font-display font-bold text-4xl sm:text-5xl text-brand-forest leading-none text-center">
+          Best Seller
         </h2>
 
         <div className="relative">

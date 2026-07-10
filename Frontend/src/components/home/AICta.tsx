@@ -2,9 +2,10 @@ import Link from 'next/link';
 import { Sparkles, ArrowRight } from 'lucide-react';
 
 /**
- * Quiz CTA — the "not sure where to start" panel. Lives just before the
- * footer and pushes users into the AI skin-analysis flow. Uses the brand
- * navy gradient with a citrus burst so it reads as a primary action band.
+ * Quiz CTA — the "not sure where to start" panel. Lives just above the
+ * Trending Now reels and pushes users into the AI skin-analysis flow. Uses
+ * the brand navy gradient with a citrus burst so it reads as a primary
+ * action band.
  */
 export function AICta() {
   return (

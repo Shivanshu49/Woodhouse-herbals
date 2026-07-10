@@ -10,7 +10,7 @@ export function NewArrivals() {
         <SectionHeader
           eyebrow="Just landed"
           title="New arrivals"
-          subtitle="Fresh from our formulation lab — herbal innovations for the next chapter of your routine."
+          subtitle="Fresh from our formulation lab: herbal innovations for the next chapter of your routine."
           ctaLabel="See what's new"
           ctaHref="/shop?sort=new"
         />

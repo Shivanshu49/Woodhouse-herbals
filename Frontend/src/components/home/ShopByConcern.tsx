@@ -29,7 +29,7 @@ export function ShopByConcern() {
         <SectionHeader
           eyebrow="Curated for your skin"
           title="Shop by concern"
-          subtitle="Pick what your skin needs today — we'll bring you a complete ritual built for it."
+          subtitle="Pick what your skin needs today, and we'll bring you a complete ritual built for it."
           ctaLabel="See all concerns"
           ctaHref="/shop"
         />
@@ -54,6 +54,11 @@ export function ShopByConcern() {
                     sizes="(min-width: 768px) 33vw, 50vw"
                     className="object-cover object-[center_40%] transition-transform duration-700 group-hover:scale-105"
                   />
+                  {c.comingSoon && (
+                    <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 whitespace-nowrap rounded-full bg-navy-900/85 px-3 py-1.5 text-[10px] sm:text-xs font-bold uppercase tracking-[0.14em] text-cream">
+                      Coming soon
+                    </span>
+                  )}
                 </div>
 
                 <div className="flex-1 px-4 pb-4 pt-2 sm:px-5 sm:pb-5">

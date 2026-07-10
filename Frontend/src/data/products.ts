@@ -86,7 +86,7 @@ export const products: Product[] = [
     benefits: ['Clears active acne', 'Controls oil for 8+ hours', 'Refines pores', 'Non-comedogenic'],
     howToUse: [
       'Wet face thoroughly.',
-      'Apply 2–3 drops and gently massage in circular motions.',
+      'Apply 2-3 drops and gently massage in circular motions.',
       'Avoid the eye area.',
       'Rinse with cool water. Use morning and night.',
     ],
@@ -135,7 +135,7 @@ export const products: Product[] = [
     name: 'Green Tea & Cucumber Face Wash',
     shortDescription: 'Antioxidant rinse with green tea & cucumber for fresh, calm skin.',
     longDescription:
-      'A cooling gel cleanser that resets your skin. Green tea catechins fight free radicals while cucumber soothes redness and reduces puffiness — perfect after a long, hot day.',
+      'A cooling gel cleanser that resets your skin. Green tea catechins fight free radicals while cucumber soothes redness and reduces puffiness. Perfect after a long, hot day.',
     price: inr(329),
     compareAtPrice: inr(449),
     thumbnail: img('gt1', 'Green tea face wash with cucumber', '/products/neem-face-wash.png'),
@@ -167,7 +167,7 @@ export const products: Product[] = [
     name: 'Vit C Brightening Serum',
     shortDescription: '15% stabilized Vitamin C for visible glow in 4 weeks.',
     longDescription:
-      'A featherlight serum with 15% L-Ascorbic Acid, ferulic acid and Vitamin E — a clinically proven trio that brightens, evens skin tone and protects against environmental damage.',
+      'A featherlight serum with 15% L-Ascorbic Acid, ferulic acid and Vitamin E, a clinically proven trio that brightens, evens skin tone and protects against environmental damage.',
     price: inr(599),
     compareAtPrice: inr(799),
     thumbnail: img('vs1', 'Vit C serum dropper bottle', '/products/vitamin-c-niacinamide-serum.png'),
@@ -191,7 +191,7 @@ export const products: Product[] = [
     ],
     benefits: ['Reduces pigmentation', 'Boosts collagen', 'Plumps fine lines'],
     howToUse: [
-      'After cleansing, apply 3–4 drops on face & neck.',
+      'After cleansing, apply 3-4 drops on face & neck.',
       'Follow with moisturiser and SPF in the morning.',
       'Use once daily; build up to twice if tolerated.',
     ],
@@ -226,16 +226,16 @@ export const products: Product[] = [
       { name: 'Honey', benefit: 'Hydrates' },
     ],
     benefits: ['Removes tan & dead skin', 'Improves texture', 'Safe for sensitive skin'],
-    howToUse: ['Apply on damp skin in circular motions for 60 seconds.', 'Use 1–2 times a week.'],
+    howToUse: ['Apply on damp skin in circular motions for 60 seconds.', 'Use 1-2 times a week.'],
   },
   {
     id: 'p_niacinamide',
     slug: 'niacinamide-10-serum',
     sku: 'WH-SR-NA30',
     name: 'Niacinamide 10% Serum',
-    shortDescription: 'Reduces dark spots, pores and excess oil — daily-use serum.',
+    shortDescription: 'Reduces dark spots, pores and excess oil, a daily-use serum.',
     longDescription:
-      '10% Niacinamide with 1% Zinc — a science-backed formula to visibly minimise pores, balance oil and fade post-acne marks. Lightweight and non-greasy.',
+      '10% Niacinamide with 1% Zinc, a science-backed formula to visibly minimise pores, balance oil and fade post-acne marks. Lightweight and non-greasy.',
     price: inr(549),
     compareAtPrice: inr(699),
     thumbnail: img('ni1', 'Niacinamide serum bottle', '/products/vitamin-c-niacinamide-serum.png'),
@@ -256,16 +256,16 @@ export const products: Product[] = [
       { name: 'Zinc PCA', benefit: 'Balances oil' },
     ],
     benefits: ['Visibly smaller pores', 'Less shine through the day', 'Fades acne marks'],
-    howToUse: ['Apply 3–4 drops after cleansing. Use morning and night.'],
+    howToUse: ['Apply 3-4 drops after cleansing. Use morning and night.'],
   },
   {
     id: 'p_combo_anti_acne',
     slug: 'anti-acne-glow-combo',
     sku: 'WH-CB-AAG',
     name: 'Anti-Acne & Glow Booster Combo',
-    shortDescription: 'Face wash + serum + scrub + night gel — a complete kit for clear skin.',
+    shortDescription: 'Face wash + serum + scrub + night gel, a complete kit for clear skin.',
     longDescription:
-      'Our most-loved kit for breakout-prone skin. A four-step ritual that cleanses, treats, exfoliates and renews — built around clinically proven actives in calming herbal bases.',
+      'Our most-loved kit for breakout-prone skin. A four-step ritual that cleanses, treats, exfoliates and renews, built around clinically proven actives in calming herbal bases.',
     price: inr(1148),
     compareAtPrice: inr(1596),
     thumbnail: img('cb1', 'Anti-acne combo pack of four', '/products/derma-revive-face-wash.png'),
@@ -296,9 +296,9 @@ export const products: Product[] = [
     slug: 'd-tan-anti-aging-combo',
     sku: 'WH-CB-DAA',
     name: 'D-Tan + Anti-Aging Combo',
-    shortDescription: 'Green tea cleanser + Vit C serum — fights tan & early aging.',
+    shortDescription: 'Green tea cleanser + Vit C serum, fights tan & early aging.',
     longDescription:
-      'A duo for skin that needs a reset — refreshing green-tea cleanser by day, brightening Vit C serum at night.',
+      'A duo for skin that needs a reset: refreshing green-tea cleanser by day, brightening Vit C serum at night.',
     price: inr(820),
     compareAtPrice: inr(1098),
     thumbnail: img('cb3', 'D-tan combo', '/products/super-uv-sunscreen.png'),
@@ -351,8 +351,8 @@ export const products: Product[] = [
     benefits: ['Visibly less hair fall in 6 weeks', 'Soothes itchy scalp', 'Suits all hair types'],
     howToUse: [
       'Warm a small amount between palms.',
-      'Massage into scalp for 5–10 minutes.',
-      'Leave overnight or for 2 hours before shampoo. Use 2–3 times a week.',
+      'Massage into scalp for 5-10 minutes.',
+      'Leave overnight or for 2 hours before shampoo. Use 2-3 times a week.',
     ],
   },
   {
@@ -391,7 +391,7 @@ export const products: Product[] = [
     name: 'Green Tea Night Repair Gel',
     shortDescription: 'Lightweight overnight gel for clearer, brighter morning skin.',
     longDescription:
-      'A water-light gel that works overnight — green tea, niacinamide and snow mushroom calm, hydrate and reset the skin barrier.',
+      'A water-light gel that works overnight: green tea, niacinamide and snow mushroom calm, hydrate and reset the skin barrier.',
     price: inr(449),
     compareAtPrice: inr(599),
     thumbnail: img('ng1', 'Night gel jar with green tea leaf', '/products/green-tea-night-gel.png'),

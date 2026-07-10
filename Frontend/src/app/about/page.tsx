@@ -5,13 +5,13 @@ const VALUES = [
   { Icon: BadgeCheck,   title: 'FDA Approved',         body: 'Manufactured in an FDA-compliant facility under strict quality controls.' },
   { Icon: Shield,       title: 'Dermat-tested',        body: 'Every formula is dermatologically tested for safety and tolerance.' },
   { Icon: FlaskConical, title: 'Quality Assurance',    body: 'Every batch is QA-tested before it leaves our facility.' },
-  { Icon: Leaf,         title: 'Plant-first',          body: 'Real botanicals, no harsh chemicals — kind to skin and planet.' },
+  { Icon: Leaf,         title: 'Plant-first',          body: 'Real botanicals, no harsh chemicals, kind to skin and planet.' },
   { Icon: Sparkles,     title: 'ISO · WHO · GMP',      body: 'Globally recognised manufacturing certifications.' },
   { Icon: Heart,        title: 'No Animal Testing',    body: 'Cruelty-free at every step of formulation and packaging.' },
 ];
 
 export const metadata = {
-  title: 'About — Wood House Herbals',
+  title: 'About | Wood House Herbals',
   description: 'Discover the philosophy and craft behind Wood House Herbals by VedicGlory Healthcare.',
 };
 
@@ -27,7 +27,7 @@ export default function AboutPage() {
               Where ancient wisdom meets <span className="italic font-light text-brand-600">modern skincare.</span>
             </h1>
             <p className="mt-5 text-lg text-ink-muted max-w-xl text-balance leading-relaxed">
-              Wood House Herbals is the skincare arm of VedicGlory Healthcare — a young, cheerful Indian company
+              Wood House Herbals is the skincare arm of VedicGlory Healthcare, a young, cheerful Indian company
               dedicated to crafting effective, plant-first products for every skin type.
             </p>
           </div>
@@ -49,16 +49,14 @@ export default function AboutPage() {
             <h2 className="text-display-md mb-4">Our philosophy</h2>
             <p className="text-navy-900/85 leading-relaxed text-balance">
               We believe that nature has the answers to all skin concerns. That's why we use only the finest herbs and natural ingredients,
-              carefully selected for their potency and efficacy. Our products are free from harsh chemicals, artificial fragrances and dyes —
+              carefully selected for their potency and efficacy. Our products are free from harsh chemicals, artificial fragrances and dyes,
               making them suitable for all skin types.
             </p>
           </div>
           <div className="rounded-[2rem] bg-brand-500/8 p-8 border border-brand-500/20">
             <p className="text-[11px] uppercase tracking-[0.18em] font-bold text-brand-700">Headquarters</p>
             <p className="mt-1 font-display text-lg font-semibold text-navy-900">VedicGlory Healthcare</p>
-            <p className="text-sm text-ink-muted mt-2 leading-relaxed">Simran Sapphire, Plot 364, Sector 34C Kharghar, Navi Mumbai, MAHARASHTRA – 410210</p>
-            <p className="mt-4 text-[11px] uppercase tracking-[0.18em] font-bold text-brand-700">Regional office</p>
-            <p className="text-sm text-ink-muted mt-1 leading-relaxed">Suncity, Dixit Nagar, Nagpur, MAHARASHTRA – 440026</p>
+            <p className="text-sm text-ink-muted mt-2 leading-relaxed">Simran Sapphire, Plot 3 & 4, Sector 34C Kharghar, Navi Mumbai, MAHARASHTRA - 410210</p>
           </div>
         </div>
       </section>

@@ -103,7 +103,7 @@ export function AddressBook({ addresses }: { addresses: CustomerAddress[] }) {
     <div className="space-y-4">
       {addresses.length === 0 && mode !== 'add' ? (
         <p className="font-inter text-sm text-ink-muted">
-          No saved addresses yet — add one for faster checkout.
+          No saved addresses yet. Add one for faster checkout.
         </p>
       ) : null}
 
@@ -132,7 +132,7 @@ export function AddressBook({ addresses }: { addresses: CustomerAddress[] }) {
                 {a.line1}
                 {a.line2 ? <>, {a.line2}</> : null}
                 <br />
-                {a.city}, {a.state} — {a.pincode}
+                {a.city}, {a.state} - {a.pincode}
                 <br />
                 +91 {a.phone.replace(/^\+91/, '')}
               </p>

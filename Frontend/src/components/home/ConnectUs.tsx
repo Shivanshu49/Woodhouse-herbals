@@ -105,8 +105,8 @@ export function ConnectUs() {
               <span className="eyebrow">We're listening</span>
               <h2 className="mt-4 text-display-lg text-balance">Connect With Us</h2>
               <p className="mt-3 text-ink-muted leading-relaxed max-w-md">
-                Questions about a product, an order, or your routine? Write to us — attach a photo or
-                prescription if it helps — and we'll get back within 24 hours.
+                Questions about a product, an order, or your routine? Write to us and we'll get
+                back within 24 hours. Attach a photo or prescription if it helps.
               </p>
               <ul className="mt-6 space-y-3 text-sm">
                 <li>
@@ -142,6 +142,8 @@ export function ConnectUs() {
                   on purpose: real tokens like "company" get browser-autofilled,
                   which makes genuine submissions look like bots. */}
               <input type="text" name="_gotcha" tabIndex={-1} autoComplete="off" aria-hidden="true" className="hidden" />
+
+              <p className="mb-3 text-sm font-semibold text-navy-900">Please fill up your details</p>
 
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
@@ -212,7 +214,7 @@ export function ConnectUs() {
                   {status === 'submitting' ? 'Sending…' : 'Send message'}
                 </button>
                 <p role="status" aria-live="polite" className="text-sm">
-                  {status === 'sent' && <span className="font-semibold text-brand-700">Message sent — we'll get back within 24 hours.</span>}
+                  {status === 'sent' && <span className="font-semibold text-brand-700">Message sent. We'll get back within 24 hours.</span>}
                   {status === 'error' && serverError && <span className="font-semibold text-blush-600">{serverError}</span>}
                 </p>
               </div>

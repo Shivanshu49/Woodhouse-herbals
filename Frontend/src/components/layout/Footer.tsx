@@ -1,7 +1,6 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { Facebook, Instagram, Linkedin, Mail, MapPin, Phone } from 'lucide-react';
-import { NewsletterForm } from './NewsletterForm';
 
 const HELP = [
   { label: 'Privacy Policy', href: '/policies/privacy' },
@@ -33,24 +32,6 @@ export function Footer() {
       />
       <div className="absolute inset-x-0 -top-px h-px bg-gradient-to-r from-transparent via-brand-500/50 to-transparent" />
 
-      {/* Newsletter band */}
-      <div className="relative container-wide pt-16 pb-12 border-b border-cream/10">
-        <div className="grid gap-10 lg:grid-cols-2 lg:items-center">
-          <div className="max-w-xl">
-            <p className="text-[11px] uppercase tracking-[0.22em] text-brand-300 font-bold mb-3">
-              Join the ritual
-            </p>
-            <h3 className="text-display-md text-cream mb-3 leading-tight">
-              Get 10% off your first order.
-            </h3>
-            <p className="text-cream/70 leading-relaxed">
-              Skincare tips, ingredient deep-dives and member-only drops — straight to your inbox. No spam, ever.
-            </p>
-          </div>
-          <NewsletterForm />
-        </div>
-      </div>
-
       {/* Link grid */}
       <div className="relative container-wide grid gap-10 lg:grid-cols-12 py-14">
         <div className="lg:col-span-4">
@@ -59,18 +40,18 @@ export function Footer() {
           <Link
             href="/"
             aria-label="Wood House Herbals home"
-            className="inline-flex rounded-2xl bg-cream p-4 shadow-soft"
+            className="inline-flex rounded-xl bg-cream p-2.5 shadow-soft"
           >
             <Image
               src="/brand/logo.png"
               alt="Wood House Herbals"
               width={151}
               height={101}
-              className="h-16 w-auto"
+              className="h-12 w-auto"
             />
           </Link>
           <p className="mt-5 text-sm leading-relaxed text-cream/70 max-w-sm">
-            Wood House Herbals — authentic, modern skincare crafted with ancient botanicals and science-backed actives. Made in India, loved across the country.
+            Wood House skincare: authentic, contemporary skincare crafted with fruits and root extracts. Made in Bharat, loved across the globe.
           </p>
           <div className="mt-5 flex items-center gap-2">
             {[
@@ -145,14 +126,7 @@ export function Footer() {
               <MapPin className="h-4 w-4 mt-0.5 text-brand-300" />
               <span>
                 <strong className="block text-cream/90 font-semibold">VedicGlory Healthcare</strong>
-                Simran Sapphire, Plot 364, Sector 34C Kharghar, Navi Mumbai, MAHARASHTRA – 410210
-              </span>
-            </li>
-            <li className="flex items-start gap-3">
-              <MapPin className="h-4 w-4 mt-0.5 text-brand-300" />
-              <span>
-                <strong className="block text-cream/90 font-semibold">Regional Office</strong>
-                Suncity, Dixit Nagar, Nagpur, MAHARASHTRA – 440026
+                Simran Sapphire, Plot 3 & 4, Sector 34C Kharghar, Navi Mumbai, MAHARASHTRA - 410210
               </span>
             </li>
           </ul>

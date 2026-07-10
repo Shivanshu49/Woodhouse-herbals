@@ -26,7 +26,7 @@ function WishlistGrid() {
           <Heart className="h-7 w-7" />
         </span>
         <p className="mt-4 font-inter text-[15px] text-ink-muted">
-          Nothing saved yet — tap the heart on any product to keep it here.
+          Nothing saved yet. Tap the heart on any product to keep it here.
         </p>
         <Link href="/shop">
           <Button className="mt-6">Browse the shop</Button>

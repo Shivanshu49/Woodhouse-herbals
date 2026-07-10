@@ -46,8 +46,8 @@ const HAIR_CONCERNS = [
 
 const PRICE_BUCKETS = [
   { value: '0-400', label: 'Under ₹400' },
-  { value: '400-700', label: '₹400 – ₹700' },
-  { value: '700-1200', label: '₹700 – ₹1,200' },
+  { value: '400-700', label: '₹400 - ₹700' },
+  { value: '700-1200', label: '₹700 - ₹1,200' },
   { value: '1200-', label: 'Above ₹1,200' },
 ];
 

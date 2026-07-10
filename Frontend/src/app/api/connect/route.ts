@@ -44,7 +44,7 @@ async function sendViaResend(apiKey: string, s: Submission, filename: string | n
       from: CONNECT_FROM,
       to: [CONNECT_TO],
       reply_to: s.email,
-      subject: `Connect With Us — ${s.name}`,
+      subject: `Connect With Us: ${s.name}`,
       text: [
         `Name: ${s.name}`,
         `Phone: ${s.phone}`,
@@ -112,7 +112,7 @@ export async function POST(req: NextRequest) {
   // honeypot) submissions keep consuming budget.
   if (!limiter.tryAcquire(ip, Date.now())) {
     return NextResponse.json(
-      { ok: false, error: 'Too many messages from this connection — please try again in a few minutes.' },
+      { ok: false, error: 'Too many messages from this connection. Please try again in a few minutes.' },
       { status: 429 },
     );
   }

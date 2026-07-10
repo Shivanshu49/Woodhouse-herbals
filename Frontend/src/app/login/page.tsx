@@ -165,7 +165,7 @@ export default function LoginPage() {
             </p>
             {devCode ? (
               <p className="rounded-2xl bg-sage-100 px-4 py-2.5 font-inter text-sm text-brand-800">
-                Dev mode — your code is <strong data-testid="dev-otp">{devCode}</strong>
+                Dev mode: your code is <strong data-testid="dev-otp">{devCode}</strong>
               </p>
             ) : null}
             <Input

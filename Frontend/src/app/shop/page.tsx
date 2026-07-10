@@ -3,7 +3,7 @@ import { ShopGrid } from '@/components/shop/ShopGrid';
 import { Skeleton } from '@/components/ui/Skeleton';
 
 export const metadata = {
-  title: 'Shop all — herbal skincare & haircare',
+  title: 'Shop all: herbal skincare & haircare',
   description: 'Browse all Wood House Herbals products. Filter by skin type, concern, category and price.',
 };
 

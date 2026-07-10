@@ -4,7 +4,7 @@ import { concerns } from './concerns';
 
 export const homepage: HomepagePayload = {
   offerStrip: [
-    { headline: 'AMAZING OFFER · Get extra 20% off on ₹499+ — use code WH20', code: 'WH20', href: '/shop' },
+    { headline: 'AMAZING OFFER · Get extra 20% off on ₹499+, use code WH20', code: 'WH20', href: '/shop' },
     { headline: 'Free shipping on orders above ₹499', href: '/shop' },
     { headline: 'Cash on delivery available across India', href: '/shop' },
     { headline: 'No Sulphate · No Silicone · No Paraben · Made in India', href: '/about' },
@@ -13,7 +13,7 @@ export const homepage: HomepagePayload = {
     eyebrow: 'Skincare essentials',
     title: 'Glow naturally\nwith Wood House.',
     subtitle:
-      "Crafted with nature's finest ingredients to deeply nourish, hydrate, and restore your skin's natural glow. Science-backed actives in a herbal base — visible results in 2–4 weeks.",
+      "Crafted with nature's finest ingredients to deeply nourish, hydrate, and restore your skin's natural glow. Science-backed actives in a herbal base, with visible results in 2-4 weeks.",
     ctaLabel: 'Explore the ritual',
     ctaHref: '/shop',
     image: '/products/vitamin-c-face-wash.png',

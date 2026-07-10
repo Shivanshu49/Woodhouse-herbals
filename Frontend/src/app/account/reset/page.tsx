@@ -41,7 +41,7 @@ function ResetInner() {
     >
       {!token ? (
         <p className="py-4 text-center font-inter text-[15px] text-ink-muted">
-          This reset link is missing its token — please use the link from your email.
+          This reset link is missing its token. Please use the link from your email.
         </p>
       ) : (
         <form className="space-y-4" onSubmit={submit}>

@@ -55,10 +55,10 @@ export function Header() {
             <Image
               src="/brand/logo.png"
               alt="Wood House Herbals"
-              width={140}
-              height={48}
+              width={160}
+              height={107}
               priority
-              className="h-10 w-auto"
+              className="h-[50px] w-auto"
             />
           </Link>
         </div>

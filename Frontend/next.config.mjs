@@ -6,6 +6,9 @@ const nextConfig = {
       { protocol: 'https', hostname: 'images.unsplash.com' },
       { protocol: 'https', hostname: 'cdn.woodhouseherbals.com' },
       { protocol: 'https', hostname: 'r2.woodhouseherbals.com' },
+      // Scoped to our cloud: res.cloudinary.com is multi-tenant, and a
+      // whole-host allowance would let /_next/image proxy any tenant's images.
+      { protocol: 'https', hostname: 'res.cloudinary.com', pathname: '/j5gjlpct/image/upload/**' },
     ],
   },
   experimental: {

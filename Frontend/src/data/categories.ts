@@ -10,16 +10,20 @@ export interface StoreCategory {
   slug: string;
   label: string;
   cardLabel: string;
+  /** Announced in the nav but not shippable yet — rendered with a badge. */
+  comingSoon?: boolean;
 }
 
+// Shampoo intentionally has no entry: the client dropped it from the nav
+// (its lone catalog item is placeholder-only); cards fall back to the
+// title-cased slug if a shampoo product resurfaces.
 export const STORE_CATEGORIES: StoreCategory[] = [
   { slug: 'face-wash', label: 'Face Wash', cardLabel: 'Face Wash' },
   { slug: 'serum', label: 'Serum', cardLabel: 'Face Serum' },
   { slug: 'scrub', label: 'Scrub', cardLabel: 'Face Scrub' },
-  { slug: 'hair-oil', label: 'Hair Oil', cardLabel: 'Hair Oil' },
-  { slug: 'shampoo', label: 'Shampoo', cardLabel: 'Shampoo' },
   { slug: 'cream', label: 'Face Cream', cardLabel: 'Face Cream' },
   { slug: 'combo', label: 'Combo Kits', cardLabel: 'Combo Kit' },
+  { slug: 'hair-oil', label: 'Hair care', cardLabel: 'Hair Oil', comingSoon: true },
 ];
 
 const BY_SLUG = new Map(STORE_CATEGORIES.map((c) => [c.slug, c]));

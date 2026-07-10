@@ -13,18 +13,26 @@ import { products } from '@/data/products';
 // they track real product photography as placeholder shots get replaced.
 // "Shop All" leads the row — a nav shortcut to the unfiltered shop, not a
 // catalog category, so it carries its own art instead of joining STORE_CATEGORIES.
-const CIRCLES = [
+interface Circle {
+  label: string;
+  slug: string;
+  image: string;
+  href: string;
+  comingSoon?: boolean;
+}
+
+const CIRCLES: Circle[] = [
   { label: 'Shop All', slug: 'shop-all', image: '/categories/shop-all.png', href: '/shop' },
-  ...STORE_CATEGORIES.flatMap(({ label, slug }) => {
+  ...STORE_CATEGORIES.flatMap(({ label, slug, comingSoon }) => {
     const p = products.find((prod) => prod.category === slug);
-    return p ? [{ label, slug, image: p.thumbnail.url, href: `/shop?category=${slug}` }] : [];
+    return p ? [{ label, slug, image: p.thumbnail.url, href: `/shop?category=${slug}`, comingSoon }] : [];
   }),
 ];
 
 export function CategoryBar() {
   return (
     <section aria-label="Shop by category" className="border-b border-navy-900/5 bg-white/70">
-      {/* justify-center only from lg — at md the 8 circles can overflow, and a
+      {/* justify-center only from lg — at md the circle row can overflow, and a
           centered overflowing flex row clips its start items unreachably. */}
       <ul className="container-wide flex gap-4 sm:gap-6 lg:justify-center md:gap-8 overflow-x-auto no-scrollbar snap-x snap-mandatory py-3 sm:py-4">
         {CIRCLES.map((c) => (
@@ -46,6 +54,11 @@ export function CategoryBar() {
                   loading="eager"
                   className="object-cover transition-transform duration-300 group-hover:scale-105"
                 />
+                {c.comingSoon && (
+                  <span className="absolute inset-x-1 bottom-1.5 rounded-full bg-navy-900/85 px-1 py-0.5 text-center text-[8px] md:text-[9px] font-semibold leading-none text-cream">
+                    Coming soon
+                  </span>
+                )}
               </span>
               <span className="text-center text-[11px] md:text-xs font-semibold leading-tight text-navy-900 group-hover:text-brand-700">
                 {c.label}

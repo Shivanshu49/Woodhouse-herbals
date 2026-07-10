@@ -55,9 +55,9 @@ export function Footer() {
           </p>
           <div className="mt-5 flex items-center gap-2">
             {[
-              { Icon: Facebook,  label: 'Facebook',  href: '#' },
+              { Icon: Facebook,  label: 'Facebook',  href: 'https://www.facebook.com/vedicgloryhealth' },
               { Icon: Instagram, label: 'Instagram', href: 'https://www.instagram.com/woodhouseherbals/' },
-              { Icon: Linkedin,  label: 'LinkedIn',  href: '#' },
+              { Icon: Linkedin,  label: 'LinkedIn',  href: 'https://www.linkedin.com/company/woodhouseskin/' },
             ].map(({ Icon, label, href }) => (
               <a
                 key={label}

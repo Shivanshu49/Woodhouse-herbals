@@ -54,3 +54,6 @@ coverage/
 
 # Local AI-session tooling — never committed
 .superpowers/
+
+# Raw client asset drops (2.5-5MB+ originals) — staged locally, never in git history
+.assets-src/

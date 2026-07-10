@@ -18,16 +18,16 @@ const ICONS: Record<string, LucideIcon> = {
  */
 export function TrustStrip() {
   return (
-    <section className="relative py-12 sm:py-16">
+    <section className="relative py-8 sm:py-14">
       <div className="container-wide">
-        <div className="rounded-[2rem] bg-white border border-navy-900/5 shadow-soft px-4 sm:px-8 py-8 sm:py-10">
-          <ul className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-y-7 gap-x-4">
+        <div className="rounded-[2rem] bg-white border border-navy-900/5 shadow-soft px-4 sm:px-8 py-6 sm:py-10">
+          <ul className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-y-5 sm:gap-y-7 gap-x-3 sm:gap-x-4">
             {homepage.trust.map((t) => {
               const Icon = ICONS[t.icon] ?? Leaf;
               return (
-                <li key={t.title} className="flex flex-col items-center text-center gap-2.5">
-                  <span className="inline-flex h-14 w-14 sm:h-16 sm:w-16 items-center justify-center rounded-full bg-blush-100 text-blush ring-1 ring-blush/20">
-                    <Icon className="h-6 w-6 sm:h-7 sm:w-7" strokeWidth={1.6} />
+                <li key={t.title} className="flex flex-col items-center text-center gap-2">
+                  <span className="inline-flex h-12 w-12 sm:h-16 sm:w-16 items-center justify-center rounded-full bg-blush-100 text-blush ring-1 ring-blush/20">
+                    <Icon className="h-5 w-5 sm:h-7 sm:w-7" strokeWidth={1.6} />
                   </span>
                   <div className="leading-tight">
                     <p className="text-[13px] sm:text-[14px] font-bold text-navy-900">{t.title}</p>

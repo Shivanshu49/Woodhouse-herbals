@@ -5,5 +5,4 @@ export interface ConcernCard {
   title: string;
   description: string;
   imageUrl: string;
-  accent: 'mint' | 'butter' | 'sky' | 'sand' | 'blush' | 'lavender';
 }

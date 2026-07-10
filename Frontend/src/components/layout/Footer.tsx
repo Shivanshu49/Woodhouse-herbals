@@ -24,7 +24,7 @@ const CATEGORIES = [
 
 export function Footer() {
   return (
-    <footer className="relative mt-24 bg-navy-900 text-cream overflow-hidden">
+    <footer className="relative mt-12 sm:mt-24 bg-navy-900 text-cream overflow-hidden">
       {/* Decorative wash */}
       <div
         className="absolute -top-20 -left-20 h-72 w-72 rounded-full blur-3xl opacity-40"

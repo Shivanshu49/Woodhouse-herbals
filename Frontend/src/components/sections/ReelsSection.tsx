@@ -1,10 +1,12 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import Image from 'next/image';
 import useEmblaCarousel from 'embla-carousel-react';
 import { ChevronLeft, ChevronRight, Instagram, Play, X } from 'lucide-react';
 import { INSTAGRAM_HANDLE, INSTAGRAM_URL, reelEmbedUrl, reelUrl, reels } from '@/data/reels';
+import { useCarouselArrows } from '@/hooks/use-carousel-arrows';
+import { cn } from '@/lib/cn';
 
 function ReelModal({ shortcode, onClose }: { shortcode: string; onClose: () => void }) {
   useEffect(() => {
@@ -68,59 +70,48 @@ export function ReelsSection() {
     slidesToScroll: 1,
     containScroll: 'trimSnaps',
   });
-  const [canPrev, setCanPrev] = useState(false);
-  const [canNext, setCanNext] = useState(true);
+  const { canPrev, canNext, scrollPrev, scrollNext } = useCarouselArrows(emblaApi);
   const [openReel, setOpenReel] = useState<string | null>(null);
 
-  const updateButtons = useCallback(() => {
-    if (!emblaApi) return;
-    setCanPrev(emblaApi.canScrollPrev());
-    setCanNext(emblaApi.canScrollNext());
-  }, [emblaApi]);
-
-  useEffect(() => {
-    if (!emblaApi) return;
-    updateButtons();
-    emblaApi.on('select', updateButtons);
-    emblaApi.on('reInit', updateButtons);
-    return () => {
-      emblaApi.off('select', updateButtons);
-      emblaApi.off('reInit', updateButtons);
-    };
-  }, [emblaApi, updateButtons]);
-
-  const scrollPrev = () => emblaApi?.scrollPrev();
-  const scrollNext = () => emblaApi?.scrollNext();
+  // aria-disabled (not the disabled attribute) so a keyboard user's focus
+  // isn't dropped to <body> when an arrow deactivates at either end — the
+  // same pattern as the Best Seller and combo sliders.
+  const arrowClass =
+    'h-11 w-11 inline-flex items-center justify-center rounded-full border-2 border-brand-forest text-brand-forest transition-colors';
 
   return (
-    <section aria-label="Instagram reels" className="bg-white py-20">
+    <section aria-label="Trending now" className="bg-white py-10 sm:py-16">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 md:px-10">
         <div className="relative mb-4">
-          <h2 className="font-display text-4xl sm:text-5xl text-brand-forest leading-none text-center">
-            <span className="font-bold not-italic">Watch It.</span>{' '}
-            <span className="font-normal italic">Love It.</span>
+          {/* Uppercase via CSS, not baked into the copy — keeps the source text
+              readable to screen readers and consistent with sibling headings. */}
+          <h2 className="font-display text-4xl sm:text-5xl text-brand-forest leading-none text-center uppercase">
+            <span className="font-bold not-italic">Trending</span>{' '}
+            <span className="font-normal italic">Now</span>
           </h2>
           <div className="hidden md:flex items-center gap-3 absolute right-0 bottom-0">
             <button
               onClick={scrollPrev}
-              disabled={!canPrev}
+              aria-disabled={!canPrev}
+              tabIndex={canPrev ? 0 : -1}
               aria-label="Previous reels"
-              className="h-11 w-11 inline-flex items-center justify-center rounded-full border-2 border-brand-forest text-brand-forest hover:bg-brand-forest hover:text-white transition-colors disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-brand-forest"
+              className={cn(arrowClass, canPrev ? 'hover:bg-brand-forest hover:text-white' : 'opacity-30')}
             >
               <ChevronLeft className="h-5 w-5" />
             </button>
             <button
               onClick={scrollNext}
-              disabled={!canNext}
+              aria-disabled={!canNext}
+              tabIndex={canNext ? 0 : -1}
               aria-label="Next reels"
-              className="h-11 w-11 inline-flex items-center justify-center rounded-full border-2 border-brand-forest text-brand-forest hover:bg-brand-forest hover:text-white transition-colors disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-brand-forest"
+              className={cn(arrowClass, canNext ? 'hover:bg-brand-forest hover:text-white' : 'opacity-30')}
             >
               <ChevronRight className="h-5 w-5" />
             </button>
           </div>
         </div>
 
-        <p className="text-center font-inter text-brand-forest/70 mb-10 md:mb-14">
+        <p className="text-center font-inter text-brand-forest/70 mb-6 md:mb-10">
           Real routines, real glow — fresh from{' '}
           <a
             href={INSTAGRAM_URL}
@@ -195,17 +186,19 @@ export function ReelsSection() {
           <div className="mt-8 flex md:hidden items-center justify-center gap-3">
             <button
               onClick={scrollPrev}
-              disabled={!canPrev}
+              aria-disabled={!canPrev}
+              tabIndex={canPrev ? 0 : -1}
               aria-label="Previous reels"
-              className="h-11 w-11 inline-flex items-center justify-center rounded-full border-2 border-brand-forest text-brand-forest disabled:opacity-30"
+              className={cn(arrowClass, !canPrev && 'opacity-30')}
             >
               <ChevronLeft className="h-5 w-5" />
             </button>
             <button
               onClick={scrollNext}
-              disabled={!canNext}
+              aria-disabled={!canNext}
+              tabIndex={canNext ? 0 : -1}
               aria-label="Next reels"
-              className="h-11 w-11 inline-flex items-center justify-center rounded-full border-2 border-brand-forest text-brand-forest disabled:opacity-30"
+              className={cn(arrowClass, !canNext && 'opacity-30')}
             >
               <ChevronRight className="h-5 w-5" />
             </button>

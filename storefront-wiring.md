@@ -54,8 +54,10 @@ of this — the batched storefront work:
   rules — bestsellers = a `BESTSELLER` badge, new arrivals = a `NEW` badge, combo
   packs = `isCombo` — deep-linking to the product editor where those flags live. No
   new selection model was built; `HomepageSelection` and `product.featured` remain
-  orphaned (nothing reads them). The storefront's on-screen bestseller carousel is
-  still computed client-side (all products by `reviewCount`), not the badge —
-  wiring = point it at the `/homepage` bestsellers list. Also note the `/homepage`
-  product queries have **no `orderBy`**, so any admin-intended ordering isn't honored
-  yet (add `orderBy` if curated order matters).
+  orphaned (nothing reads them). As of the July 2026 homepage feedback round the
+  storefront carousel (`src/data/bestsellers.ts`) mirrors the backend rule
+  client-side: only products whose badges include `tone: 'bestseller'`, ordered by
+  `reviewCount`, **capped at 8**. Wiring = replace that derivation with the
+  `/homepage` bestsellers (BESTSELLER-badge) query, keeping the 8-item cap. Also
+  note the `/homepage` product queries have **no `orderBy`**, so any admin-intended
+  ordering isn't honored yet (add `orderBy` if curated order matters).

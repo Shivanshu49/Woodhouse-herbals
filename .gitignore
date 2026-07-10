@@ -51,3 +51,6 @@ Woodhouse_herbals_image/
 coverage/
 .cache/
 .turbo/
+
+# Local AI-session tooling — never committed
+.superpowers/

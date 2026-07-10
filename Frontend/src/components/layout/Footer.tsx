@@ -1,6 +1,6 @@
+import Image from 'next/image';
 import Link from 'next/link';
 import { Facebook, Instagram, Linkedin, Mail, MapPin, Phone } from 'lucide-react';
-import { Logo } from './Logo';
 import { NewsletterForm } from './NewsletterForm';
 
 const HELP = [
@@ -54,9 +54,21 @@ export function Footer() {
       {/* Link grid */}
       <div className="relative container-wide grid gap-10 lg:grid-cols-12 py-14">
         <div className="lg:col-span-4">
-          <div className="inline-flex rounded-2xl bg-cream/8 p-4 border border-cream/10">
-            <Logo light />
-          </div>
+          {/* Solid cream card — the packaging logo is navy-on-transparent and
+              would vanish straight on the navy footer. */}
+          <Link
+            href="/"
+            aria-label="Wood House Herbals home"
+            className="inline-flex rounded-2xl bg-cream p-4 shadow-soft"
+          >
+            <Image
+              src="/brand/logo.png"
+              alt="Wood House Herbals"
+              width={151}
+              height={101}
+              className="h-16 w-auto"
+            />
+          </Link>
           <p className="mt-5 text-sm leading-relaxed text-cream/70 max-w-sm">
             Wood House Herbals — authentic, modern skincare crafted with ancient botanicals and science-backed actives. Made in India, loved across the country.
           </p>

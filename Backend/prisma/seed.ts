@@ -101,6 +101,10 @@ async function main() {
     // Soft-deleted == "Archived" in the admin UI.
     archived?: boolean;
     thumbnailUrl: string;
+    // PDP gallery images. Optional: only seeds that own their gallery set it;
+    // products without it keep whatever gallery the admin uploaded (the seed
+    // must not clobber admin-managed images on re-run).
+    gallery?: { url: string; alt: string }[];
     skinTypes: SkinType[];
     concernSlugs: string[];
     badges: { label: string; tone: BadgeTone }[];
@@ -151,7 +155,13 @@ async function main() {
       reviewCount: 742,
       stockQty: 4,
       status: ProductStatus.PUBLISHED,
-      thumbnailUrl: 'https://images.unsplash.com/photo-1620916566398-39f1143ab7be?w=900&q=80&auto=format&fit=crop',
+      // Real client packshots (Cloudinary, July 2026 asset drop). f_auto,q_auto
+      // + c_limit,w_1600 baked in so every consumer gets optimized delivery.
+      thumbnailUrl: 'https://res.cloudinary.com/j5gjlpct/image/upload/f_auto,q_auto,c_limit,w_1600/v1783716785/woodhouse/products/niacinamide-face-wash/1',
+      gallery: [
+        { url: 'https://res.cloudinary.com/j5gjlpct/image/upload/f_auto,q_auto,c_limit,w_1600/v1783716785/woodhouse/products/niacinamide-face-wash/1', alt: 'Neem Face Wash tube, front' },
+        { url: 'https://res.cloudinary.com/j5gjlpct/image/upload/f_auto,q_auto,c_limit,w_1600/v1783716788/woodhouse/products/niacinamide-face-wash/2', alt: 'Neem Face Wash tube with neem leaves and texture smear' },
+      ],
       skinTypes: [SkinType.OILY, SkinType.COMBINATION],
       concernSlugs: ['acne', 'pigmentation'],
       badges: [{ label: 'Value', tone: BadgeTone.SALE }],
@@ -203,7 +213,12 @@ async function main() {
       reviewCount: 821,
       stockQty: 62,
       status: ProductStatus.PUBLISHED,
-      thumbnailUrl: 'https://images.unsplash.com/photo-1608248597279-f99d160bfcbc?w=900&q=80&auto=format&fit=crop',
+      // Real client packshot (Cloudinary, July 2026 asset drop) — see note on
+      // the niacinamide-face-wash record.
+      thumbnailUrl: 'https://res.cloudinary.com/j5gjlpct/image/upload/f_auto,q_auto,c_limit,w_1600/v1783716780/woodhouse/products/vitamin-c-niacinamide-serum/1',
+      gallery: [
+        { url: 'https://res.cloudinary.com/j5gjlpct/image/upload/f_auto,q_auto,c_limit,w_1600/v1783716780/woodhouse/products/vitamin-c-niacinamide-serum/1', alt: 'Vitamin-C Niacinamide Face Serum dropper bottle with orange and ginger' },
+      ],
       skinTypes: [SkinType.ALL],
       concernSlugs: ['pigmentation', 'dullness', 'aging'],
       badges: [{ label: 'Bestseller', tone: BadgeTone.BESTSELLER }],
@@ -362,6 +377,15 @@ async function main() {
     await prisma.productBadge.deleteMany({ where: { productId: product.id } });
     await prisma.ingredient.deleteMany({ where: { productId: product.id } });
     await prisma.productConcern.deleteMany({ where: { productId: product.id } });
+
+    // Gallery reset is scoped to seeds that declare one — a blanket delete
+    // would clobber admin-uploaded galleries on every other product.
+    if (seed.gallery) {
+      await prisma.productImage.deleteMany({ where: { productId: product.id } });
+      await prisma.productImage.createMany({
+        data: seed.gallery.map((g, idx) => ({ productId: product.id, url: g.url, alt: g.alt, sortOrder: idx })),
+      });
+    }
 
     if (seed.badges.length) {
       await prisma.productBadge.createMany({

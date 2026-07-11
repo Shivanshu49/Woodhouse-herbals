@@ -20,7 +20,17 @@ interface Banner {
 // has an art-directed mobile variant (12:13, /banners/mobile/) — serum,
 // facewash and night-gel are the original woodhouseherbals.com mobile
 // creatives; sunscreen and face-washes are composed from the desktop sources.
+// Order: face wash leads (July 2026 round three). Of the two face-wash
+// banners, face-washes is the one promoted to slide 1: the facewash mobile
+// creative has corrupted label art on the exfoliating tube (ghost "FACE WASH"
+// over the actives line), which the LCP slide can't carry at 390px.
 const BANNERS: Banner[] = [
+  {
+    src: '/banners/banner-face-washes.jpg',
+    mobileSrc: '/banners/mobile/banner-face-washes.jpg',
+    alt: 'Wood House advanced face washes, nature-powered skincare',
+    href: '/shop?category=face-wash',
+  },
   {
     src: '/banners/banner-serum.jpg',
     mobileSrc: '/banners/mobile/banner-serum.jpg',
@@ -44,12 +54,6 @@ const BANNERS: Banner[] = [
     mobileSrc: '/banners/mobile/banner-sunscreen.jpg',
     alt: 'Wood House Super UV SPF 50 sunscreen, shop now',
     href: '/shop',
-  },
-  {
-    src: '/banners/banner-face-washes.jpg',
-    mobileSrc: '/banners/mobile/banner-face-washes.jpg',
-    alt: 'Wood House advanced face washes, nature-powered skincare',
-    href: '/shop?category=face-wash',
   },
 ];
 

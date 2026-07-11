@@ -10,7 +10,9 @@ import { products } from '@/data/products';
  */
 
 // Circle thumbs come from the live catalog (first product of each category) so
-// they track real product photography as placeholder shots get replaced.
+// they track real product photography as placeholder shots get replaced; a
+// category can pin its own art via `image` when the first product misleads
+// (combo shows the gift box, not one member product).
 // "Shop All" leads the row — a nav shortcut to the unfiltered shop, not a
 // catalog category, so it carries its own art instead of joining STORE_CATEGORIES.
 interface Circle {
@@ -23,9 +25,9 @@ interface Circle {
 
 const CIRCLES: Circle[] = [
   { label: 'Shop All', slug: 'shop-all', image: '/categories/shop-all.png', href: '/shop' },
-  ...STORE_CATEGORIES.flatMap(({ label, slug, comingSoon }) => {
+  ...STORE_CATEGORIES.flatMap(({ label, slug, image, comingSoon }) => {
     const p = products.find((prod) => prod.category === slug);
-    return p ? [{ label, slug, image: p.thumbnail.url, href: `/shop?category=${slug}`, comingSoon }] : [];
+    return p ? [{ label, slug, image: image ?? p.thumbnail.url, href: `/shop?category=${slug}`, comingSoon }] : [];
   }),
 ];
 

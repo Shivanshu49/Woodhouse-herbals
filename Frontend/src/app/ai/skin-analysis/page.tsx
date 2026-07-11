@@ -21,7 +21,7 @@ const SKIN_TYPES = [
 
 const CONCERNS = [
   { value: 'acne', label: 'Acne & breakouts' },
-  { value: 'pigmentation', label: 'Pigmentation' },
+  { value: 'pigmentation', label: 'Dark Spot & Pigmentation' },
   { value: 'tan', label: 'Tan' },
   { value: 'dry-skin', label: 'Dryness' },
   { value: 'dullness', label: 'Dullness' },

@@ -9,15 +9,14 @@ import { Sparkles, ArrowRight } from 'lucide-react';
  * tile the copy flips to full-opacity navy-950 (5.6:1; cream/white only
  * reaches ~2.9:1 and fails even the large-text bar) and the CTA goes navy
  * so it still reads as the primary action on green-family ground.
+ * Strictly flat #34A99D (client call from the live render): the leaf
+ * pattern and blur blobs tinted the band into a blotchy gradient, so no
+ * decorative layer sits over the fill.
  */
 export function AICta() {
   return (
     <section className="container-wide py-10 sm:py-16">
       <div className="relative overflow-hidden rounded-[2.5rem] px-6 sm:px-12 py-12 sm:py-16 bg-tile-teal">
-        <div className="absolute inset-0 bg-leaf-pattern opacity-50" aria-hidden="true" />
-        <div className="absolute -top-20 -right-10 h-72 w-72 rounded-full bg-brand-500/25 blur-3xl" aria-hidden="true" />
-        <div className="absolute -bottom-20 -left-10 h-72 w-72 rounded-full bg-citrus/20 blur-3xl" aria-hidden="true" />
-
         <div className="relative flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
           <div className="max-w-2xl">
             <span className="inline-flex items-center gap-2 rounded-full bg-white/25 text-navy-950 border border-navy-950/15 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.18em]">

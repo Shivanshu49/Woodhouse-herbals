@@ -14,13 +14,13 @@ import { cn } from '@/lib/cn';
 /**
  * Combo packs & gift hampers — one-per-view slider (client feedback: exactly
  * one combo visible at a time, swipe gesture + on-screen arrows). Each slide
- * keeps the wide gradient-banner card; first card teal (client picked the
- * concern-tile teal over brand green, July 2026 round), second navy.
- * Round three reversed the teal card's colour roles: the teal that used to
- * show only as a frame around the dark text panel is now the card fill the
- * copy sits on (same treatment as the navy slide), and the dark panel tone
- * moved out to the border. Both slides share the border treatment, each in
- * its own colour.
+ * keeps the wide banner card. Colour history: round two picked the
+ * concern-tile teal over brand green for the lead card; round three moved
+ * the dark text-panel tone out to the border; the round-three follow-up
+ * flattened EVERY slide to strictly #34A99D (client call from the live
+ * render — the gradient + contrast scrim read as a different, darker
+ * colour). Teal is mid-tone, so like the concern grid's teal tile the copy
+ * runs full-opacity navy-950 (5.6:1; white only reaches ~2.9:1).
  */
 
 /**
@@ -84,40 +84,16 @@ export function ComboPacks() {
               {[
                 ...homepage.comboPacks.map((pack) => ({ kind: 'pack' as const, id: pack.id, pack })),
                 ...GIFT_HAMPERS.map((hamper) => ({ kind: 'hamper' as const, id: hamper.id, hamper })),
-              ].map((slide, idx) => {
-                const isPrimary = idx % 2 === 0;
-                // Round-three colour reversal: teal (#34A99D, the concern-tile
-                // pick) is the fill the copy sits on; the dark tone that used
-                // to back the text block is now the border. The navy slide
-                // keeps its fill and takes the same border treatment in its
-                // own colour.
+              ].map((slide) => {
+                // Strictly #34A99D on every slide (client call): flat fill,
+                // no gradient, no scrim, no decorative wash — anything
+                // layered over the teal shifts the colour. Contrast comes
+                // from flipping the copy to navy-950 instead. The border
+                // keeps the dark tone from the round-three reversal.
                 const cardStyle = {
-                  backgroundImage: isPrimary
-                    ? 'linear-gradient(135deg, #34A99D 0%, #2b8c82 60%, #216b64 100%)'
-                    : 'linear-gradient(135deg, #1B3F5E 0%, #23506c 60%, #1F4360 100%)',
-                  borderColor: isPrimary ? '#113B36' : '#0E2336',
+                  backgroundColor: '#34A99D',
+                  borderColor: '#113B36',
                 };
-                const chrome = (
-                  <>
-                    {/* Decorative wash */}
-                    <div
-                      className="absolute -bottom-20 -right-20 h-60 w-60 rounded-full blur-3xl opacity-40"
-                      style={{ background: isPrimary ? '#7fd8cd' : '#7AC143' }}
-                      aria-hidden="true"
-                    />
-                    {/* Full-card scrim, not a text-block panel — white copy
-                        over raw #34A99D measures ~2.9:1, and the swap keeps
-                        the copy white per the brief, so the scrim (never the
-                        brand teal itself) carries every text zone past
-                        4.5:1. The navy slide is dark already and gets none. */}
-                    {isPrimary && (
-                      <div
-                        aria-hidden="true"
-                        className="absolute inset-0 bg-gradient-to-b from-black/30 to-black/45"
-                      />
-                    )}
-                  </>
-                );
 
                 if (slide.kind === 'hamper') {
                   const h = slide.hamper;
@@ -129,21 +105,20 @@ export function ComboPacks() {
                         className="relative h-full overflow-hidden rounded-[2.25rem] border-[6px] shadow-soft"
                         style={cardStyle}
                       >
-                        {chrome}
                         {/* sm:px-16 keeps copy clear of the floating arrows
                             (left-3 + h-11 reaches 56px in): with shorter
                             hamper columns the centered heading lands exactly
                             on the Prev arrow's track otherwise. */}
-                        <div className="grid sm:grid-cols-2 gap-5 sm:gap-6 p-5 sm:py-7 sm:px-16 lg:py-8 text-white relative sm:h-full">
+                        <div className="grid sm:grid-cols-2 gap-5 sm:gap-6 p-5 sm:py-7 sm:px-16 lg:py-8 text-navy-950 relative sm:h-full">
                           <div className="relative flex flex-col justify-center">
                             <div className="relative flex flex-col gap-4">
                               <Badge tone="neutral" className="self-start">
                                 <Gift className="h-3 w-3" /> Coming soon
                               </Badge>
-                              <h3 className="font-display text-2xl sm:text-3xl lg:text-[34px] font-semibold leading-tight text-white text-balance">
+                              <h3 className="font-display text-2xl sm:text-3xl lg:text-[34px] font-semibold leading-tight text-navy-950 text-balance">
                                 {h.name}
                               </h3>
-                              <p className="text-white text-sm leading-relaxed">{h.description}</p>
+                              <p className="text-navy-950 text-sm leading-relaxed">{h.description}</p>
                             </div>
                           </div>
                           <div className="relative aspect-square sm:aspect-auto sm:h-full rounded-[1.75rem] overflow-hidden bg-white/10 ring-1 ring-white/20">
@@ -170,33 +145,34 @@ export function ComboPacks() {
                       className="group relative block h-full overflow-hidden rounded-[2.25rem] border-[6px] shadow-soft hover:shadow-lift transition-all duration-300"
                       style={cardStyle}
                     >
-                      {chrome}
 
-                      <div className="grid sm:grid-cols-2 gap-5 sm:gap-6 p-5 sm:p-7 lg:p-8 text-white relative sm:h-full">
+                      {/* sm:px-16 keeps copy clear of the floating arrows
+                          (left-3 + h-11 reaches 56px in) on every slide past
+                          the first, where the Prev arrow becomes visible. */}
+                      <div className="grid sm:grid-cols-2 gap-5 sm:gap-6 p-5 sm:py-7 sm:px-16 lg:py-8 text-navy-950 relative sm:h-full">
                         <div className="relative flex flex-col justify-center">
                           <div className="relative flex flex-col gap-4">
-                          <Badge tone={isPrimary ? 'limited' : 'new'} className="self-start">
+                          <Badge tone="limited" className="self-start">
                             <Gift className="h-3 w-3" /> Save {off ?? 28}%
                           </Badge>
-                          <h3 className="font-display text-2xl sm:text-3xl lg:text-[34px] font-semibold leading-tight text-white text-balance">
+                          <h3 className="font-display text-2xl sm:text-3xl lg:text-[34px] font-semibold leading-tight text-navy-950 text-balance">
                             {p.name}
                           </h3>
-                          <p className="text-white text-sm leading-relaxed">{p.shortDescription}</p>
+                          <p className="text-navy-950 text-sm leading-relaxed">{p.shortDescription}</p>
                           <div className="flex items-baseline gap-2 mt-1">
                             <span className="text-2xl sm:text-3xl font-bold">{formatPrice(p.price)}</span>
-                            {/* Full white: strikethrough + size carry the
-                                hierarchy; a /80 tint only spends contrast
-                                headroom the teal fill can't spare. */}
+                            {/* Full navy-950: on teal a /80 tint composites to
+                                ~4.0:1 (the concern-tile rule) — strikethrough
+                                + size carry the hierarchy instead. */}
                             {p.compareAtPrice && (
-                              <span className="text-sm text-white line-through">
+                              <span className="text-sm text-navy-950 line-through">
                                 {formatPrice(p.compareAtPrice)}
                               </span>
                             )}
                           </div>
-                            {/* Dark glass, not light: white/20 over the bare
-                                teal fill lets the chip's own tint push the
-                                white label under 3:1 (measured 2.87:1). */}
-                            <span className="inline-flex items-center gap-2 rounded-full bg-black/25 backdrop-blur-sm border border-white/25 self-start px-4 py-2 text-[13px] font-bold transition-colors group-hover:bg-black/35">
+                            {/* Light glass for the dark copy (the quiz band's
+                                eyebrow-chip recipe, 7.3:1 there). */}
+                            <span className="inline-flex items-center gap-2 rounded-full bg-white/25 backdrop-blur-sm border border-navy-950/15 self-start px-4 py-2 text-[13px] font-bold transition-colors group-hover:bg-white/35">
                               <Sparkles className="h-3.5 w-3.5" />
                               Shop the kit
                               <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />

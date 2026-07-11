@@ -7,19 +7,20 @@ import { cn } from '@/lib/cn';
 
 /**
  * Concern tiles. Client-specified backgrounds cycled in order by tile index:
- * olive → peach → lemon → teal → butter. The product photo renders in its
+ * olive → peach → lemon → teal → peach (Dullness moved from butter to peach
+ * #FFBDA3, July 2026 round-three follow-up). The product photo renders in its
  * ORIGINAL colors (no blend mode / overlay) — the tile color only shows behind
  * the text block and around the image edges. Olive and teal are mid-tone, so
  * those tiles switch copy to navy-950: on olive the /80 sub still clears AA
  * (4.7:1), on teal it must stay full-opacity (5.6:1; /80 composites to 4.0:1).
- * The three light tiles keep the standard navy/muted/brand palette.
+ * The light tiles keep the standard navy/muted palette.
  */
 const TILE_STYLES = [
   { bg: 'bg-tile-olive',  heading: 'text-navy-950', sub: 'text-navy-950/80', link: 'text-navy-950' },
   { bg: 'bg-tile-peach',  heading: 'text-navy-900', sub: 'text-ink-muted',   link: 'text-navy-900' },
   { bg: 'bg-tile-lemon',  heading: 'text-navy-900', sub: 'text-ink-muted',   link: 'text-brand-800' },
   { bg: 'bg-tile-teal',   heading: 'text-navy-950', sub: 'text-navy-950',    link: 'text-navy-950' },
-  { bg: 'bg-tile-butter', heading: 'text-navy-900', sub: 'text-ink-muted',   link: 'text-brand-800' },
+  { bg: 'bg-tile-peach',  heading: 'text-navy-900', sub: 'text-ink-muted',   link: 'text-navy-900' },
 ];
 
 export function ShopByConcern() {

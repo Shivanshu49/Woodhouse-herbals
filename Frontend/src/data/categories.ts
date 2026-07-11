@@ -10,6 +10,12 @@ export interface StoreCategory {
   slug: string;
   label: string;
   cardLabel: string;
+  /**
+   * Circle-bar art override. Without it the circle falls back to the first
+   * product's thumbnail, which misrepresents multi-product categories (the
+   * combo circle showed a lone face wash).
+   */
+  image?: string;
   /** Announced in the nav but not shippable yet — rendered with a badge. */
   comingSoon?: boolean;
 }
@@ -22,7 +28,7 @@ export const STORE_CATEGORIES: StoreCategory[] = [
   { slug: 'serum', label: 'Serum', cardLabel: 'Face Serum' },
   { slug: 'scrub', label: 'Scrub', cardLabel: 'Face Scrub' },
   { slug: 'cream', label: 'Face Cream', cardLabel: 'Face Cream' },
-  { slug: 'combo', label: 'Combo Kits', cardLabel: 'Combo Kit' },
+  { slug: 'combo', label: 'Combo Kits', cardLabel: 'Combo Kit', image: '/categories/combo-kits.jpg' },
   { slug: 'hair-oil', label: 'Hair care', cardLabel: 'Hair Oil', comingSoon: true },
 ];
 

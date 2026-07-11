@@ -52,13 +52,17 @@ export function Header() {
             <Menu className="h-5 w-5" />
           </button>
           <Link href="/" className="flex items-center" aria-label="Wood House Herbals home">
+            {/* Asset is the tight-trimmed 677x480 brand lockup; props stay a
+                2x display target in that exact ratio so the box hint can't
+                stretch it — height alone scales it (client: bigger, not
+                wider). */}
             <Image
               src="/brand/logo.png"
               alt="Wood House Herbals"
-              width={160}
-              height={107}
+              width={158}
+              height={112}
               priority
-              className="h-[50px] w-auto"
+              className="h-14 w-auto"
             />
           </Link>
         </div>
@@ -149,7 +153,7 @@ export function Header() {
           />
           <div className="absolute left-0 top-0 h-full w-[88%] max-w-sm bg-white p-6 shadow-xl flex flex-col">
             <div className="flex items-center justify-between mb-8">
-              <Image src="/brand/logo.png" alt="Wood House Herbals" width={120} height={40} className="h-9 w-auto" />
+              <Image src="/brand/logo.png" alt="Wood House Herbals" width={102} height={72} className="h-9 w-auto" />
               <button
                 onClick={() => setMobileOpen(false)}
                 className="rounded-full p-2 text-brand-forest/70 hover:bg-brand-cream"

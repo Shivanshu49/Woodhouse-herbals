@@ -9,7 +9,7 @@ export const concerns: ConcernCard[] = [
   },
   {
     slug: 'pigmentation',
-    title: 'Pigmentation',
+    title: 'Dark Spot & Pigmentation',
     description: 'Even out tone with Vit C & niacinamide rituals.',
     imageUrl: '/products/face-cream.png',
   },

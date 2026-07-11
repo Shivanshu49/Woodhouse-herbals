@@ -45,8 +45,8 @@ export function Footer() {
             <Image
               src="/brand/logo.png"
               alt="Wood House Herbals"
-              width={151}
-              height={101}
+              width={135}
+              height={96}
               className="h-12 w-auto"
             />
           </Link>

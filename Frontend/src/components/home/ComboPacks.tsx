@@ -21,6 +21,12 @@ import { cn } from '@/lib/cn';
  * render — the gradient + contrast scrim read as a different, darker
  * colour). Teal is mid-tone, so like the concern grid's teal tile the copy
  * runs full-opacity navy-950 (5.6:1; white only reaches ~2.9:1).
+ *
+ * Round five: the art panel is pinned aspect-square at EVERY breakpoint.
+ * All slide art (combo kit shots + gift-box packshots) is exactly 1:1; the
+ * old sm:h-full panel inherited the text column's arbitrary ratio, so
+ * object-cover cut the top off the boxes (client: full image must show).
+ * Keep any new combo/hamper art square, or it will crop again.
  */
 
 /**
@@ -121,7 +127,7 @@ export function ComboPacks() {
                               <p className="text-navy-950 text-sm leading-relaxed">{h.description}</p>
                             </div>
                           </div>
-                          <div className="relative aspect-square sm:aspect-auto sm:h-full rounded-[1.75rem] overflow-hidden bg-white/10 ring-1 ring-white/20">
+                          <div className="relative aspect-square rounded-[1.75rem] overflow-hidden bg-white/10 ring-1 ring-white/20">
                             <Image
                               src={h.image}
                               alt={h.alt}
@@ -179,7 +185,7 @@ export function ComboPacks() {
                             </span>
                           </div>
                         </div>
-                        <div className="relative aspect-square sm:aspect-auto sm:h-full rounded-[1.75rem] overflow-hidden bg-white/10 ring-1 ring-white/20">
+                        <div className="relative aspect-square rounded-[1.75rem] overflow-hidden bg-white/10 ring-1 ring-white/20">
                           <Image
                             src={p.thumbnail.url}
                             alt={p.thumbnail.alt}

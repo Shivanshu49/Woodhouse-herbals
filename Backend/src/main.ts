@@ -8,6 +8,8 @@ import express from 'express';
 import type { NextFunction, Request, Response } from 'express';
 import { AppModule } from './app.module';
 import { loadEnv, env } from './common/config/env';
+import { PrismaService } from './common/prisma/prisma.service';
+import { assertRequiredPartialIndexes } from './common/db/required-partial-indexes';
 import { JwtAuthGuard } from './common/auth/jwt-auth.guard';
 import { RolesGuard } from './common/auth/roles.guard';
 import { SecurityLoggerInterceptor } from './common/security/security-logger.interceptor';
@@ -20,6 +22,13 @@ async function bootstrap() {
     bodyParser: false,
   });
   const logger = new Logger('Bootstrap');
+
+  // ── DB invariant gate ───────────────────────────────────────────
+  // The money-critical partial unique indexes (e.g. the refund
+  // double-payout guard) exist ONLY as raw migration SQL — Prisma 5
+  // cannot express them in schema.prisma, so nothing else defends them.
+  // Production refuses to serve traffic without them; dev warns.
+  await assertRequiredPartialIndexes(app.get(PrismaService));
 
   // ── Request body limits ─────────────────────────────────────────
   // 256 kb covers all current commerce payloads and blocks accidental DoS.

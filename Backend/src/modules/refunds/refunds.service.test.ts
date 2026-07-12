@@ -186,7 +186,7 @@ const MANUAL_DTO = {
   utrReference: 'UTR123456',
   disposition: RefundDisposition.RETURNED,
   reason: 'test',
-} as never;
+};
 
 // ── initiate: exactly-once gates ────────────────────────────────────────────
 
@@ -302,7 +302,7 @@ test('settle FAILED on a COD refund (no paymentId) skips the payment write', asy
 
 test('manual: COD refund on DELIVERED + RETURNED restocks every item with reason RETURNED', async () => {
   const { svc, calls } = makeService({ order: codOrder() });
-  const res = await svc.manual('order_1', MANUAL_DTO, 'admin_1');
+  const res = await svc.manual('order_1', MANUAL_DTO as never, 'admin_1');
   assert.equal(res.status, 'PROCESSED');
   assert.equal(calls.adjusts.length, ITEMS.length);
   assert.equal(calls.adjusts[0].reason, 'RETURNED');
@@ -312,7 +312,7 @@ test('manual: COD refund on DELIVERED + RETURNED restocks every item with reason
 
 test('manual: refunding a CANCELLED order never restocks (cancel already did)', async () => {
   const { svc, calls } = makeService({ order: codOrder({ status: OrderStatus.CANCELLED }) });
-  await svc.manual('order_1', MANUAL_DTO, 'admin_1');
+  await svc.manual('order_1', MANUAL_DTO as never, 'admin_1');
   assert.equal(calls.adjusts.length, 0);
 });
 
@@ -320,7 +320,7 @@ test('manual: a prior RETURNED refund (even FAILED) suppresses restock on retry'
   const { svc, calls } = makeService({
     order: codOrder({ refunds: [{ disposition: RefundDisposition.RETURNED }] }),
   });
-  await svc.manual('order_1', MANUAL_DTO, 'admin_1');
+  await svc.manual('order_1', MANUAL_DTO as never, 'admin_1');
   assert.equal(calls.adjusts.length, 0);
 });
 
@@ -338,11 +338,11 @@ test('manual: rejected with 409 when a SUCCESS online payment exists (must use g
   const { svc, calls } = makeService({
     order: codOrder({ payments: [{ id: 'pay_1' }] }),
   });
-  await assert.rejects(() => svc.manual('order_1', MANUAL_DTO, 'admin_1'), ConflictException);
+  await assert.rejects(() => svc.manual('order_1', MANUAL_DTO as never, 'admin_1'), ConflictException);
   assert.equal(calls.refundCreates.length, 0);
 });
 
 test('manual: P2002 double-submit maps to 409, not a double payout', async () => {
   const { svc } = makeService({ order: codOrder(), refundCreateThrows: p2002() });
-  await assert.rejects(() => svc.manual('order_1', MANUAL_DTO, 'admin_1'), ConflictException);
+  await assert.rejects(() => svc.manual('order_1', MANUAL_DTO as never, 'admin_1'), ConflictException);
 });

@@ -807,6 +807,17 @@ enum RefundDisposition {
   LOST
 }
 
+/// ⚠ TRIPWIRE — DOUBLE-PAYOUT GUARD LIVES OUTSIDE THIS FILE ⚠
+/// The partial unique index `refund_one_active_per_order`
+/// (UNIQUE ON "Refund"("orderId") WHERE status <> 'FAILED') exists ONLY as
+/// raw SQL in prisma/migrations/20260705014511_refunds_d1b/migration.sql —
+/// Prisma 5 cannot express it here; the `@@index([orderId])` below is NOT it.
+/// It is what turns a concurrent double-refund into a 409 instead of a
+/// double payout. Guarded by src/common/db/required-partial-indexes.ts
+/// (prod boot refuses without it) + scripts/assert-db-invariants.ts (CI).
+/// NEVER run `prisma db push` or resquash the migration history without
+/// migrating this index first. Delete this comment only if you also moved
+/// the index into the schema (Prisma ≥7.5 `partialIndexes` preview).
 model Refund {
   id               String       @id @default(cuid())
   order            Order        @relation(fields: [orderId], references: [id], onDelete: Cascade)

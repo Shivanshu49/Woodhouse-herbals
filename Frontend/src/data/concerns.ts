@@ -11,7 +11,9 @@ export const concerns: ConcernCard[] = [
     slug: 'pigmentation',
     title: 'Dark Spot & Pigmentation',
     description: 'Even out tone with Vit C & niacinamide rituals.',
-    imageUrl: '/products/face-cream.png',
+    // Client-supplied night-gel packshot (July round four), backdrop extended
+    // to the tile's 5:4 so object-cover crops nothing.
+    imageUrl: '/products/night-gel-jar.png',
   },
   {
     slug: 'dry-skin',

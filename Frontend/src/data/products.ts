@@ -400,7 +400,10 @@ export const products: Product[] = [
     reviewCount: 198,
     badges: [{ label: 'New', tone: 'new' }],
     category: 'cream',
-    concerns: ['acne', 'dullness'],
+    // 'pigmentation' added July round four: the client picked this jar for the
+    // Dark Spot & Pigmentation tile, so the tile's /shop?concern=pigmentation
+    // listing must include it (niacinamide/glycolic are brightening actives).
+    concerns: ['acne', 'dullness', 'pigmentation'],
     skinTypes: ['oily', 'combination', 'normal'],
     inStock: true,
     size: '50 g',

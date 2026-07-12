@@ -2,15 +2,19 @@ import { Module } from '@nestjs/common';
 import { RazorpayController } from './razorpay.controller';
 import { RazorpayService } from './razorpay.service';
 import { RazorpayClient } from './razorpay.client';
+import { RazorpaySettlementService } from './razorpay-settlement.service';
+import { RefundsModule } from '../refunds/refunds.module';
 
 /**
- * Razorpay gateway module (Phase 3 shell: initiate + webhook verify/claim).
- * WebhookEventsService arrives via the @Global SecurityModule; settlement
- * wiring (RefundsModule import, order events) lands in Phase 4/5.
+ * Razorpay gateway module. One-directional import of RefundsModule (the
+ * same shape the PhonePe module used) so refund webhooks settle through
+ * RefundsService — the single refund money path. WebhookEventsService and
+ * OrderEventsService arrive via @Global modules.
  */
 @Module({
+  imports: [RefundsModule],
   controllers: [RazorpayController],
-  providers: [RazorpayService, RazorpayClient],
-  exports: [RazorpayService],
+  providers: [RazorpayService, RazorpayClient, RazorpaySettlementService],
+  exports: [RazorpayService, RazorpaySettlementService],
 })
 export class RazorpayModule {}

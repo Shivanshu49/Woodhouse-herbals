@@ -11,7 +11,8 @@ import {
 import { Throttle } from '@nestjs/throttler';
 import type { Request } from 'express';
 import { RazorpayService } from './razorpay.service';
-import { InitiateRazorpayDto } from './dto/razorpay.dto';
+import { RazorpaySettlementService } from './razorpay-settlement.service';
+import { InitiateRazorpayDto, VerifyRazorpayDto } from './dto/razorpay.dto';
 import { Public } from '../../common/decorators/public.decorator';
 import { SESSION_COOKIE } from '../../common/auth/auth-types';
 import { WebhookEventsService } from '../../common/security/webhook-events.service';
@@ -25,6 +26,7 @@ export class RazorpayController {
   // are unaffected either way.
   constructor(
     @Inject(RazorpayService) private readonly razorpay: RazorpayService,
+    @Inject(RazorpaySettlementService) private readonly settlement: RazorpaySettlementService,
     @Inject(WebhookEventsService) private readonly webhooks: WebhookEventsService,
   ) {}
 
@@ -46,13 +48,17 @@ export class RazorpayController {
   }
 
   /**
-   * Webhook SHELL (Phase 3): verify + claim + ack ONLY — settlement lands in
-   * Phase 4. Public; authenticated by X-Razorpay-Signature over the RAW
-   * request bytes (express.raw mounted in app.setup.ts — see
-   * RAZORPAY_WEBHOOK_RAW_PATH for the lockstep warning). Claimed events stay
-   * processed=false so Phase 4's processor and the Phase 6 sweeps pick them
-   * up. Generous throttle: the signature is the real auth; 300/min is DoS
-   * hygiene that never 429s a legitimate provider retry burst.
+   * Webhook — PERSIST-THEN-ACK (plan §1.1[5]): verify → claim → respond 200
+   * → settle ASYNCHRONOUSLY. Razorpay marks a delivery failed after FIVE
+   * seconds; our settle transactions may run up to ADMIN_WRITE_TX_TIMEOUT_MS
+   * (20s), so inline settlement could time out and trigger spurious retries.
+   * A crash between ack and settle leaves the claim processed=false — the
+   * Phase 6 sweeps re-derive state from the provider (payments: order fetch;
+   * refunds: refund fetch), so nothing is lost. Public; authenticated by
+   * X-Razorpay-Signature over the RAW bytes (express.raw in app.setup.ts —
+   * see RAZORPAY_WEBHOOK_RAW_PATH for the lockstep warning). Generous
+   * throttle: the signature is the real auth; 300/min is DoS hygiene that
+   * never 429s a legitimate provider retry burst.
    */
   @Public()
   @Throttle({ default: { ttl: 60_000, limit: 300 } })
@@ -97,7 +103,41 @@ export class RazorpayController {
       payload: payload as never,
     });
 
-    // Phase 4 replaces this ack-only tail with persist-then-ack settlement.
+    if (claim.shouldProcess) {
+      // Fire-and-forget AFTER the response: the ack must beat the 5s
+      // deadline regardless of settle latency. Errors are captured into the
+      // claim (markFailed keeps processed=false → sweep backstop); success
+      // burns it (markProcessed) so redeliveries short-circuit.
+      setImmediate(() => {
+        this.settlement
+          .processWebhook(parsed)
+          .then(() => this.webhooks.markProcessed(claim.eventId))
+          .catch((err) => this.webhooks.markFailed(claim.eventId, err));
+      });
+    }
     return { received: true, duplicate: !claim.shouldProcess };
+  }
+
+  /**
+   * Client verify fast-path (plan §1.1[4]): the checkout signature is a
+   * HINT — the service re-fetches the payment from the API (authority #1)
+   * and settles through the SAME door as the webhook. Same Option-A
+   * ownership as initiate.
+   */
+  @Public()
+  @Throttle({ default: { ttl: 60_000, limit: 30 } })
+  @Post('verify')
+  verify(@Body() dto: VerifyRazorpayDto, @Req() req: Request) {
+    const sessionId = (req.cookies as Record<string, string> | undefined)?.[SESSION_COOKIE];
+    const userId = req.user?.sub;
+    if (!userId && !sessionId) throw new BadRequestException('No session');
+    return this.settlement.verifyFastPath({
+      orderNumber: dto.orderNumber,
+      userId,
+      sessionId,
+      razorpayOrderId: dto.razorpayOrderId,
+      razorpayPaymentId: dto.razorpayPaymentId,
+      razorpaySignature: dto.razorpaySignature,
+    });
   }
 }

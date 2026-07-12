@@ -140,7 +140,8 @@ export class RazorpaySettlementService {
             {
               orderId: payment.orderId,
               type: 'paid_on_non_pending',
-              note: 'Payment captured but the order had already left PENDING — needs manual review/refund.',
+              note:
+                'Payment captured but the order had already left PENDING. If the order shows PAID this is a SECOND charge — the in-system refund path is blocked by the one-refund-per-order guard; refund it via the Razorpay dashboard (the books entry lands as provider_refund_unmatched). A CANCELLED order can use the standard refund path.',
               meta: { providerPaymentId: entity.id, amountMinor: entity.amount },
             },
             tx,
@@ -175,7 +176,12 @@ export class RazorpaySettlementService {
       );
       return 'settled';
     }
-    return this.recoverNonInitiated(payment.id, payment.orderId, entity);
+    return this.recoverNonInitiated(
+      payment.id,
+      payment.orderId,
+      payment.order.cartSessionId,
+      entity,
+    );
   }
 
   /**
@@ -193,6 +199,7 @@ export class RazorpaySettlementService {
   private async recoverNonInitiated(
     paymentId: string,
     orderId: string,
+    cartSessionId: string | null,
     entity: RazorpayPaymentEntity,
   ): Promise<string> {
     const row = await this.prisma.payment.findUnique({
@@ -234,7 +241,7 @@ export class RazorpaySettlementService {
             note:
               adv.count === 1
                 ? 'Late capture recovered on a superseded payment attempt — order advanced to PAID.'
-                : 'Money captured AFTER this order was abandoned/cancelled — payment recovered to SUCCESS; refund it via the standard refund path.',
+                : 'Money captured on a payment attempt after the order left PENDING. If the order is CANCELLED, use the standard refund path; if it shows PAID this is a SECOND charge — refund it via the Razorpay dashboard (books entry lands as provider_refund_unmatched).',
             meta: {
               paymentId,
               providerPaymentId: entity.id,
@@ -255,6 +262,12 @@ export class RazorpaySettlementService {
             },
             tx,
           );
+          // Mirror settleSuccess: a recovered payment that PAID the order
+          // clears the backend cart too — both roads to PAID look the same.
+          if (cartSessionId) {
+            const cart = await tx.cart.findUnique({ where: { sessionId: cartSessionId } });
+            if (cart) await tx.cartLine.deleteMany({ where: { cartId: cart.id } });
+          }
         }
       },
       { timeout: env.ADMIN_WRITE_TX_TIMEOUT_MS },
@@ -313,6 +326,35 @@ export class RazorpaySettlementService {
       select: { id: true, orderId: true, status: true },
     });
     if (!row) {
+      // No Refund row — but is it OUR money? A dashboard-initiated refund
+      // (the plan's own prescribed manual resolution for anomaly holds)
+      // arrives exactly like this. Money that provably left the merchant
+      // balance is NEVER log-only: resolve the payment and persist.
+      const payment = await this.prisma.payment.findFirst({
+        where: { providerPaymentId: refund.payment_id },
+        select: { id: true, orderId: true },
+      });
+      if (payment) {
+        await this.events.record({
+          orderId: payment.orderId,
+          type: 'provider_refund_unmatched',
+          note: 'A refund was processed at the provider (e.g. dashboard-initiated) with no matching refund record — reconcile the books manually.',
+          meta: {
+            paymentId: payment.id,
+            providerRefundId: refund.id,
+            amountMinor: refund.amount,
+            providerStatus: refund.status,
+          },
+        });
+        this.logger.error(
+          JSON.stringify({
+            scope: 'razorpay:settle:provider_refund_unmatched',
+            orderId: payment.orderId,
+            rzpRefundId: refund.id,
+          }),
+        );
+        return 'provider-refund-unmatched';
+      }
       this.logger.warn(
         JSON.stringify({ scope: 'razorpay:settle:unknown_refund', rzpRefundId: refund.id }),
       );

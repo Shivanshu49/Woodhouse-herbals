@@ -343,7 +343,39 @@ export class RefundsService {
             rawResponse: (raw ?? undefined) as Prisma.InputJsonValue | undefined,
           },
         });
-        if (claimed.count !== 1) return; // already settled by the other entry point — no-op
+        if (claimed.count !== 1) {
+          // Already settled by the other entry point. ONE addition (Razorpay
+          // plan §3 item 4, placed HERE so it is atomic with the claim): a
+          // terminal provider SUCCESS arriving after this refund was
+          // concluded FAILED is a books contradiction (customer refunded,
+          // books say not) — persist the tripwire, never silently drop it.
+          // The blocked updateMany above guarantees the concurrent writer
+          // has committed, so this re-read deterministically sees its state.
+          if (state === 'PROCESSED') {
+            const row = await tx.refund.findUnique({
+              where: { id: refundId },
+              select: { status: true, orderId: true },
+            });
+            if (row?.status === 'FAILED') {
+              const already = await tx.orderEvent.findFirst({
+                where: { orderId: row.orderId, type: 'refund_settled_after_conclude' },
+                select: { id: true },
+              });
+              if (!already) {
+                await this.events.record(
+                  {
+                    orderId: row.orderId,
+                    type: 'refund_settled_after_conclude',
+                    note: 'Provider reports this refund PROCESSED but it was concluded FAILED — books contradiction, reconcile manually.',
+                    meta: { refundId, providerRefundId: providerRefundId ?? null },
+                  },
+                  tx,
+                );
+              }
+            }
+          }
+          return;
+        }
         const refund = await tx.refund.findUnique({
           where: { id: refundId },
           select: { orderId: true, paymentId: true },

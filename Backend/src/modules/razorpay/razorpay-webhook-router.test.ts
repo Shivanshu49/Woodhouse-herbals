@@ -83,6 +83,16 @@ test('an event with no payment/refund entity ⇒ kind unknown (ack + log)', () =
   assert.deepEqual(parsed, { kind: 'unknown', event: 'invoice.paid' });
 });
 
+test('REVIEW-FIX: a payment entity WITHOUT order_id (Payment Links etc.) is unknown, not a poison claim', () => {
+  // Without this, `providerTxnId: undefined` would throw a Prisma validation
+  // error in the settlement lookup and markFailed the claim forever.
+  const { order_id: _dropped, ...noOrderId } = paymentEntity;
+  const parsed = parseWebhookEnvelope(
+    envelope('payment.captured', ['payment'], { payment: { entity: noOrderId } }),
+  );
+  assert.equal(parsed.kind, 'unknown');
+});
+
 test('malformed envelopes (missing payload / non-object / wrong nesting) ⇒ unknown, never throw', () => {
   assert.equal(parseWebhookEnvelope({}).kind, 'unknown');
   assert.equal(parseWebhookEnvelope(null).kind, 'unknown');

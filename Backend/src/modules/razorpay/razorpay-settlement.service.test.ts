@@ -34,6 +34,8 @@ interface Cfg {
   /** order.updateMany result (PENDING→PAID CAS). */
   orderCasCount?: number;
   refundRow?: { id: string; orderId: string; status: string } | null;
+  /** prisma.payment.findFirst hit for the provider-refund-unmatched lookup. */
+  paymentByProviderPaymentId?: { id: string; orderId: string } | null;
   existingMismatchEvent?: boolean;
   orderRow?: Record<string, unknown> | null;
   fetchedEntity?: Record<string, unknown>;
@@ -84,6 +86,7 @@ function makeService(cfg: Cfg) {
         if (args.where.providerTxnId !== (cfg.paymentRow as any)?.providerTxnId) return null;
         return cfg.paymentRow ?? null;
       },
+      findFirst: async () => cfg.paymentByProviderPaymentId ?? null,
       updateMany: tx.payment.updateMany,
     },
     order: {
@@ -338,16 +341,59 @@ test('TRIPWIRE: provider PROCESSED on a refund we concluded FAILED persists refu
   assert.equal(calls.events[0].type, 'refund_settled_after_conclude');
 });
 
-test('unknown payment / unknown refund ack quietly (never make the provider retry forever)', async () => {
+test('unknown payment / truly-foreign refund ack quietly (never make the provider retry forever)', async () => {
   const { svc: s1, calls: c1 } = makeService({ paymentRow: null });
   assert.equal(await s1.processPaymentEntity(CAPTURED), 'unknown-payment');
   assert.equal(c1.paymentUpdateManys.length, 0);
-  const { svc: s2, calls: c2 } = makeService({ refundRow: null });
+  const { svc: s2, calls: c2 } = makeService({ refundRow: null, paymentByProviderPaymentId: null });
   assert.equal(
     await s2.processRefundEntity({ id: 'rfnd_x', status: 'processed', amount: 1, payment_id: 'p' }),
     'unknown-refund',
   );
   assert.equal(c2.refundSettles.length, 0);
+  assert.equal(c2.events.length, 0, 'a refund that matches NONE of our payments stays log-only');
+});
+
+test('REVIEW-FIX: a dashboard refund of OUR payment persists provider_refund_unmatched — never log-only money', async () => {
+  const { svc, calls } = makeService({
+    refundRow: null,
+    paymentByProviderPaymentId: { id: 'payrow_1', orderId: 'order_db_1' },
+  });
+  const outcome = await svc.processRefundEntity({
+    id: 'rfnd_dash',
+    status: 'processed',
+    amount: 49900,
+    payment_id: 'pay_1',
+  });
+  assert.equal(outcome, 'provider-refund-unmatched');
+  const anomaly = calls.events.find((e) => e.type === 'provider_refund_unmatched');
+  assert.ok(anomaly, 'money that left the merchant balance must have a book entry');
+  assert.equal(anomaly.meta.providerRefundId, 'rfnd_dash');
+  assert.equal(calls.refundSettles.length, 0, 'no Refund row is invented');
+});
+
+test('REVIEW-FIX: the recovery race-loser (FAILED CAS count 0) no-ops without a duplicate anomaly event', async () => {
+  const { svc, calls } = makeService({
+    paymentRow: PAYMENT_ROW,
+    initiatedCasCount: 0,
+    reReadStatus: 'FAILED',
+    recoveryCasCount: 0, // another recovery won the FAILED→SUCCESS race
+  });
+  const outcome = await svc.processPaymentEntity(CAPTURED);
+  assert.equal(outcome, 'already-terminal');
+  assert.equal(calls.events.length, 0, 'the winner persisted the anomaly; the loser must not duplicate it');
+});
+
+test('REVIEW-FIX: a supersede-advance recovery clears the backend cart, mirroring settleSuccess', async () => {
+  const { svc, calls } = makeService({
+    paymentRow: PAYMENT_ROW,
+    initiatedCasCount: 0,
+    reReadStatus: 'FAILED',
+    recoveryCasCount: 1,
+    orderCasCount: 1,
+  });
+  await svc.processPaymentEntity(CAPTURED);
+  assert.equal(calls.cartLineDeletes.length, 1, 'both roads to PAID clear the cart');
 });
 
 // ── verify fast-path guards ──────────────────────────────────────────────────
@@ -382,7 +428,7 @@ test('verify: ownership masks as 404; bad signature is a 400; foreign tuple is a
   await assert.rejects(() => foreign.verifyFastPath({ ...input, userId: 'user_1' }), BadRequestException);
 });
 
-test('mismatch anomaly event is persisted at most once per order (dedupe)', async () => {
+test('mismatch anomaly dedupe: a SEQUENTIAL second observation does not duplicate the event (best-effort — the concurrent-distinct-delivery race is accepted as timeline noise, review cluster G)', async () => {
   const { svc, calls } = makeService({ paymentRow: PAYMENT_ROW, existingMismatchEvent: true });
   await svc.processPaymentEntity({ ...CAPTURED, amount: 100 });
   assert.equal(calls.events.length, 0, 'second observation does not duplicate the event');

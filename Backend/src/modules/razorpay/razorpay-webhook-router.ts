@@ -40,8 +40,17 @@ function entityOf(payload: unknown, key: string): Record<string, unknown> | unde
 }
 
 function isPayment(e: Record<string, unknown> | undefined): e is Record<string, unknown> {
+  // order_id is REQUIRED: a legitimate non-Orders payment (e.g. a Payment
+  // Link on the same account) has none — without this check it would reach
+  // the settlement lookup as `providerTxnId: undefined`, throw a Prisma
+  // validation error, and poison its claim (markFailed forever) instead of
+  // acking as not-ours.
   return (
-    !!e && typeof e.id === 'string' && typeof e.status === 'string' && typeof e.amount === 'number'
+    !!e &&
+    typeof e.id === 'string' &&
+    typeof e.status === 'string' &&
+    typeof e.amount === 'number' &&
+    typeof e.order_id === 'string'
   );
 }
 

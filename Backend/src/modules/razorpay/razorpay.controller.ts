@@ -112,7 +112,22 @@ export class RazorpayController {
         this.settlement
           .processWebhook(parsed)
           .then(() => this.webhooks.markProcessed(claim.eventId))
-          .catch((err) => this.webhooks.markFailed(claim.eventId, err));
+          .catch((err) => this.webhooks.markFailed(claim.eventId, err))
+          // Terminal, log-only, touches no external resource: if markFailed
+          // ITSELF rejects (the DB blip that failed the settle), an
+          // unhandled rejection here would kill the whole process under
+          // Node's default policy. Worst case must be a logged, unprocessed
+          // claim — never a crashed API.
+          .catch((e2) => {
+            // eslint-disable-next-line no-console
+            console.error(
+              JSON.stringify({
+                scope: 'razorpay:webhook:tail_unrecoverable',
+                eventId: claim.eventId,
+                err: String(e2).slice(0, 300),
+              }),
+            );
+          });
       });
     }
     return { received: true, duplicate: !claim.shouldProcess };

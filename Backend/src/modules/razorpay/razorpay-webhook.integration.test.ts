@@ -57,19 +57,33 @@ const seenKeys = new Set<string>();
 
 const processedIds: string[] = [];
 const failedIds: string[] = [];
+const processedKeys = new Set<string>();
+const keyToEventId = new Map<string, string>();
+let markFailedRejectsOnce = false;
 
+// Mirrors the REAL WebhookEventsService semantics: a duplicate of an
+// UNPROCESSED claim re-claims (shouldProcess=true); only a processed one
+// short-circuits — the review flagged the earlier always-duplicate fake.
 const fakeWebhookEvents = {
   record: async (input: RecordedClaim) => {
     claims.push(input);
     const key = input.idempotencyKey ?? `raw:${input.rawBody}`;
-    const duplicate = seenKeys.has(key);
+    const existing = keyToEventId.get(key);
+    if (existing) return { shouldProcess: !processedKeys.has(key), eventId: existing };
+    const eventId = `evt_${claims.length}`;
+    keyToEventId.set(key, eventId);
     seenKeys.add(key);
-    return { shouldProcess: !duplicate, eventId: `evt_${claims.length}` };
+    return { shouldProcess: true, eventId };
   },
   markProcessed: async (id: string) => {
     processedIds.push(id);
+    for (const [k, v] of keyToEventId) if (v === id) processedKeys.add(k);
   },
   markFailed: async (id: string) => {
+    if (markFailedRejectsOnce) {
+      markFailedRejectsOnce = false;
+      throw new Error('simulated DB blip inside markFailed');
+    }
     failedIds.push(id);
   },
 };
@@ -171,7 +185,7 @@ test('missing signature ⇒ 400; missing body ⇒ 400', async () => {
   assert.equal(noBody.status, 400);
 });
 
-test('a redelivered event id still ACKs 200 but is flagged duplicate (claim short-circuit)', async () => {
+test('a redelivered event id: unprocessed retry RE-CLAIMS; processed retry short-circuits duplicate', async () => {
   const body = '{"entity":"event","event":"refund.processed","contains":["refund"],"payload":{"refund":{"entity":{"id":"rfnd_1","status":"processed","amount":100,"payment_id":"pay_1"}}}}';
   const send = () =>
     request(app.getHttpServer())
@@ -182,9 +196,36 @@ test('a redelivered event id still ACKs 200 but is flagged duplicate (claim shor
       .send(body);
   const first = await send();
   assert.deepEqual(first.body, { received: true, duplicate: false });
+  // Let the settle finish and burn the claim.
+  await waitFor(() => settleStarted >= 1);
+  settleGate!.resolve();
+  await waitFor(() => processedIds.length >= 1);
   const second = await send();
   assert.equal(second.status, 200, 'retries must always be ACKed — never make the provider retry forever');
   assert.deepEqual(second.body, { received: true, duplicate: true });
+});
+
+test('REVIEW-FIX: markFailed itself rejecting must NOT crash the process (terminal catch)', async () => {
+  settleStarted = 0;
+  markFailedRejectsOnce = true;
+  const body = '{"entity":"event","event":"payment.captured","contains":["payment"],"payload":{"payment":{"entity":{"id":"pay_11","status":"captured","amount":100,"order_id":"order_X"}}}}';
+  const res = await request(app.getHttpServer())
+    .post('/api/razorpay/webhook')
+    .set('Content-Type', 'application/json')
+    .set('X-Razorpay-Signature', sign(body))
+    .set('X-Razorpay-Event-Id', 'evt_tail_crash')
+    .send(body);
+  assert.equal(res.status, 200);
+  await waitFor(() => settleStarted === 1);
+  settleGate!.reject(new Error('settle crash')); // → markFailed → which ALSO rejects
+  // Give the tail time to unwind; an unhandled rejection would kill this
+  // whole test process. Proof of life: the app still answers.
+  await new Promise((r) => setTimeout(r, 100));
+  const alive = await request(app.getHttpServer())
+    .post('/api/razorpay/webhook')
+    .set('Content-Type', 'application/json')
+    .send('{}');
+  assert.equal(alive.status, 400, 'API is still serving after the double-fault tail');
 });
 
 test('ATTACK#4a: the 200 ack returns BEFORE a deliberately slow settlement completes; markProcessed only after', async () => {

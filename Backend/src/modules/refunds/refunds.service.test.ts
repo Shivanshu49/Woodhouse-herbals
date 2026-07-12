@@ -64,7 +64,7 @@ interface FakeConfig {
   /** result of the settle claim tx.refund.updateMany */
   settleClaimCount?: number;
   /** row returned by tx.refund.findUnique inside settle */
-  settleRefundRow?: { orderId: string; paymentId: string | null } | null;
+  settleRefundRow?: { orderId: string; paymentId: string | null; status?: string } | null;
   /** provider client behavior */
   providerRefund?: () => Promise<PhonepeRefundResult>;
 }
@@ -99,6 +99,9 @@ function makeService(cfg: FakeConfig) {
         return { count: cfg.settleClaimCount ?? 1 };
       },
       findUnique: async () => cfg.settleRefundRow ?? null,
+    },
+    orderEvent: {
+      findFirst: async () => null, // tripwire dedupe: no prior anomaly event
     },
     payment: {
       update: async (args: any) => {
@@ -315,6 +318,32 @@ test('settle: PENDING is a no-op (not terminal)', async () => {
   const { svc, calls } = makeService({});
   await svc.settle('refund_1', 'PENDING');
   assert.equal(calls.refundUpdateManys.length, 0);
+});
+
+test('TRIPWIRE (in-claim): a terminal PROCESSED losing the claim to a FAILED conclude persists refund_settled_after_conclude ATOMICALLY', async () => {
+  // The adversarial review's TOCTOU: a caller-side pre-read misses the
+  // concurrent processed-vs-failed race. The tripwire therefore lives INSIDE
+  // settle's no-op branch (plan §3 item 4) — the blocked claim guarantees
+  // the concurrent FAILED writer committed, so the re-read sees it.
+  const { svc, calls } = makeService({
+    settleClaimCount: 0,
+    settleRefundRow: { orderId: 'order_1', paymentId: 'pay_1', status: 'FAILED' },
+  });
+  await svc.settle('refund_1', 'PROCESSED', 'rfnd_provider_1');
+  assert.equal(calls.paymentUpdates.length, 0, 'no money writes on a lost claim');
+  assert.equal(calls.orderUpdates.length, 0);
+  const tripwire = calls.events.find((e: any) => e.type === 'refund_settled_after_conclude');
+  assert.ok(tripwire, 'books contradiction must be persisted, never silently dropped');
+  assert.equal(tripwire.meta.refundId, 'refund_1');
+});
+
+test('TRIPWIRE (in-claim): a lost claim on a non-FAILED row (already PROCESSED) stays a silent no-op', async () => {
+  const { svc, calls } = makeService({
+    settleClaimCount: 0,
+    settleRefundRow: { orderId: 'order_1', paymentId: 'pay_1', status: 'PROCESSED' },
+  });
+  await svc.settle('refund_1', 'PROCESSED', 'rfnd_provider_1');
+  assert.equal(calls.events.length, 0, 'duplicate terminal delivery is not an anomaly');
 });
 
 test('settle: losing the PENDING-claim races to a silent no-op', async () => {

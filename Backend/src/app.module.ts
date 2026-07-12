@@ -17,6 +17,7 @@ import { CartModule } from './modules/cart/cart.module';
 import { OrdersModule } from './modules/orders/orders.module';
 import { CustomersModule } from './modules/customers/customers.module';
 import { PhonepeModule } from './modules/phonepe/phonepe.module';
+import { RazorpayModule } from './modules/razorpay/razorpay.module';
 import { InventoryModule } from './modules/inventory/inventory.module';
 import { ReviewsModule } from './modules/reviews/reviews.module';
 import { SearchModule } from './modules/search/search.module';
@@ -55,6 +56,7 @@ import { AdminContentModule } from './modules/admin-content/admin-content.module
     OrdersModule,
     CustomersModule,
     PhonepeModule,
+    RazorpayModule,
     InventoryModule,
     ReviewsModule,
     SearchModule,

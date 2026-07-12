@@ -118,10 +118,40 @@ const schema = z.object({
   // PhonePe — optional in dev so the app boots without payment credentials,
   // hard-required in prod (enforced in the refine block below). The dev
   // fallback values live in DEV_FALLBACKS so they are visible in one place.
+  // DELETED in Razorpay-migration Phase 7 (prod-required swap moves there too).
   PHONEPE_MERCHANT_ID: z.string().optional(),
   PHONEPE_SALT_KEY: z.string().optional(),
   PHONEPE_SALT_INDEX: z.string().default('1'),
   PHONEPE_BASE_URL: z.string().url().optional(),
+
+  // Razorpay — NO dev fallbacks by design (test-mode keys are real
+  // credentials; there is no safe committed equivalent of PhonePe's sandbox
+  // constants). Unset ⇒ the razorpay endpoints return 503 (the MSG91/
+  // Cloudinary pattern). Becomes prod-boot-required in Phase 7 when PhonePe
+  // is removed. WEBHOOK_SECRET_OLD exists only for the ≤24h rotation window
+  // (retried deliveries stay signed with the old secret) — clear it after.
+  RAZORPAY_KEY_ID: z.string().optional(),
+  RAZORPAY_KEY_SECRET: z.string().optional(),
+  RAZORPAY_WEBHOOK_SECRET: z.string().optional(),
+  RAZORPAY_WEBHOOK_SECRET_OLD: z.string().optional(),
+
+  // Express 'trust proxy' hop count. Default 1 = exactly one trusted proxy.
+  // ⚠ The deploy target is a Hostinger KVM VPS running Coolify (Traefik
+  // ingress) — NOT Railway, which the original analysis assumed. On that
+  // topology there is always ≥1 hop (Traefik), and with Cloudflare in front
+  // the chain is CF → Traefik → app (expected 2). The correct value MUST be
+  // verified empirically at cutover (log req.ip + the X-Forwarded-For chain
+  // on a test request); do not assume it from any prior analysis. Traefik
+  // must also be configured to trust forwarded headers only from Cloudflare
+  // ranges, or a client-forged XFF survives.
+  TRUST_PROXY_HOPS: z.coerce.number().int().min(0).max(4).default(1),
+
+  // Reconciliation cron knobs (consumed in Phase 6; declared with the rest
+  // of the payment config so the §5 env table stays the single source).
+  RECONCILE_PAYMENT_MIN_AGE_MIN: z.coerce.number().int().positive().default(15),
+  REFUND_CONCLUDE_MIN_AGE_MIN: z.coerce.number().int().positive().default(15),
+  PAYMENT_ABANDON_TTL_HOURS: z.coerce.number().int().positive().default(24),
+  RECONCILE_ANOMALY_MAX_OBSERVATIONS: z.coerce.number().int().positive().default(3),
 
   MEILI_HOST: z.string().url().optional(),
   MEILI_API_KEY: z.string().optional(),

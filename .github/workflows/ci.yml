@@ -133,6 +133,11 @@ jobs:
         run: npm run build
       - name: Test (node:test via tsx)
         run: npm test
+      # Boots the REAL app wiring (raw-body mount, parser ordering, guards)
+      # and fails if the razorpay webhook raw mount and controller route
+      # ever diverge — the most fragile coupling in the gateway swap.
+      - name: Integration tests (full app boot)
+        run: npm run test:integration
 
   # ────────────────────────────────────────────────────────────
   # AI service — FastAPI

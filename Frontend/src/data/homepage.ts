@@ -4,7 +4,7 @@ import { concerns } from './concerns';
 
 export const homepage: HomepagePayload = {
   offerStrip: [
-    { headline: 'AMAZING OFFER · Get extra 20% off on ₹499+, use code WH20', code: 'WH20', href: '/shop' },
+    { headline: 'AMAZING OFFER · Get 25% off on purchase of ₹499 & above, use code WH25', code: 'WH25', href: '/shop' },
     { headline: 'Free shipping on orders above ₹499', href: '/shop' },
     { headline: 'Cash on delivery available across India', href: '/shop' },
     { headline: 'No Sulphate · No Silicone · No Paraben · Made in India', href: '/about' },
@@ -17,7 +17,7 @@ export const homepage: HomepagePayload = {
     ctaLabel: 'Explore the ritual',
     ctaHref: '/shop',
     image: '/products/vitamin-c-face-wash.png',
-    accent: 'Extra 20% OFF · Code WH20',
+    accent: '25% OFF on ₹499+ · Code WH25',
   },
   bestsellers: productSummaries.filter((p) => p.badges?.some((b) => b.tone === 'bestseller')),
   newArrivals: productSummaries.filter((p) => p.badges?.some((b) => b.tone === 'new')),

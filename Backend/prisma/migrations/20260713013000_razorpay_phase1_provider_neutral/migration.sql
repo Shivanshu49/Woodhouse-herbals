@@ -36,8 +36,24 @@ ALTER TABLE "Payment" ADD COLUMN "providerPaymentId" TEXT;
 -- INITIATED row per order (createdAt, id as deterministic tie-break), mark
 -- the rest FAILED (superseded). No live storefront has ever run: these rows
 -- are dev/staging artifacts, never captured money.
-UPDATE "Payment" p
-SET    "status" = 'FAILED'
+--
+-- AUDIT (CP1 addition): the demotion set is materialised into a
+-- transaction-local table and printed via RAISE NOTICE BEFORE the UPDATE
+-- runs, and the UPDATE demotes exactly the audited rows (same set by
+-- construction — the predicate is evaluated once, at INSERT time).
+CREATE TABLE "_phase1_payment_demotion_audit" (
+  "paymentId"     TEXT PRIMARY KEY,
+  "orderId"       TEXT NOT NULL,
+  "createdAt"     TIMESTAMP(3) NOT NULL,
+  "status"        TEXT NOT NULL,
+  "providerTxnId" TEXT,
+  "amountMinor"   INTEGER NOT NULL
+);
+
+INSERT INTO "_phase1_payment_demotion_audit"
+  ("paymentId", "orderId", "createdAt", "status", "providerTxnId", "amountMinor")
+SELECT p."id", p."orderId", p."createdAt", p."status"::text, p."providerTxnId", p."amountMinor"
+FROM   "Payment" p
 WHERE  p."status" = 'INITIATED'
   AND EXISTS (
     SELECT 1
@@ -47,6 +63,31 @@ WHERE  p."status" = 'INITIATED'
       AND  (newer."createdAt" > p."createdAt"
             OR (newer."createdAt" = p."createdAt" AND newer."id" > p."id"))
   );
+
+DO $$
+DECLARE
+  r RECORD;
+  n INTEGER;
+BEGIN
+  SELECT count(*) INTO n FROM "_phase1_payment_demotion_audit";
+  RAISE NOTICE 'phase1 demotion audit: % INITIATED payment row(s) will be marked FAILED (superseded):', n;
+  FOR r IN
+    SELECT * FROM "_phase1_payment_demotion_audit"
+    ORDER BY "orderId", "createdAt", "paymentId"
+  LOOP
+    RAISE NOTICE '  order=% payment=% createdAt=% status=% providerTxnId=% amountMinor=%',
+      r."orderId", r."paymentId", r."createdAt", r."status", r."providerTxnId", r."amountMinor";
+  END LOOP;
+END $$;
+
+UPDATE "Payment"
+SET    "status" = 'FAILED'
+WHERE  "id" IN (SELECT "paymentId" FROM "_phase1_payment_demotion_audit");
+
+-- Transaction-local: the durable record is the NOTICE stream in the
+-- migration output (and the demoted rows themselves); leaving the table
+-- would make the next `prisma migrate dev` try to drop an unknown table.
+DROP TABLE "_phase1_payment_demotion_audit";
 
 -- §2d — one INITIATED payment per order: closes the read-then-create race in
 -- initiate (double-click / two tabs ⇒ two payable provider orders ⇒ possible

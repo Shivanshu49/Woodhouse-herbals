@@ -27,11 +27,16 @@ import {
 
 const MARKER = 'WH-CIINVARIANT';
 
+/**
+ * Report violations and abort — by THROWING, not process.exit(1): exit()
+ * would skip the `finally` blocks that clean the probe rows out of the
+ * target DB and disconnect the client. main()'s catch sets the exit code.
+ */
 function fail(messages: string[]): never {
   for (const m of messages) {
     console.error(`❌ ${m}`);
   }
-  process.exit(1);
+  throw new Error('DB invariant assertion failed (see ❌ lines above)');
 }
 
 async function assertExistenceAndShape(prisma: PrismaClient): Promise<void> {
@@ -109,7 +114,14 @@ async function main(): Promise<void> {
   const prisma = new PrismaClient();
   try {
     await assertExistenceAndShape(prisma);
-    await assertDoublePayoutGuardBehavior(prisma);
+    // The behavior probe WRITES rows into the money tables. Never run it
+    // against a production database — shape-check only there. CI and local
+    // scratch DBs run the full probe.
+    if (process.env.NODE_ENV === 'production') {
+      console.log('⚠ NODE_ENV=production — skipping the write-probing behavior test (shape check only)');
+    } else {
+      await assertDoublePayoutGuardBehavior(prisma);
+    }
     console.log('✔ all DB invariants hold');
   } finally {
     await prisma.$disconnect();
@@ -117,6 +129,10 @@ async function main(): Promise<void> {
 }
 
 main().catch((e) => {
-  console.error('❌ DB invariant assertion crashed:', e);
+  if ((e as Error)?.message?.startsWith('DB invariant assertion failed')) {
+    console.error(`❌ ${(e as Error).message}`); // violations already printed above
+  } else {
+    console.error('❌ DB invariant assertion crashed:', e);
+  }
   process.exit(1);
 });

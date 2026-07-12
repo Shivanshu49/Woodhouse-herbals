@@ -106,6 +106,25 @@ test('record: P2002 duplicate of a PROCESSED event short-circuits (shouldProcess
   assert.deepEqual(claim, { shouldProcess: false, eventId: 'evt_prior' });
 });
 
+test('record: a KEYLESS duplicate is looked up by the DERIVED sha256 key', async () => {
+  // The fallback-key path must use the same derived key for the duplicate
+  // lookup that the insert used — a lookup by the (undefined) input key
+  // would crash on every retried keyless webhook.
+  const { svc, calls } = makeService({
+    create: () => {
+      throw p2002();
+    },
+    findUnique: () => ({ id: 'evt_prior', processed: true }),
+  });
+  const claim = await svc.record({ ...BASE_INPUT });
+  const derived = createHash('sha256')
+    .update(`${BASE_INPUT.provider}:${BASE_INPUT.rawBody}`)
+    .digest('hex');
+  const lookup = calls.findUniques[0] as { where: { idempotencyKey: string } };
+  assert.equal(lookup.where.idempotencyKey, derived);
+  assert.deepEqual(claim, { shouldProcess: false, eventId: 'evt_prior' });
+});
+
 test('record: P2002 with a vanished row rethrows (no silent claim)', async () => {
   const { svc } = makeService({
     create: () => {

@@ -21,9 +21,15 @@ import type { PhonepeRefundResult } from '../phonepe/phonepe-refund.client';
 // ── env fixture (the service reads env.ADMIN_WRITE_TX_TIMEOUT_MS; the lazy
 //    proxy validates the WHOLE schema on first read) ─────────────────────────
 beforeEach(() => {
-  process.env.DATABASE_URL ??= 'postgresql://x:x@localhost:5432/x';
-  process.env.JWT_ACCESS_SECRET ??= 'test_access_secret_long_enough';
-  process.env.JWT_REFRESH_SECRET ??= 'test_refresh_secret_long_enough';
+  // Hard-assign (never ??=): a developer shell exporting NODE_ENV=production
+  // or short secrets must not leak in — env.ts computed its prod strictness
+  // (minSecret=64) at module load, so the fixture secrets are 64 chars to be
+  // valid under EITHER mode, and NODE_ENV is pinned so the prod refine block
+  // (which would demand PhonePe creds and exit(1)) never runs.
+  process.env.NODE_ENV = 'test';
+  process.env.DATABASE_URL = 'postgresql://x:x@localhost:5432/x';
+  process.env.JWT_ACCESS_SECRET = 'a'.repeat(64);
+  process.env.JWT_REFRESH_SECRET = 'b'.repeat(64);
   resetEnvCacheForTests();
 });
 
@@ -37,6 +43,7 @@ function p2002(): Prisma.PrismaClientKnownRequestError {
 // ── configurable fakes ───────────────────────────────────────────────────────
 
 interface Calls {
+  orderFindUniques: any[];
   refundCreates: any[];
   refundUpdates: any[];
   refundUpdateManys: any[];
@@ -64,6 +71,7 @@ interface FakeConfig {
 
 function makeService(cfg: FakeConfig) {
   const calls: Calls = {
+    orderFindUniques: [],
     refundCreates: [],
     refundUpdates: [],
     refundUpdateManys: [],
@@ -111,7 +119,12 @@ function makeService(cfg: FakeConfig) {
   };
 
   const prisma = {
-    order: { findUnique: async () => cfg.order ?? null },
+    order: {
+      findUnique: async (args: any) => {
+        calls.orderFindUniques.push(args);
+        return cfg.order ?? null;
+      },
+    },
     refund: {
       findFirst: async () => null,
       updateMany: async (args: any) => {
@@ -248,6 +261,54 @@ test('initiate: unrefundable order status (PAID) is rejected before the money tx
   assert.equal(calls.paymentUpdateManys.length, 0);
 });
 
+test('initiate happy path: pins every money-critical write shape', async () => {
+  const { svc, calls } = makeService({ order: prepaidOrder() });
+  const res = await svc.initiate(
+    'order_1',
+    { disposition: RefundDisposition.RETURNED } as never,
+    'admin_1',
+  );
+
+  // The order lookup filters payments to SUCCESS — the COD-vs-online
+  // discriminator lives in the QUERY, not in JS.
+  assert.equal(calls.orderFindUniques[0].select.payments.where.status, 'SUCCESS');
+
+  // Payment CAS: SUCCESS → REFUND_PENDING on exactly the found payment.
+  assert.deepEqual(calls.paymentUpdateManys[0].where, { id: 'pay_1', status: 'SUCCESS' });
+  assert.deepEqual(calls.paymentUpdateManys[0].data, { status: 'REFUND_PENDING' });
+
+  // Refund row: full order amount (totalMinor, never subtotal), PENDING,
+  // gateway method, linked to the payment, actor recorded.
+  const created = calls.refundCreates[0].data;
+  assert.equal(created.amountMinor, 49900);
+  assert.equal(created.status, 'PENDING');
+  assert.equal(created.method, 'PHONEPE');
+  assert.equal(created.paymentId, 'pay_1');
+  assert.equal(created.actorId, 'admin_1');
+
+  // Deterministic merchant refund id derived from the row id — the retry
+  // dedupe / recheck handle (and the receipt/idempotency key under Razorpay).
+  assert.deepEqual(calls.refundUpdates[0].where, { id: 'refund_1' });
+  assert.equal(calls.refundUpdates[0].data.merchantRefundId, 'RFrefund1');
+
+  // Provider call carries the original txn, the derived id, and the amount.
+  assert.deepEqual(calls.providerRefunds[0], {
+    merchantRefundId: 'RFrefund1',
+    originalTxnId: 'TXN1',
+    merchantUserId: 'user_1',
+    amountMinor: 49900,
+  });
+
+  // Restock-at-initiation for RETURNED, audited per item on the order number.
+  assert.equal(calls.adjusts.length, ITEMS.length);
+  assert.equal(calls.adjusts[0].reason, 'RETURNED');
+  assert.equal(calls.adjusts[0].reference, 'WH-ABC123');
+
+  // refund_issued event; accepted-async provider response reports PENDING.
+  assert.equal(calls.events[0].type, 'refund_issued');
+  assert.deepEqual(res, { id: 'refund_1', status: 'PENDING' });
+});
+
 // ── settle: idempotent single money-state transition ────────────────────────
 
 test('settle: PENDING is a no-op (not terminal)', async () => {
@@ -273,6 +334,14 @@ test('settle PROCESSED: payment → REFUNDED, order → REFUNDED, refund_settled
     settleRefundRow: { orderId: 'order_1', paymentId: 'pay_1' },
   });
   await svc.settle('refund_1', 'PROCESSED', 'provider_ref_1');
+  // Pin the CLAIM SHAPE itself — the `status: 'PENDING'` filter IS the
+  // idempotency guard (a claim without it would let a late duplicate
+  // webhook re-settle a terminal refund). The Razorpay swap must keep
+  // this verbatim (plan §3).
+  const claim = calls.refundUpdateManys[0];
+  assert.deepEqual(claim.where, { id: 'refund_1', status: 'PENDING' });
+  assert.equal(claim.data.status, 'PROCESSED');
+  assert.equal(claim.data.providerRefundId, 'provider_ref_1');
   assert.equal(calls.paymentUpdates[0].data.status, 'REFUNDED');
   assert.equal(calls.orderUpdates[0].data.status, OrderStatus.REFUNDED);
   assert.equal(calls.events[0].type, 'refund_settled');
@@ -322,6 +391,24 @@ test('manual: a prior RETURNED refund (even FAILED) suppresses restock on retry'
   });
   await svc.manual('order_1', MANUAL_DTO as never, 'admin_1');
   assert.equal(calls.adjusts.length, 0);
+});
+
+test('manual: a prior NON-RETURNED refund does not suppress a RETURNED restock', async () => {
+  // Only a prior RETURNED refund means the goods already came back; a prior
+  // DAMAGED/LOST attempt must not block the restock of a genuine return.
+  const { svc, calls } = makeService({
+    order: codOrder({ refunds: [{ disposition: RefundDisposition.DAMAGED }] }),
+  });
+  await svc.manual('order_1', MANUAL_DTO as never, 'admin_1');
+  assert.equal(calls.adjusts.length, ITEMS.length);
+});
+
+test('manual: the COD guard reads a SUCCESS-filtered payments relation', async () => {
+  const { svc, calls } = makeService({ order: codOrder() });
+  await svc.manual('order_1', MANUAL_DTO as never, 'admin_1');
+  // The "was this paid online?" discriminator is the QUERY filter — a FAILED
+  // online attempt must not make a COD order un-refundable.
+  assert.equal(calls.orderFindUniques[0].select.payments.where.status, 'SUCCESS');
 });
 
 test('manual: DAMAGED disposition never restocks (unsellable goods)', async () => {

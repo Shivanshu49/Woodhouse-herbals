@@ -25,12 +25,23 @@ export interface RequiredPartialIndex {
   name: string;
   /** Migration directory that owns the CREATE UNIQUE INDEX statement. */
   migrationFile: string;
+  /**
+   * Verbatim fragments of the CANONICAL pg_get_indexdef output that carry the
+   * index's meaning (column + predicate). A same-named index with the wrong
+   * column or an inverted predicate must NOT pass the gate — UNIQUE+WHERE
+   * presence alone proves nothing. Capture fragments from a real DB:
+   *   SELECT indexdef FROM pg_indexes WHERE indexname = '<name>';
+   */
+  mustContain: readonly string[];
 }
 
 export const REQUIRED_PARTIAL_INDEXES: readonly RequiredPartialIndex[] = [
   {
     name: 'refund_one_active_per_order',
     migrationFile: '20260705014511_refunds_d1b',
+    // Canonical PG16 indexdef: CREATE UNIQUE INDEX refund_one_active_per_order
+    //   ON public."Refund" USING btree ("orderId") WHERE (status <> 'FAILED'::"RefundStatus")
+    mustContain: ['("orderId")', "status <> 'FAILED'"],
   },
   // Phase 1 adds: payment_one_initiated_per_order (initiate double-mint guard).
 ];
@@ -74,6 +85,16 @@ export function checkRequiredPartialIndexes(
           `Restore the partial index from prisma/migrations/${idx.migrationFile}.`,
       );
     }
+    for (const fragment of idx.mustContain) {
+      if (!row.indexdef.includes(fragment)) {
+        errors.push(
+          `Index "${idx.name}" exists but its definition drifted — expected fragment ` +
+            `${JSON.stringify(fragment)} not found (indexdef: ${row.indexdef}). A same-named ` +
+            `index on the wrong column/predicate enforces nothing; restore it from ` +
+            `prisma/migrations/${idx.migrationFile}.`,
+        );
+      }
+    }
   }
   return errors;
 }
@@ -91,10 +112,31 @@ interface RawQueryable {
  */
 export async function assertRequiredPartialIndexes(db: RawQueryable): Promise<void> {
   const names = REQUIRED_PARTIAL_INDEXES.map((i) => i.name);
-  const rows = await db.$queryRaw<PgIndexRow[]>(
-    Prisma.sql`SELECT indexname, indexdef FROM pg_indexes
-               WHERE schemaname = 'public' AND indexname IN (${Prisma.join(names)})`,
-  );
+  let rows: PgIndexRow[];
+  try {
+    rows = await db.$queryRaw<PgIndexRow[]>(
+      Prisma.sql`SELECT indexname, indexdef FROM pg_indexes
+                 WHERE schemaname = 'public' AND indexname IN (${Prisma.join(names)})`,
+    );
+  } catch (e) {
+    // Unreachable DB is a different failure from a missing index: fail fast
+    // with the gate's own message in prod (cannot VERIFY the invariants ⇒
+    // do not serve money traffic); stay boot-tolerant in dev/test, matching
+    // PrismaService.onModuleInit's swallowed $connect failure.
+    // Prisma init errors lead with a newline — trim before taking line 1.
+    const msg = ((e as Error)?.message ?? String(e)).trim().split('\n')[0];
+    if (env.NODE_ENV === 'production') {
+      // eslint-disable-next-line no-console
+      console.error(
+        `❌ Cannot verify DB invariants — database unreachable at boot (${msg}). ` +
+          'Refusing to start without proof that the money-critical indexes exist.',
+      );
+      process.exit(1);
+    }
+    // eslint-disable-next-line no-console
+    console.warn(`⚠ Skipping DB invariant check — database unreachable (${msg}).`);
+    return;
+  }
   const errors = checkRequiredPartialIndexes(REQUIRED_PARTIAL_INDEXES, rows);
   if (errors.length === 0) return;
 

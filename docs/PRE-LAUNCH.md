@@ -36,6 +36,11 @@ Content · Coupons all code-complete on `feat/admin-phase-e`).
 ## 4. Auth, cookies & deployment
 - [ ] **Deploy the NestJS backend.** Vercel currently serves only the frontend, so
       login/account/admin are dead on the live site until the API is hosted.
+- [ ] **`NODE_ENV=production` is load-bearing for the DB-invariant boot gate**
+      (`src/common/db/required-partial-indexes.ts` — the double-payout-guard
+      index check). Without it the gate only WARNS and the app serves traffic
+      even if the money-critical indexes are missing. The deploy environment
+      (Coolify service) must set it explicitly; `start:prod` does not.
 - [ ] **Same-site cookie domain.** Prod auth cookies are `SameSite=strict`, so the
       API must share a registrable domain with the storefront; set `COOKIE_DOMAIN`
       to stamp `Domain` on the auth cookies (see `Frontend/DEPLOY.md`).

@@ -62,6 +62,13 @@ migrated off mock data. Full batch tracked in `storefront-wiring.md`; headlines:
       their routes 404. Banner/offer **scheduling is stored but not enforced**.
 - [ ] **Homepage sections & coupons at checkout** already read live data
       (badges/`isCombo`; coupon preview/redeem) — the gap is the storefront pages.
+- [ ] **Offer strip / WH25 (July client round):** the client-approved offer
+      ("Get 25% off on purchase of ₹499 & above, use code WH25") lives only in
+      the frontend mock (`Frontend/src/data/homepage.ts`). Before wiring the
+      strip to `GET /homepage`: set the same copy in admin offer-strip content
+      (the dev seed still says `FLAT 20% OFF … GLOW20`) **and create the WH25
+      coupon** (PERCENT 25, min order ₹499) in admin — no coupon row exists for
+      any advertised code today, so WH25 would be rejected at checkout.
 
 ## 6. Coupons — enforced scope (by design)
 - [ ] Admins can only create **PERCENT / FLAT** coupons with a **category**

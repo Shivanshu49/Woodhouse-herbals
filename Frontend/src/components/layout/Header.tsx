@@ -41,8 +41,8 @@ export function Header() {
         scrolled ? 'shadow-[0_1px_3px_rgba(15,45,36,0.08)]' : 'shadow-none',
       )}
     >
-      <div className="mx-auto max-w-7xl flex h-20 items-center justify-between gap-6 px-6 md:px-10">
-        <div className="flex items-center gap-3">
+      <div className="mx-auto max-w-7xl flex h-20 items-center justify-between gap-3 md:gap-6 px-4 sm:px-6 md:px-10">
+        <div className="flex items-center gap-2 sm:gap-3">
           <button
             type="button"
             onClick={() => setMobileOpen(true)}
@@ -55,14 +55,17 @@ export function Header() {
             {/* Asset is the tight-trimmed 677x480 brand lockup; props stay a
                 2x display target in that exact ratio so the box hint can't
                 stretch it — height alone scales it (client: bigger, not
-                wider). */}
+                wider). On sub-390px phones the header row overflows and flex
+                shrinks this img's width while h-14 pins its height, squashing
+                the letterforms — object-contain keeps them proportional if
+                that ever happens again. */}
             <Image
               src="/brand/logo.png"
               alt="Wood House Herbals"
               width={158}
               height={112}
               priority
-              className="h-14 w-auto"
+              className="h-14 w-auto object-contain"
             />
           </Link>
         </div>

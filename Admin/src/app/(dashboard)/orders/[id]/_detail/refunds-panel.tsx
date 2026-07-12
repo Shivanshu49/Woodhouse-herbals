@@ -39,7 +39,7 @@ export function RefundsPanel({
             {r.utrReference ? ` · UTR ${r.utrReference}` : ''}
             {r.providerRefundId ? ` · ${r.providerRefundId}` : ''}
           </div>
-          {r.status === 'PENDING' && r.method === 'PHONEPE' && (
+          {r.status === 'PENDING' && r.method === 'GATEWAY' && (
             <Button size="sm" variant="outline" onClick={() => recheck.mutate()} disabled={recheck.isPending}>
               {recheck.isPending ? 'Re-checking…' : 'Re-check status'}
             </Button>

@@ -91,13 +91,16 @@ test('a same-named index with drifted column/predicate is rejected via mustConta
 });
 
 test('the shipped registry pins the real column + predicate fragments', () => {
-  // The canonical PG16 indexdef (captured from a real migrate-deployed DB)
-  // must satisfy the shipped mustContain list — guards against a registry
-  // typo that would brick every prod boot.
-  const errors = checkRequiredPartialIndexes(
-    REQUIRED_PARTIAL_INDEXES.filter((i) => i.name === 'refund_one_active_per_order'),
-    [GOOD_ROW],
-  );
+  // The canonical PG16 indexdefs (refund index captured from a real
+  // migrate-deployed DB; payment index in the same canonical form) must
+  // satisfy the shipped mustContain lists — guards against a registry typo
+  // that would brick every prod boot.
+  const PAYMENT_ROW: PgIndexRow = {
+    indexname: 'payment_one_initiated_per_order',
+    indexdef:
+      'CREATE UNIQUE INDEX payment_one_initiated_per_order ON public."Payment" USING btree ("orderId") WHERE (status = \'INITIATED\'::"PaymentStatus")',
+  };
+  const errors = checkRequiredPartialIndexes(REQUIRED_PARTIAL_INDEXES, [GOOD_ROW, PAYMENT_ROW]);
   assert.deepEqual(errors, []);
 });
 

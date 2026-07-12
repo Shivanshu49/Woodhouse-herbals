@@ -43,7 +43,13 @@ export const REQUIRED_PARTIAL_INDEXES: readonly RequiredPartialIndex[] = [
     //   ON public."Refund" USING btree ("orderId") WHERE (status <> 'FAILED'::"RefundStatus")
     mustContain: ['("orderId")', "status <> 'FAILED'"],
   },
-  // Phase 1 adds: payment_one_initiated_per_order (initiate double-mint guard).
+  {
+    name: 'payment_one_initiated_per_order',
+    migrationFile: '20260713013000_razorpay_phase1_provider_neutral',
+    // Expected canonical PG16 indexdef: CREATE UNIQUE INDEX payment_one_initiated_per_order
+    //   ON public."Payment" USING btree ("orderId") WHERE (status = 'INITIATED'::"PaymentStatus")
+    mustContain: ['("orderId")', "status = 'INITIATED'"],
+  },
 ];
 
 export interface PgIndexRow {

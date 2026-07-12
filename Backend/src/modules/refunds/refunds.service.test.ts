@@ -282,7 +282,7 @@ test('initiate happy path: pins every money-critical write shape', async () => {
   const created = calls.refundCreates[0].data;
   assert.equal(created.amountMinor, 49900);
   assert.equal(created.status, 'PENDING');
-  assert.equal(created.method, 'PHONEPE');
+  assert.equal(created.method, 'GATEWAY');
   assert.equal(created.paymentId, 'pay_1');
   assert.equal(created.actorId, 'admin_1');
 

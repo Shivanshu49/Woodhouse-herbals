@@ -70,7 +70,7 @@ export interface OrderItemDetail {
   lineTotalMinor: number;
 }
 
-export type RefundMethod = 'PHONEPE' | 'MANUAL';
+export type RefundMethod = 'GATEWAY' | 'MANUAL';
 export type RefundStatus = 'PENDING' | 'PROCESSED' | 'FAILED';
 export type RefundDisposition = 'RETURNED' | 'DAMAGED' | 'LOST';
 

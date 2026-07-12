@@ -238,7 +238,7 @@ export class RefundsService {
               orderId,
               paymentId: payment.id,
               amountMinor: order.totalMinor,
-              method: 'PHONEPE',
+              method: 'GATEWAY',
               disposition: dto.disposition,
               status: 'PENDING',
               reason: dto.reason,
@@ -269,7 +269,7 @@ export class RefundsService {
               actorId,
               note: 'PhonePe refund initiated',
               meta: {
-                method: 'PHONEPE',
+                method: 'GATEWAY',
                 disposition: dto.disposition,
                 amountMinor: order.totalMinor,
                 merchantRefundId,
@@ -420,7 +420,7 @@ export class RefundsService {
    */
   async recheck(orderId: string) {
     const refund = await this.prisma.refund.findFirst({
-      where: { orderId, method: 'PHONEPE', status: 'PENDING' },
+      where: { orderId, method: 'GATEWAY', status: 'PENDING' },
       select: { id: true, merchantRefundId: true },
     });
     if (!refund?.merchantRefundId) {

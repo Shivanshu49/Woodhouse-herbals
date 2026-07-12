@@ -732,14 +732,30 @@ model OrderItem {
   @@index([orderId])
 }
 
+/// ⚠ TRIPWIRE — DOUBLE-MINT GUARD LIVES OUTSIDE THIS FILE ⚠
+/// The partial unique index `payment_one_initiated_per_order`
+/// (UNIQUE ON "Payment"("orderId") WHERE status = 'INITIATED') exists ONLY as
+/// raw SQL in prisma/migrations/20260713013000_razorpay_phase1_provider_neutral/
+/// migration.sql — Prisma 5 cannot express it here. It closes the initiate
+/// read-then-create race (two payable provider orders for one order).
+/// Guarded by src/common/db/required-partial-indexes.ts (prod boot refuses
+/// without it) + scripts/assert-db-invariants.ts (CI). NEVER `prisma db push`
+/// or resquash the migration history without migrating it first.
 model Payment {
   id             String        @id @default(cuid())
   order          Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
   orderId        String
-  provider       String        @default("phonepe")
-  // Provider transaction id (e.g. merchantTransactionId) — globally unique
-  // and used as the idempotency key on callback handling.
+  // No DB default — the provider stamp is an explicit code-side write
+  // ('razorpay'), so a future gateway swap that forgets it fails loudly at
+  // insert instead of silently mislabelling money rows.
+  provider       String
+  // Provider ORDER id (rzp order_… / PhonePe merchantTransactionId) —
+  // globally unique, persisted at initiate, and used as the webhook lookup /
+  // idempotency handle.
   providerTxnId  String?       @unique
+  // Provider PAYMENT id (rzp pay_…) — written ONLY by the captured-settle
+  // path from the capturing payment entity; needed for refund creation.
+  providerPaymentId String?
   amountMinor    Int
   currency       Currency      @default(INR)
   status         PaymentStatus @default(INITIATED)
@@ -791,10 +807,13 @@ enum RefundStatus {
   FAILED
 }
 
-// How the refund is executed. PHONEPE = online refund API (async, callback +
-// recheck); MANUAL = COD out-of-band transfer recorded with a UTR (one-step).
+// How the refund is executed. GATEWAY = online refund via the payment
+// gateway's API (async, webhook + recheck) — WHICH gateway lives on the
+// linked Payment.provider, not here; MANUAL = COD out-of-band transfer
+// recorded with a UTR (one-step). Renamed from PHONEPE in the Razorpay
+// migration (metadata-only ALTER TYPE ... RENAME VALUE; history re-labelled).
 enum RefundMethod {
-  PHONEPE
+  GATEWAY
   MANUAL
 }
 

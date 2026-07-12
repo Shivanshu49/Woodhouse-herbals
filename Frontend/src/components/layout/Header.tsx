@@ -103,25 +103,27 @@ export function Header() {
         </div>
 
         <div className="flex items-center gap-2">
+          {/* Client (July round four): every navbar icon sits in a simple
+              green outlined circle — no fill, truck included. */}
           <button
             type="button"
             onClick={() => setSearchOpen(true)}
-            className="md:hidden inline-flex h-10 w-10 items-center justify-center rounded-full text-brand-forest hover:bg-brand-cream"
+            className="md:hidden inline-flex h-10 w-10 items-center justify-center rounded-full border-2 border-brand-leaf text-brand-forest hover:bg-brand-cream"
             aria-label="Search"
           >
             <Search className="h-5 w-5" />
           </button>
           <Link
-            href="/orders/track"
+            href="/account/orders"
             aria-label="Order tracking"
-            className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-brand-leaf text-white hover:bg-brand-forest transition-colors"
+            className="inline-flex h-10 w-10 items-center justify-center rounded-full border-2 border-brand-leaf text-brand-forest hover:bg-brand-cream transition-colors"
           >
-            <Truck className="h-4 w-4" />
+            <Truck className="h-5 w-5" />
           </Link>
           <Link
             href="/cart"
             aria-label={`Cart with ${safeCartCount} items`}
-            className="relative inline-flex h-10 w-10 items-center justify-center rounded-full text-brand-forest hover:bg-brand-cream"
+            className="relative inline-flex h-10 w-10 items-center justify-center rounded-full border-2 border-brand-leaf text-brand-forest hover:bg-brand-cream"
           >
             <ShoppingBag className="h-5 w-5" />
             {safeCartCount > 0 && (
@@ -134,12 +136,15 @@ export function Header() {
             href={signedIn ? '/account' : '/login'}
             aria-label={signedIn ? 'My account' : 'Sign in'}
             title={signedIn ? `Signed in as ${profile?.fullName}` : 'Sign in'}
-            className="relative inline-flex h-10 w-10 items-center justify-center rounded-full text-brand-forest hover:bg-brand-cream"
+            className="relative inline-flex h-10 w-10 items-center justify-center rounded-full border-2 border-brand-leaf text-brand-forest hover:bg-brand-cream"
           >
             <User className="h-5 w-5" />
             {signedIn && (
               <span
-                className="absolute top-1 right-1 h-2 w-2 rounded-full bg-brand-leaf ring-2 ring-white"
+                // top-2/right-2 keeps the dot + its white ring inside the
+                // button's new green border (outer reach 14.5px < 18px inner
+                // border edge) — at top-1 it fused with the same-color ring.
+                className="absolute top-2 right-2 h-2 w-2 rounded-full bg-brand-leaf ring-2 ring-white"
                 aria-hidden="true"
               />
             )}

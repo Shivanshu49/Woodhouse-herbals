@@ -63,21 +63,20 @@ test('the phantom-bearing mock modules are deleted', () => {
 });
 
 test('no surviving source imports a deleted mock-catalog module', () => {
-  const forbidden = [
-    "@/data/products",
-    "@/data/homepage",
-    "@/data/bestsellers",
-    "./products",
-    "./homepage",
-    "./bestsellers",
+  // Match any specifier that RESOLVES to one of the deleted modules, regardless
+  // of prefix — `@/data/products`, `./products`, `../../data/products`, etc. We
+  // key on the module basename immediately followed by a closing quote so a
+  // prose mention like "data/products.ts" (ends in .ts) does not false-match.
+  const bases = [
+    '/data/products', '/data/homepage', '/data/bestsellers', // @/data/… and ../…/data/…
+    './products', './homepage', './bestsellers', // same-dir relative from within src/data/
   ];
   const offenders: string[] = [];
   for (const file of sourceFiles(SRC)) {
     const text = readFileSync(file, 'utf8');
-    for (const mod of forbidden) {
-      // Match an actual import/from specifier, not an incidental substring.
-      if (text.includes(`'${mod}'`) || text.includes(`"${mod}"`)) {
-        offenders.push(`${file} → ${mod}`);
+    for (const base of bases) {
+      if (text.includes(`${base}'`) || text.includes(`${base}"`)) {
+        offenders.push(`${file} → …${base}`);
       }
     }
   }

@@ -41,7 +41,7 @@ export default function SkinAnalysisPage() {
   const [skinType, setSkinType] = useState<string | null>(null);
   const [concerns, setConcerns] = useState<string[]>([]);
   const [routine, setRoutine] = useState<string | null>(null);
-  const { products } = useCatalog();
+  const { products, isLoading, isError } = useCatalog();
 
   const recommendations = products
     .filter((p) => concerns.length === 0 || p.concerns.some((c) => concerns.includes(c)))
@@ -152,29 +152,49 @@ export default function SkinAnalysisPage() {
                 <Sparkles className="h-5 w-5 text-brand-600" />
                 <h2 className="font-display text-2xl text-navy-900">Your personalised ritual</h2>
               </div>
-              <p className="text-ink-muted mt-1 text-balance">
-                Based on your {skinType ?? 'skin'} skin and concerns
-                {concerns.length ? ` (${concerns.length} selected)` : ''}, here are the products we’d start with.
-              </p>
-              <ul className="mt-6 grid sm:grid-cols-2 gap-3">
-                {recommendations.map((p) => (
-                  <li key={p.id} className="flex gap-3 rounded-2xl bg-cream-200/60 p-3 border border-navy-900/5">
-                    <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-xl bg-white">
-                      <Image src={p.thumbnail.url} alt={p.thumbnail.alt} fill sizes="80px" className="object-cover" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium text-navy-900 line-clamp-2">{p.name}</p>
-                      <p className="text-xs text-ink-muted mt-0.5">{formatPrice(p.price)}</p>
-                      <Link
-                        href={`/shop/${p.slug}`}
-                        className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-navy-900 hover:text-brand-700"
-                      >
-                        View product <ArrowRight className="h-3 w-3" />
-                      </Link>
-                    </div>
-                  </li>
-                ))}
-              </ul>
+              {isError ? (
+                // Catalog is live now (no mock fallback) — be honest on outage.
+                <p className="text-ink-muted mt-1 text-balance">
+                  We couldn’t load recommendations right now. Please refresh in a
+                  moment, or browse the full shop below.
+                </p>
+              ) : isLoading ? (
+                <p className="text-ink-muted mt-1 text-balance">Finding products for your ritual…</p>
+              ) : recommendations.length === 0 ? (
+                // Live catalog loaded but nothing matches this combination (e.g. a
+                // concern whose product line hasn't launched). Don't promise a
+                // ritual over an empty list.
+                <p className="text-ink-muted mt-1 text-balance">
+                  We don’t have a live match for that exact combination yet — browse
+                  the full shop below to explore what’s in stock.
+                </p>
+              ) : (
+                <>
+                  <p className="text-ink-muted mt-1 text-balance">
+                    Based on your {skinType ?? 'skin'} skin and concerns
+                    {concerns.length ? ` (${concerns.length} selected)` : ''}, here are the products we’d start with.
+                  </p>
+                  <ul className="mt-6 grid sm:grid-cols-2 gap-3">
+                    {recommendations.map((p) => (
+                      <li key={p.id} className="flex gap-3 rounded-2xl bg-cream-200/60 p-3 border border-navy-900/5">
+                        <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-xl bg-white">
+                          <Image src={p.thumbnail.url} alt={p.thumbnail.alt} fill sizes="80px" className="object-cover" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-navy-900 line-clamp-2">{p.name}</p>
+                          <p className="text-xs text-ink-muted mt-0.5">{formatPrice(p.price)}</p>
+                          <Link
+                            href={`/shop/${p.slug}`}
+                            className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-navy-900 hover:text-brand-700"
+                          >
+                            View product <ArrowRight className="h-3 w-3" />
+                          </Link>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
             </>
           )}
 

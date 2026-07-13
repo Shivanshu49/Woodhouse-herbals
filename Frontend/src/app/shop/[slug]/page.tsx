@@ -29,7 +29,11 @@ async function fetchProductDetail(slug: string): Promise<ProductDetailResponse |
     cache: 'no-store',
     headers: { Accept: 'application/json' },
   });
-  if (res.status === 404) return null;
+  // A syntactically invalid slug (uppercase, underscore, space, leading/trailing
+  // hyphen, >82 chars) is rejected by the backend's SLUG_RE with a 400 BEFORE
+  // the lookup — it can never be a real product, so treat it as not-found (a
+  // branded 404), not as a 500. See products.controller.ts.
+  if (res.status === 404 || res.status === 400) return null;
   if (!res.ok) throw new Error(`Failed to load product "${slug}" (${res.status})`);
   return (await res.json()) as ProductDetailResponse;
 }

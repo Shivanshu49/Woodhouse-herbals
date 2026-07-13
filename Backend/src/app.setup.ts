@@ -88,7 +88,10 @@ export function configureApp(app: INestApplication): void {
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+    // Idempotency-Key: POST /orders reads it (orders.controller.ts) so a retry
+    // replays the same order. The storefront↔api split is cross-origin, so a
+    // custom header triggers a preflight that must allow it, or the POST fails.
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Idempotency-Key'],
     maxAge: 600,
   });
 

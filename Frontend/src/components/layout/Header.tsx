@@ -2,12 +2,13 @@
 
 import Link from 'next/link';
 import Image from 'next/image';
-import { useEffect, useState } from 'react';
-import { Menu, Search, ShoppingBag, Truck, User, X } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Search, ShoppingBag, Truck, User } from 'lucide-react';
 import { useCartStore } from '@/store/cart';
 import { useUiStore } from '@/store/ui';
 import { useProfile } from '@/hooks/use-auth';
 import { cn } from '@/lib/cn';
+import { MobileMenu } from './MobileMenu';
 
 const NAV_LINKS = [
   { label: 'Home', href: '/' },
@@ -19,6 +20,14 @@ export function Header() {
   const [scrolled, setScrolled] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const menuTriggerRef = useRef<HTMLButtonElement>(null);
+  // Stable identity — MobileMenu keys its scroll-lock/focus effects on this.
+  const closeMenu = useCallback(() => {
+    setMobileOpen(false);
+    // Restore keyboard position to the trigger — focus() runs before React
+    // commits the unmount, so it survives the drawer's removal.
+    menuTriggerRef.current?.focus();
+  }, []);
   const setSearchOpen = useUiStore((s) => s.setSearchOpen);
   const cartCount = useCartStore((s) => s.lines.reduce((acc, l) => acc + l.quantity, 0));
   const { data: profile } = useProfile();
@@ -45,11 +54,21 @@ export function Header() {
         <div className="flex items-center gap-2 sm:gap-3">
           <button
             type="button"
+            ref={menuTriggerRef}
             onClick={() => setMobileOpen(true)}
-            className="inline-flex lg:hidden h-10 w-10 items-center justify-center rounded-full text-brand-forest hover:bg-brand-cream"
+            className="-ml-1 inline-flex lg:hidden h-11 w-11 items-center justify-center rounded-full text-brand-forest hover:bg-brand-cream"
             aria-label="Open menu"
           >
-            <Menu className="h-5 w-5" />
+            {/* Bespoke menu glyph (July 2026 round — client asked for a larger,
+                characterful mark): three rounded strokes stepping down in
+                length, the middle finished with the brand's green dot — the
+                same dot the eyebrow labels and the logo's green "oo" carry. */}
+            <svg viewBox="0 0 28 28" className="h-8 w-8" fill="none" aria-hidden="true">
+              <path d="M4 7.5h20" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
+              <path d="M4 14h13.5" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
+              <circle cx="21.75" cy="14" r="1.9" className="fill-brand-500" />
+              <path d="M4 20.5h9" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
+            </svg>
           </button>
           <Link href="/" className="flex items-center" aria-label="Wood House Herbals home">
             {/* Asset is the tight-trimmed 677x480 brand lockup; props stay a
@@ -152,39 +171,7 @@ export function Header() {
         </div>
       </div>
 
-      {mobileOpen && (
-        <div className="fixed inset-0 z-[60] lg:hidden" role="dialog" aria-modal="true">
-          <button
-            aria-label="Close menu"
-            onClick={() => setMobileOpen(false)}
-            className="absolute inset-0 bg-brand-forest/40"
-          />
-          <div className="absolute left-0 top-0 h-full w-[88%] max-w-sm bg-white p-6 shadow-xl flex flex-col">
-            <div className="flex items-center justify-between mb-8">
-              <Image src="/brand/logo.png" alt="Wood House Herbals" width={102} height={72} className="h-9 w-auto" />
-              <button
-                onClick={() => setMobileOpen(false)}
-                className="rounded-full p-2 text-brand-forest/70 hover:bg-brand-cream"
-                aria-label="Close"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-            <nav className="flex flex-col gap-1">
-              {NAV_LINKS.map((l) => (
-                <Link
-                  key={l.href}
-                  href={l.href}
-                  onClick={() => setMobileOpen(false)}
-                  className="rounded-2xl px-4 py-3 font-display font-medium text-brand-forest hover:bg-brand-cream"
-                >
-                  {l.label}
-                </Link>
-              ))}
-            </nav>
-          </div>
-        </div>
-      )}
+      {mobileOpen && <MobileMenu onClose={closeMenu} signedIn={signedIn} />}
     </header>
   );
 }

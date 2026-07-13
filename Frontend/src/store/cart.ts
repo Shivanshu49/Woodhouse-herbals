@@ -10,6 +10,7 @@ import {
   subtotalOf,
   itemCountOf,
   planCartMigration,
+  MAX_PER_LINE,
 } from './cart-logic';
 
 /**
@@ -39,23 +40,46 @@ interface CartState {
   subtotal: () => Money;
 }
 
-// Monotonic request sequencing so an out-of-order stale response can't clobber a
-// newer one: only apply a server response whose seq is the newest applied.
+// Single-flight queue: serialize ALL cart requests so their responses arrive in
+// issue order. The backend does not order concurrent same-session writes
+// (getOrCreate → upsert → re-read, non-transactional), so without this a
+// later-issued request could commit/re-read an OLDER snapshot and win the guard
+// below — making a just-added line briefly vanish. Serializing makes issue order
+// a valid proxy for server-state recency.
+let chain: Promise<unknown> = Promise.resolve();
+function enqueue<T>(op: () => Promise<T>): Promise<T> {
+  const run = chain.then(op, op); // run regardless of the previous op's outcome
+  chain = run.then(
+    () => undefined,
+    () => undefined,
+  );
+  return run;
+}
+
+// Only the response to the MOST-RECENTLY-ISSUED op is applied (older in-flight
+// responses are dropped) — with the queue above, that op completes last and
+// reflects the final server state, so this both avoids flicker and is correct.
 let seqCounter = 0;
-let appliedSeq = 0;
-const nextSeq = () => ++seqCounter;
+let latestSeq = 0;
+const nextSeq = () => (latestSeq = ++seqCounter);
 
 // Per-line debounce for the cart-page stepper: rapid +/- clicks collapse to ONE
 // absolute PUT (setQuantity is non-commutative, so we must not race them).
 const STEPPER_DEBOUNCE_MS = 350;
 const stepperTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
+// Clamp what actually goes on the wire to the backend DTO bounds (add: 1..20,
+// setQuantity: 0..20). The optimistic layer already clamps the DISPLAY; without
+// clamping the wire too, a stepper past 20 would send quantity:21, the backend
+// @Max(20) would 400, and the item would spuriously vanish on reconcile.
+const wireAddQty = (q: number) => Math.min(MAX_PER_LINE, Math.max(1, Math.trunc(q)));
+const wireSetQty = (q: number) => Math.min(MAX_PER_LINE, Math.max(0, Math.trunc(q)));
+
 export const useCartStore = create<CartState>()(
   persist(
     (set, get) => {
       const applyServer = (seq: number, lines: CartLine[]) => {
-        if (seq < appliedSeq) return; // a newer response already won — drop this stale one
-        appliedSeq = seq;
+        if (seq !== latestSeq) return; // a newer op was issued — it will reconcile
         set({ lines, hydrated: true });
       };
 
@@ -64,8 +88,7 @@ export const useCartStore = create<CartState>()(
       // optimistic delta.
       const reconcileFromServer = () => {
         const seq = nextSeq();
-        api.cart
-          .get()
+        enqueue(() => api.cart.get())
           .then((c) => applyServer(seq, c.lines))
           .catch(() => {
             /* offline: keep the optimistic cache rather than blanking the cart */
@@ -85,8 +108,7 @@ export const useCartStore = create<CartState>()(
         add: ({ product, quantity }) => {
           set((s) => ({ lines: optimisticAdd(s.lines, product, quantity) }));
           const seq = nextSeq();
-          api.cart
-            .addItem({ productId: product.id, quantity })
+          enqueue(() => api.cart.addItem({ productId: product.id, quantity: wireAddQty(quantity) }))
             .then((c) => applyServer(seq, c.lines))
             .catch(onMutationError);
         },
@@ -100,8 +122,7 @@ export const useCartStore = create<CartState>()(
             setTimeout(() => {
               stepperTimers.delete(productId);
               const seq = nextSeq();
-              api.cart
-                .setQuantity(productId, quantity)
+              enqueue(() => api.cart.setQuantity(productId, wireSetQty(quantity)))
                 .then((c) => applyServer(seq, c.lines))
                 .catch(onMutationError);
             }, STEPPER_DEBOUNCE_MS),
@@ -118,8 +139,7 @@ export const useCartStore = create<CartState>()(
           }
           set((s) => ({ lines: optimisticSetQuantity(s.lines, productId, 0) }));
           const seq = nextSeq();
-          api.cart
-            .setQuantity(productId, 0)
+          enqueue(() => api.cart.setQuantity(productId, 0))
             .then((c) => applyServer(seq, c.lines))
             .catch(onMutationError);
         },
@@ -127,8 +147,7 @@ export const useCartStore = create<CartState>()(
         clear: () => {
           set({ lines: [] });
           const seq = nextSeq();
-          api.cart
-            .clear()
+          enqueue(() => api.cart.clear())
             .then((c) => applyServer(seq, c.lines))
             .catch(onMutationError);
         },
@@ -143,7 +162,7 @@ export const useCartStore = create<CartState>()(
           });
           const seq = nextSeq();
           try {
-            const c = await api.cart.get();
+            const c = await enqueue(() => api.cart.get());
             applyServer(seq, c.lines);
           } catch {
             set({ hydrated: true }); // offline: keep the (post-migration) cache

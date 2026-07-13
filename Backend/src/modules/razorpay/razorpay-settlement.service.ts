@@ -367,9 +367,7 @@ export class RazorpaySettlementService {
     // provider SUCCESS for a refund we already concluded FAILED is a books
     // contradiction — persist it; never silently no-op.
     if (mapped === 'PROCESSED' && row.status === 'FAILED') {
-      await this.events.record({
-        orderId: row.orderId,
-        type: 'refund_settled_after_conclude',
+      await this.persistRefundAnomalyOnce(row.orderId, 'refund_settled_after_conclude', {
         note: 'Provider reports this refund PROCESSED but it was concluded FAILED — books contradiction, reconcile manually.',
         meta: { refundId: row.id, providerRefundId: refund.id, amountMinor: refund.amount },
       });
@@ -379,8 +377,42 @@ export class RazorpaySettlementService {
       return 'refund-settled-after-conclude';
     }
 
+    // MIRROR tripwire (CP4 review): a NON-processed terminal/regression status
+    // arriving for a refund we already settled PROCESSED (e.g. the webhook-docs
+    // 'reversed', or a late 'failed' after processed) is the opposite books
+    // contradiction — also persisted, never silent.
+    if (row.status === 'PROCESSED' && mapped !== 'PROCESSED' && refund.status !== 'pending') {
+      await this.persistRefundAnomalyOnce(row.orderId, 'refund_regressed_after_processed', {
+        note: `Provider reports this refund '${refund.status}' but it was already settled PROCESSED — books contradiction, reconcile manually.`,
+        meta: { refundId: row.id, providerRefundId: refund.id, providerStatus: refund.status },
+      });
+      this.logger.error(
+        JSON.stringify({
+          scope: 'razorpay:settle:refund_regressed',
+          refundId: row.id,
+          status: refund.status,
+        }),
+      );
+      return 'refund-regressed-after-processed';
+    }
+
     await this.refunds.settle(row.id, mapped, refund.id, refund);
     return `refund-${mapped.toLowerCase()}`;
+  }
+
+  /** Persist an order-event anomaly at most once per (order, type). */
+  private async persistRefundAnomalyOnce(
+    orderId: string,
+    type: string,
+    payload: { note: string; meta: Prisma.InputJsonValue },
+  ): Promise<void> {
+    const existing = await this.prisma.orderEvent.findFirst({
+      where: { orderId, type },
+      select: { id: true },
+    });
+    if (!existing) {
+      await this.events.record({ orderId, type, note: payload.note, meta: payload.meta });
+    }
   }
 
   // ── client verify fast-path (plan §1.1[4]) ───────────────────────────────

@@ -171,6 +171,43 @@ test('createRefund: 5xx is transient (caller keeps the refund PENDING)', async (
   assert.deepEqual(result, { outcome: 'transient', httpStatus: 502 });
 });
 
+test('CP4-FIX: throttle/transport 4xx (429, 408) are TRANSIENT — they carry no refund-layer verdict', async () => {
+  for (const status of [429, 408, 425]) {
+    const { client } = makeClient([{ status, body: { error: { code: 'BAD_REQUEST_ERROR' } } }]);
+    const result = await client.createRefund({
+      paymentId: 'pay_1',
+      idempotencyKey: 'RFk1234567890',
+      receipt: 'RFk1234567890',
+      amountMinor: 49900,
+    });
+    assert.deepEqual(result, { outcome: 'transient', httpStatus: status }, `status ${status}`);
+  }
+});
+
+test('CP4-FIX: an envelope-less 4xx (edge/WAF/CDN, no error.code) is TRANSIENT, not definitive', async () => {
+  const { client } = makeClient([{ status: 403, body: '<html>blocked</html>' }]);
+  const result = await client.createRefund({
+    paymentId: 'pay_1',
+    idempotencyKey: 'RFk1234567890',
+    receipt: 'RFk1234567890',
+    amountMinor: 49900,
+  });
+  assert.deepEqual(result, { outcome: 'transient', httpStatus: 403 });
+});
+
+test('CP4-FIX: a 400 WITH a Razorpay error envelope stays definitive-4xx (a real refund-layer rejection)', async () => {
+  const { client } = makeClient([
+    { status: 400, body: { error: { code: 'BAD_REQUEST_ERROR', reason: 'excess_amount' } } },
+  ]);
+  const result = await client.createRefund({
+    paymentId: 'pay_1',
+    idempotencyKey: 'RFk1234567890',
+    receipt: 'RFk1234567890',
+    amountMinor: 49900,
+  });
+  assert.equal(result.outcome, 'definitive-4xx');
+});
+
 test('fetchRefund: 404 returns null (refund provably absent), 200 returns the entity', async () => {
   const entity = { id: 'rfnd_1', status: 'processed', amount: 100, payment_id: 'pay_1' };
   const { client: c404 } = makeClient([{ status: 404, body: {} }]);

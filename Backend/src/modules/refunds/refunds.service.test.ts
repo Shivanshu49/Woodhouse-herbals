@@ -55,6 +55,7 @@ interface Calls {
   createRefunds: any[];
   fetchRefunds: any[];
   listRefundCalls: any[];
+  refundFindFirsts: any[];
 }
 
 interface FakeConfig {
@@ -78,6 +79,8 @@ interface FakeConfig {
   listRefundsThrows?: boolean;
   /** row returned by prisma.refund.findFirst (recheck lookup) */
   pendingRefundRow?: Record<string, unknown> | null;
+  /** status returned by the recheck post-settle honesty re-read */
+  recheckAfterStatus?: string;
 }
 
 function makeService(cfg: FakeConfig) {
@@ -94,6 +97,7 @@ function makeService(cfg: FakeConfig) {
     createRefunds: [],
     fetchRefunds: [],
     listRefundCalls: [],
+    refundFindFirsts: [],
   };
 
   const tx = {
@@ -142,7 +146,15 @@ function makeService(cfg: FakeConfig) {
       },
     },
     refund: {
-      findFirst: async () => cfg.pendingRefundRow ?? null,
+      findFirst: async (args: any) => {
+        calls.refundFindFirsts.push(args);
+        return cfg.pendingRefundRow ?? null;
+      },
+      // recheck's post-settle honesty re-read; default echoes the row's status.
+      findUnique: async () =>
+        cfg.recheckAfterStatus !== undefined
+          ? { status: cfg.recheckAfterStatus }
+          : { status: 'PENDING' },
       updateMany: async (args: any) => {
         calls.refundUpdateManys.push(args);
         return { count: 1 };
@@ -162,6 +174,7 @@ function makeService(cfg: FakeConfig) {
     },
   };
   const razorpay = {
+    isConfigured: () => true,
     createRefund: async (input: unknown) => {
       calls.createRefunds.push(input);
       if (cfg.createRefundThrows) throw new Error('ETIMEDOUT');
@@ -557,6 +570,7 @@ function pendingRow(overrides: Record<string, unknown> = {}): Record<string, unk
     providerRefundId: null,
     createdAt: OLD,
     amountMinor: 49900,
+    order: { number: 'WH-ABC123' },
     payment: { providerPaymentId: 'rzp_pay_1' },
     ...overrides,
   };
@@ -568,6 +582,7 @@ test('ATTACK#2: with a persisted providerRefundId, the FRESH READ settles and th
     fetchRefund: { id: 'rfnd_1', status: 'processed' },
     settleClaimCount: 1,
     settleRefundRow: { orderId: 'order_1', paymentId: 'pay_1' },
+    recheckAfterStatus: 'PROCESSED',
   });
   const res = await svc.recheck('order_1');
   assert.equal(res.state, 'PROCESSED');
@@ -586,6 +601,7 @@ test('ATTACK#2: without a providerRefundId, the receipt-matched LIST is the fres
     ],
     settleClaimCount: 1,
     settleRefundRow: { orderId: 'order_1', paymentId: 'pay_1' },
+    recheckAfterStatus: 'FAILED',
   });
   const res = await svc.recheck('order_1');
   assert.equal(res.state, 'FAILED');
@@ -639,6 +655,7 @@ test('conclude-FAILED fires ONLY on positive evidence: successful empty list AND
       ({ outcome: 'definitive-4xx', httpStatus: 400, errorCode: 'BAD_REQUEST_ERROR' }) as never,
     settleClaimCount: 1,
     settleRefundRow: { orderId: 'order_1', paymentId: 'pay_1' },
+    recheckAfterStatus: 'FAILED',
   });
   const res = await svc.recheck('order_1');
   assert.equal(res.state, 'FAILED');
@@ -647,6 +664,59 @@ test('conclude-FAILED fires ONLY on positive evidence: successful empty list AND
   // The re-send used the SAME deterministic key (exactly-once at the provider).
   assert.equal(calls.createRefunds[0].idempotencyKey, 'RFrefund1');
   assert.equal(calls.createRefunds[0].receipt, 'RFrefund1');
+});
+
+test('CP4-FIX: the recovery re-send body is BYTE-IDENTICAL to the initiate create (same key + same body ⇒ replay, not reject)', async () => {
+  // The high finding: initiate sent notes:{orderNumber}, recovery omitted it —
+  // same key + different body would be REJECTED and misread as definitive.
+  const { svc: initSvc, calls: initCalls } = makeService({ order: prepaidOrder() });
+  await initSvc.initiate('order_1', { disposition: RefundDisposition.RETURNED } as never, 'admin_1');
+
+  const { svc: recSvc, calls: recCalls } = makeService({
+    pendingRefundRow: pendingRow(),
+    listRefunds: [],
+    createRefund: () => ({ outcome: 'in-flight-409', httpStatus: 409 }) as never,
+  });
+  await recSvc.recheck('order_1');
+
+  // Identical apart from nothing: same paymentId, key, receipt, amount, notes.
+  assert.deepEqual(recCalls.createRefunds[0], initCalls.createRefunds[0]);
+});
+
+test("CP4-FIX: a 404 on a PERSISTED providerRefundId never re-sends and never concludes (contradictory, not ambiguous)", async () => {
+  const { svc, calls } = makeService({
+    pendingRefundRow: pendingRow({ providerRefundId: 'rfnd_known' }),
+    fetchRefund: null, // 404 — the known id vanished provider-side
+    createRefund: () =>
+      ({ outcome: 'definitive-4xx', httpStatus: 400, errorCode: 'BAD_REQUEST_ERROR' }) as never,
+  });
+  const res = await svc.recheck('order_1');
+  assert.equal(res.state, 'PENDING');
+  assert.equal(calls.createRefunds.length, 0, 'a persisted-id 404 forbids the ambiguity probe');
+  assert.equal(calls.paymentUpdates.length, 0);
+});
+
+test('CP4-FIX: recheck reports the ACTUAL post-settle status — a concurrent PROCESSED wins over an attempted conclude', async () => {
+  const { svc } = makeService({
+    pendingRefundRow: pendingRow(),
+    listRefunds: [],
+    createRefund: () =>
+      ({ outcome: 'definitive-4xx', httpStatus: 400, errorCode: 'BAD_REQUEST_ERROR' }) as never,
+    settleClaimCount: 0, // a concurrent webhook already settled it
+    recheckAfterStatus: 'PROCESSED',
+  });
+  const res = await svc.recheck('order_1');
+  assert.equal(res.state, 'PROCESSED', 'the truth in the DB wins over what this recovery attempted');
+});
+
+test('CP4-FIX: the recheck lookup where-clause is pinned {orderId, method:GATEWAY, status:PENDING}', async () => {
+  const { svc, calls } = makeService({ pendingRefundRow: pendingRow({ providerRefundId: 'rfnd_1' }), fetchRefund: { id: 'rfnd_1', status: 'processed' }, settleClaimCount: 1, settleRefundRow: { orderId: 'order_1', paymentId: 'pay_1' } });
+  await svc.recheck('order_1');
+  assert.deepEqual(calls.refundFindFirsts[0].where, {
+    orderId: 'order_1',
+    method: 'GATEWAY',
+    status: 'PENDING',
+  });
 });
 
 test('conclude-FAILED is age-gated: the same positive evidence on a YOUNG refund parks PENDING', async () => {
@@ -678,7 +748,7 @@ test('a REPLAYED re-send (creation proof) is adopted: pending parks, providerRef
   assert.ok(backfill, 'the learned provider id arms the next run with a direct fetch handle');
 });
 
-test('duplicate-receipt CONTRADICTION (read said absent, provider says exists) never concludes', async () => {
+test('duplicate-receipt CONTRADICTION via the reason FIELD (primary signal) never concludes', async () => {
   const { svc, calls } = makeService({
     pendingRefundRow: pendingRow(),
     listRefunds: [],
@@ -688,10 +758,27 @@ test('duplicate-receipt CONTRADICTION (read said absent, provider says exists) n
         httpStatus: 400,
         errorCode: 'BAD_REQUEST_ERROR',
         reason: 'duplicate_receipt',
-        description: 'Duplicate receipt found for this refund request',
+        description: 'some other prose', // reason alone must suffice
       }) as never,
   });
   const res = await svc.recheck('order_1');
   assert.equal(res.state, 'PENDING', 'contradictory evidence parks — the next read resolves it');
+  assert.equal(calls.paymentUpdates.length, 0);
+});
+
+test('duplicate-receipt CONTRADICTION via the description FALLBACK (older envelope, no reason) never concludes', async () => {
+  const { svc, calls } = makeService({
+    pendingRefundRow: pendingRow(),
+    listRefunds: [],
+    createRefund: () =>
+      ({
+        outcome: 'definitive-4xx',
+        httpStatus: 400,
+        errorCode: 'BAD_REQUEST_ERROR',
+        description: 'Duplicate receipt found for this refund request', // no reason field
+      }) as never,
+  });
+  const res = await svc.recheck('order_1');
+  assert.equal(res.state, 'PENDING');
   assert.equal(calls.paymentUpdates.length, 0);
 });

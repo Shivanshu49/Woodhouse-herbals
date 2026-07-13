@@ -325,6 +325,38 @@ test("refund 'reversed'/unknown parks PENDING through settle (never guessed term
   assert.equal(calls.refundSettles[0][1], 'PENDING');
 });
 
+test('MIRROR TRIPWIRE: a regression status (failed/reversed) on a refund already PROCESSED persists refund_regressed_after_processed and does NOT settle', async () => {
+  for (const status of ['failed', 'reversed']) {
+    const { svc, calls } = makeService({
+      refundRow: { id: 'refund_1', orderId: 'order_db_1', status: 'PROCESSED' },
+    });
+    const outcome = await svc.processRefundEntity({
+      id: 'rfnd_1',
+      status,
+      amount: 49900,
+      payment_id: 'pay_1',
+      receipt: 'RFrefund1',
+    });
+    assert.equal(outcome, 'refund-regressed-after-processed', status);
+    assert.equal(calls.refundSettles.length, 0, 'a settled-PROCESSED refund is not re-settled');
+    assert.equal(calls.events[0].type, 'refund_regressed_after_processed');
+  }
+});
+
+test('a plain pending redelivery on a PROCESSED refund is NOT a regression anomaly (no noise)', async () => {
+  const { svc, calls } = makeService({
+    refundRow: { id: 'refund_1', orderId: 'order_db_1', status: 'PROCESSED' },
+  });
+  await svc.processRefundEntity({
+    id: 'rfnd_1',
+    status: 'pending',
+    amount: 49900,
+    payment_id: 'pay_1',
+    receipt: 'RFrefund1',
+  });
+  assert.equal(calls.events.length, 0, "a stale 'pending' redelivery is not a books contradiction");
+});
+
 test('TRIPWIRE: provider PROCESSED on a refund we concluded FAILED persists refund_settled_after_conclude and does NOT settle', async () => {
   const { svc, calls } = makeService({
     refundRow: { id: 'refund_1', orderId: 'order_db_1', status: 'FAILED' },

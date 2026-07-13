@@ -153,15 +153,22 @@ export class RazorpayClient {
       return { outcome: 'ok', refund: json as RazorpayRefundEntity, httpStatus };
     }
     if (httpStatus === 409) return { outcome: 'in-flight-409', httpStatus };
-    if (httpStatus >= 400 && httpStatus < 500) {
-      const err = (json as { error?: { code?: string; reason?: string; description?: string } })
-        ?.error;
+    const err = (json as { error?: { code?: string; reason?: string; description?: string } })
+      ?.error;
+    // 'definitive-4xx' is one of the TWO evidence legs of conclude-FAILED — it
+    // must mean "Razorpay's refund logic rejected this", NOT "the request never
+    // reached it". Throttle/transport 4xx (408 timeout, 425 too-early, 429 rate
+    // limit) and any envelope-less 4xx (edge/WAF/CDN — api.razorpay.com is
+    // proxied) carry no refund-layer verdict, so they are TRANSIENT. Only a 4xx
+    // that carries a Razorpay error envelope is definitive. (CP4 review, medium.)
+    const TRANSPORT_4XX = new Set([408, 425, 429]);
+    if (httpStatus >= 400 && httpStatus < 500 && err?.code && !TRANSPORT_4XX.has(httpStatus)) {
       return {
         outcome: 'definitive-4xx',
         httpStatus,
-        errorCode: err?.code,
-        reason: err?.reason,
-        description: err?.description,
+        errorCode: err.code,
+        reason: err.reason,
+        description: err.description,
       };
     }
     return { outcome: 'transient', httpStatus };

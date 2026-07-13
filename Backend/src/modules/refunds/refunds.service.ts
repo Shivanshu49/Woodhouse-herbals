@@ -4,6 +4,7 @@ import {
   Injectable,
   Logger,
   NotFoundException,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import { InventoryReason, OrderStatus, Prisma, RefundDisposition } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
@@ -185,6 +186,9 @@ export class RefundsService {
    * leaves the refund PENDING for `recheck`; it never guesses success.
    */
   async initiate(orderId: string, dto: RefundOrderDto, actorId: string) {
+    if (!this.razorpay.isConfigured()) {
+      throw new ServiceUnavailableException('Online refunds are not configured');
+    }
     const order = await this.prisma.order.findUnique({
       where: { id: orderId },
       select: {
@@ -279,7 +283,7 @@ export class RefundsService {
               orderId,
               type: OrderEventType.RefundIssued,
               actorId,
-              note: 'PhonePe refund initiated',
+              note: 'Gateway refund initiated',
               meta: {
                 method: 'GATEWAY',
                 disposition: dto.disposition,
@@ -337,6 +341,25 @@ export class RefundsService {
    *                    FAILED releases the payment CAS for a retry;
    *  - transient     → stay PENDING (5xx proves nothing).
    */
+  /**
+   * Plan §3 "park PENDING, log, never guess": a provider status we don't model
+   * (e.g. the webhook-docs 'reversed') maps to PENDING — but silently parking
+   * it forever pins the payment in REFUND_PENDING with no ops signal. Restore
+   * the warn the PhonePe-era settleFromProvider had. ('pending'/'created' are
+   * the EXPECTED non-terminal states — no noise for those.)
+   */
+  private warnUnmodelledRefundStatus(
+    refundId: string,
+    rawStatus: string,
+    mapped: 'PROCESSED' | 'FAILED' | 'PENDING',
+  ): void {
+    if (mapped === 'PENDING' && rawStatus !== 'pending' && rawStatus !== 'created') {
+      this.logger.warn(
+        `refund:recover unmodelled provider status — parking PENDING refundId=${refundId} status=${rawStatus}`,
+      );
+    }
+  }
+
   private async adoptRefundCreateResult(
     refundId: string,
     res: RefundCreateResult,
@@ -347,6 +370,7 @@ export class RefundsService {
         data: { providerRefundId: res.refund.id },
       });
       const mapped = mapRazorpayRefundState(res.refund.status);
+      this.warnUnmodelledRefundStatus(refundId, res.refund.status, mapped);
       await this.settle(refundId, mapped, res.refund.id, res.refund);
       return mapped;
     }
@@ -391,11 +415,22 @@ export class RefundsService {
     createdAt: Date;
     amountMinor: number;
     providerPaymentId: string | null;
+    /** The owning order number — threaded so the re-send body is BYTE-IDENTICAL
+     *  to initiate's create (same X-Refund-Idempotency key + same body ⇒
+     *  replay; a differing body would be REJECTED and misread as a definitive
+     *  rejection — CP4 review, high). */
+    orderNumber: string;
   }): Promise<{ state: 'PROCESSED' | 'FAILED' | 'PENDING' }> {
     // ── PROBE 1: fresh state read ─────────────────────────────────────────
+    // A 404 on a PERSISTED providerRefundId is NOT creation ambiguity — the
+    // id was learned from a real provider response, so its disappearance is
+    // contradictory evidence, never grounds to conclude. We therefore only
+    // ever run the creation-ambiguity re-send when providerRefundId is null.
     let stateRead: RefundSweepInput['stateRead'];
+    let readByPersistedId = false;
     try {
       if (refund.providerRefundId) {
+        readByPersistedId = true;
         const entity = await this.razorpay.fetchRefund(refund.providerRefundId);
         stateRead = {
           ok: true,
@@ -415,13 +450,19 @@ export class RefundsService {
 
     // ── PROBE 2: creation-ambiguity re-send (see doc comment) ─────────────
     let resend: RefundSweepInput['resend'] = { outcome: 'not-attempted' };
-    if (stateRead.ok && stateRead.matched === null && refund.providerPaymentId) {
+    if (
+      stateRead.ok &&
+      stateRead.matched === null &&
+      !readByPersistedId && // a persisted-id 404 never justifies a conclude
+      refund.providerPaymentId
+    ) {
       try {
         const res = await this.razorpay.createRefund({
           paymentId: refund.providerPaymentId,
           idempotencyKey: refund.merchantRefundId,
           receipt: refund.merchantRefundId,
           amountMinor: refund.amountMinor,
+          notes: { orderNumber: refund.orderNumber }, // byte-identical to initiate
         });
         if (res.outcome === 'ok') {
           resend = { outcome: 'replayed', refund: { id: res.refund.id, status: res.refund.status } };
@@ -431,8 +472,9 @@ export class RefundsService {
           // Contradiction guard: a duplicate-receipt rejection SAYS the
           // refund exists while our successful list read said it doesn't
           // (pagination edge). Contradictory evidence must never conclude —
-          // park and let the next run's state read resolve it. This branches
-          // on the provider's `reason` FIELD, not description prose.
+          // park and let the next run's state read resolve it. The `reason`
+          // field is the primary signal; the description substring is a
+          // fallback for older envelopes that omit `reason`.
           resend =
             res.reason === 'duplicate_receipt' ||
             (res.description ?? '').includes('Duplicate receipt')
@@ -459,6 +501,7 @@ export class RefundsService {
         data: { providerRefundId: decision.providerRefundId },
       });
       const mapped = mapRazorpayRefundState(decision.status);
+      this.warnUnmodelledRefundStatus(refund.id, decision.status, mapped);
       await this.settle(refund.id, mapped, decision.providerRefundId);
       return { state: mapped };
     }
@@ -561,7 +604,7 @@ export class RefundsService {
             {
               orderId: refund.orderId,
               type: 'refund_failed',
-              note: 'PhonePe reported the refund failed',
+              note: 'The payment gateway reported the refund failed',
               meta: { refundId },
             },
             tx,
@@ -598,12 +641,15 @@ export class RefundsService {
   }
 
   /**
-   * Failure-honesty escape hatch. Polls PhonePe Check-Status for the order's
-   * active PENDING PhonePe refund and adopts the true state via the same
-   * idempotent `settle` the callback uses — so a recheck racing a late callback
-   * cannot double-apply. No-op target for COD/settled refunds (none PENDING).
+   * Failure-honesty escape hatch. Runs the §3 recovery routine against the
+   * order's active PENDING gateway refund and adopts the true state via the
+   * same idempotent `settle` the webhook uses — so a recheck racing a late
+   * webhook cannot double-apply. No-op target for COD/settled refunds.
    */
   async recheck(orderId: string) {
+    if (!this.razorpay.isConfigured()) {
+      throw new ServiceUnavailableException('Online refunds are not configured');
+    }
     const refund = await this.prisma.refund.findFirst({
       where: { orderId, method: 'GATEWAY', status: 'PENDING' },
       select: {
@@ -612,6 +658,7 @@ export class RefundsService {
         providerRefundId: true,
         createdAt: true,
         amountMinor: true,
+        order: { select: { number: true } },
         payment: { select: { providerPaymentId: true } },
       },
     });
@@ -625,7 +672,14 @@ export class RefundsService {
       createdAt: refund.createdAt,
       amountMinor: refund.amountMinor,
       providerPaymentId: refund.payment?.providerPaymentId ?? null,
+      orderNumber: refund.order.number,
     });
-    return { id: refund.id, state };
+    // Report the refund's ACTUAL post-settle status — if a concurrent webhook
+    // won the claim, that truth wins over what this recovery attempted.
+    const after = await this.prisma.refund.findUnique({
+      where: { id: refund.id },
+      select: { status: true },
+    });
+    return { id: refund.id, state: after?.status ?? state };
   }
 }

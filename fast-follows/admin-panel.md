@@ -357,3 +357,13 @@ dashboard; the books entry lands as `provider_refund_unmatched`.
   the boot gate + CI behavioral probes), money-grade review. Approved as
   out-of-scope at CP3 (2026-07-13): the guard protecting against a common
   catastrophe is not traded for automation of a rare anomaly.
+
+### FF-30 — Validate offer-strip `href` as site-relative in the admin-content DTOs
+Found 2026-07-13 (mobile-menu review): the storefront's mobile drawer is the
+first consumer that *navigates* on `offerStrip[].href` (the marquee OfferStrip
+never did). The field is admin free text (`@IsString() @MaxLength(500)`), so a
+typo'd or absolute/protocol-relative URL becomes a dead or off-site link. The
+drawer ships a frontend guard (only `/`-prefixed, non-`//` hrefs are used;
+anything else falls back to `/shop`), but per the DTO-rejects discipline the
+create/update offer-strip DTOs should `@Matches(/^\/(?!\/)/)` so bad hrefs 400
+at entry instead of being silently rewritten downstream.

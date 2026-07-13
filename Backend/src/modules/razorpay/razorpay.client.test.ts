@@ -110,12 +110,15 @@ test('createRefund: sends the X-Refund-Idempotency header AND the receipt (dual 
     paymentId: 'pay_1',
     idempotencyKey: 'RFclx0987654321',
     receipt: 'RFclx0987654321',
+    amountMinor: 49900,
   });
   assert.deepEqual(result, { outcome: 'ok', refund, httpStatus: 200 });
   assert.equal(captured[0]!.url, 'https://api.razorpay.com/v1/payments/pay_1/refund');
   const headers = captured[0]!.init.headers as Record<string, string>;
   assert.equal(headers['X-Refund-Idempotency'], 'RFclx0987654321');
-  assert.equal(JSON.parse(captured[0]!.init.body as string).receipt, 'RFclx0987654321');
+  const body = JSON.parse(captured[0]!.init.body as string);
+  assert.equal(body.receipt, 'RFclx0987654321');
+  assert.equal(body.amount, 49900, 'the full-order amount is asserted explicitly on the wire');
 });
 
 test('createRefund: 409 (idempotent retry racing the in-flight original) is its own outcome', async () => {
@@ -124,6 +127,7 @@ test('createRefund: 409 (idempotent retry racing the in-flight original) is its 
     paymentId: 'pay_1',
     idempotencyKey: 'RFclx0987654321',
     receipt: 'RFclx0987654321',
+    amountMinor: 49900,
   });
   assert.deepEqual(result, { outcome: 'in-flight-409', httpStatus: 409 });
 });
@@ -145,6 +149,7 @@ test('createRefund: 4xx carries the error envelope through (code/reason/descript
     paymentId: 'pay_1',
     idempotencyKey: 'RFclx0987654321',
     receipt: 'RFclx0987654321',
+    amountMinor: 49900,
   });
   assert.deepEqual(result, {
     outcome: 'definitive-4xx',
@@ -161,6 +166,7 @@ test('createRefund: 5xx is transient (caller keeps the refund PENDING)', async (
     paymentId: 'pay_1',
     idempotencyKey: 'RFclx0987654321',
     receipt: 'RFclx0987654321',
+    amountMinor: 49900,
   });
   assert.deepEqual(result, { outcome: 'transient', httpStatus: 502 });
 });

@@ -1,5 +1,6 @@
 import {
   ConflictException,
+  Inject,
   Injectable,
   Logger,
   NotFoundException,
@@ -10,7 +11,13 @@ import { OrderEventsService } from '../order-events/order-events.service';
 import { OrderEventType } from '../order-events/order-event-types';
 import { InventoryService } from '../inventory/inventory.service';
 import { env } from '../../common/config/env';
-import { PhonepeRefundClient, PhonepeRefundResult } from '../phonepe/phonepe-refund.client';
+// Type-only: the legacy settleFromProvider stays compiling until the PhonePe
+// module is deleted in Phase 7. The VALUE dependency is gone — this service
+// talks to Razorpay.
+import type { PhonepeRefundResult } from '../phonepe/phonepe-refund.client';
+import { RazorpayClient, type RefundCreateResult } from '../razorpay/razorpay.client';
+import { mapRazorpayRefundState } from '../razorpay/razorpay-states';
+import { decideRefundSweep, type RefundSweepInput } from '../reconciliation/reconcile-decisions';
 import {
   assertRefundable,
   deriveMerchantRefundId,
@@ -30,11 +37,13 @@ import { RefundOrderDto } from './dto/refund-order.dto';
 export class RefundsService {
   private readonly logger = new Logger(RefundsService.name);
 
+  // Explicit tokens throughout: the tsx-based integration harness boots the
+  // full module graph without design:paramtypes (see razorpay.controller.ts).
   constructor(
-    private readonly prisma: PrismaService,
-    private readonly events: OrderEventsService,
-    private readonly inventory: InventoryService,
-    private readonly phonepe: PhonepeRefundClient,
+    @Inject(PrismaService) private readonly prisma: PrismaService,
+    @Inject(OrderEventsService) private readonly events: OrderEventsService,
+    @Inject(InventoryService) private readonly inventory: InventoryService,
+    @Inject(RazorpayClient) private readonly razorpay: RazorpayClient,
   ) {}
 
   /**
@@ -188,7 +197,7 @@ export class RefundsService {
         payments: {
           where: { status: 'SUCCESS' },
           orderBy: { createdAt: 'desc' },
-          select: { id: true, providerTxnId: true },
+          select: { id: true, providerTxnId: true, providerPaymentId: true },
         },
         // ALL refunds (status + disposition): a non-FAILED one means a refund is
         // already in flight (→ honest "already in progress" 409, not the misleading
@@ -214,9 +223,12 @@ export class RefundsService {
         'No successful online payment to refund — use the manual (COD) refund.',
       );
     }
-    if (!payment.providerTxnId) {
+    if (!payment.providerPaymentId) {
+      // Razorpay refunds are created against the pay_… id, written only by
+      // the captured-settle path. PhonePe-era SUCCESS rows have none — those
+      // are dashboard-refund territory, not this API's.
       throw new ConflictException(
-        'The original payment has no provider transaction id — cannot refund via PhonePe.',
+        'The original payment has no provider payment id — cannot refund via the gateway.',
       );
     }
 
@@ -288,35 +300,176 @@ export class RefundsService {
       throw e;
     }
 
-    // Call PhonePe OUTSIDE the tx. A failure here leaves the refund PENDING; the
-    // admin reconciles with `recheck`. Never re-mint the id — recheck polls this
-    // same merchantRefundId.
+    // Call Razorpay OUTSIDE the tx. A failure here leaves the refund PENDING;
+    // recheck / the Phase-6 sweep recover it. Never re-mint the id — the
+    // deterministic merchantRefundId is BOTH the X-Refund-Idempotency header
+    // (replay-safe retries) and the receipt (payment-scoped reject-not-replay
+    // net), so this create is exactly-once against the provider no matter how
+    // many times it is re-sent.
     try {
-      const res = await this.phonepe.refund({
-        merchantRefundId: refund.merchantRefundId,
-        originalTxnId: payment.providerTxnId,
-        merchantUserId: order.userId ?? order.id,
+      const res = await this.razorpay.createRefund({
+        paymentId: payment.providerPaymentId,
+        idempotencyKey: refund.merchantRefundId,
+        receipt: refund.merchantRefundId,
         amountMinor: order.totalMinor,
+        notes: { orderNumber: order.number },
       });
-      // Persist the provider refund id even while PENDING (visibility + recheck
-      // dedupe), without clobbering a value a racing callback already set.
-      if (res.providerRefundId) {
-        await this.prisma.refund.updateMany({
-          where: { id: refund.id, providerRefundId: null },
-          data: { providerRefundId: res.providerRefundId },
-        });
-      }
       // Report the ACTUAL post-settlement status, not an optimistic PENDING: an
-      // immediate provider COMPLETED shows PROCESSED, a hard rejection shows FAILED
-      // (payment already released), an accepted async refund shows PENDING.
-      const settled = await this.settleFromProvider(refund.id, res);
+      // immediate provider 'processed' shows PROCESSED, a definitive rejection
+      // shows FAILED (payment already released), an accepted async refund PENDING.
+      const settled = await this.adoptRefundCreateResult(refund.id, res);
       return { id: refund.id, status: settled };
     } catch {
       // Provider unreachable / timeout — the intent is persisted and stays PENDING
-      // for `recheck`. Do NOT log the payload (may echo signed material).
+      // for recheck/sweep. Do NOT log the payload.
       this.logger.error(`refund:initiate provider call failed refundId=${refund.id} — left PENDING`);
       return { id: refund.id, status: 'PENDING' as const };
     }
+  }
+
+  /**
+   * Adopt a refund-create outcome (initiate's first call OR a recovery
+   * re-send). HTTP outcomes are data, not exceptions:
+   *  - ok            → persist the provider refund id (no-clobber) and settle
+   *                    from the entity's CURRENT status via the never-guess map;
+   *  - in-flight-409 → the original create is still processing — stay PENDING;
+   *  - definitive-4xx→ the provider REJECTED the create (never created) —
+   *                    FAILED releases the payment CAS for a retry;
+   *  - transient     → stay PENDING (5xx proves nothing).
+   */
+  private async adoptRefundCreateResult(
+    refundId: string,
+    res: RefundCreateResult,
+  ): Promise<'PROCESSED' | 'FAILED' | 'PENDING'> {
+    if (res.outcome === 'ok') {
+      await this.prisma.refund.updateMany({
+        where: { id: refundId, providerRefundId: null },
+        data: { providerRefundId: res.refund.id },
+      });
+      const mapped = mapRazorpayRefundState(res.refund.status);
+      await this.settle(refundId, mapped, res.refund.id, res.refund);
+      return mapped;
+    }
+    if (res.outcome === 'definitive-4xx') {
+      this.logger.warn(
+        `refund:create rejected — marking FAILED refundId=${refundId} code=${res.errorCode} http=${res.httpStatus}`,
+      );
+      await this.settle(refundId, 'FAILED', undefined, {
+        rejection: { httpStatus: res.httpStatus, errorCode: res.errorCode, reason: res.reason },
+      });
+      return 'FAILED';
+    }
+    // in-flight-409 / transient — not terminal, never guessed.
+    this.logger.log(
+      `refund:create non-terminal outcome=${res.outcome} refundId=${refundId} — left PENDING`,
+    );
+    return 'PENDING';
+  }
+
+  /**
+   * The §3 recovery routine — shared by the manual admin recheck and the
+   * Phase-6 refunds sweep. Probe ordering is STRUCTURAL, not conventional:
+   *
+   *  PROBE 1 (always, first): a FRESH provider state read — fetch by the
+   *    persisted providerRefundId, else list the payment's refunds and match
+   *    our receipt client-side. Only this probe can observe CURRENT state.
+   *  PROBE 2 (only when probe 1 SUCCEEDED and found nothing): the idempotent
+   *    re-send — its replay returns the SAVED ORIGINAL response, a stale
+   *    snapshot that can prove the create landed but can NEVER serve as a
+   *    state poll. It is therefore structurally incapable of masquerading as
+   *    probe 1: it runs only inside the creation-ambiguity branch.
+   *
+   *  Conclude-FAILED demands positive evidence on BOTH legs (§3 item 3):
+   *  a successful empty read AND a definitive 4xx re-send. Timeouts, 5xx,
+   *  and failed reads always park PENDING — they can never release the
+   *  payment CAS.
+   */
+  async recoverPendingRefund(refund: {
+    id: string;
+    merchantRefundId: string;
+    providerRefundId: string | null;
+    createdAt: Date;
+    amountMinor: number;
+    providerPaymentId: string | null;
+  }): Promise<{ state: 'PROCESSED' | 'FAILED' | 'PENDING' }> {
+    // ── PROBE 1: fresh state read ─────────────────────────────────────────
+    let stateRead: RefundSweepInput['stateRead'];
+    try {
+      if (refund.providerRefundId) {
+        const entity = await this.razorpay.fetchRefund(refund.providerRefundId);
+        stateRead = {
+          ok: true,
+          matched: entity ? { id: entity.id, status: entity.status } : null,
+        };
+      } else if (refund.providerPaymentId) {
+        const list = await this.razorpay.listRefundsForPayment(refund.providerPaymentId);
+        const hit = list.find((e) => e.receipt === refund.merchantRefundId);
+        stateRead = { ok: true, matched: hit ? { id: hit.id, status: hit.status } : null };
+      } else {
+        // No handle to read by — cannot gather evidence, cannot conclude.
+        stateRead = { ok: false };
+      }
+    } catch {
+      stateRead = { ok: false };
+    }
+
+    // ── PROBE 2: creation-ambiguity re-send (see doc comment) ─────────────
+    let resend: RefundSweepInput['resend'] = { outcome: 'not-attempted' };
+    if (stateRead.ok && stateRead.matched === null && refund.providerPaymentId) {
+      try {
+        const res = await this.razorpay.createRefund({
+          paymentId: refund.providerPaymentId,
+          idempotencyKey: refund.merchantRefundId,
+          receipt: refund.merchantRefundId,
+          amountMinor: refund.amountMinor,
+        });
+        if (res.outcome === 'ok') {
+          resend = { outcome: 'replayed', refund: { id: res.refund.id, status: res.refund.status } };
+        } else if (res.outcome === 'in-flight-409') {
+          resend = { outcome: 'in-flight-409' };
+        } else if (res.outcome === 'definitive-4xx') {
+          // Contradiction guard: a duplicate-receipt rejection SAYS the
+          // refund exists while our successful list read said it doesn't
+          // (pagination edge). Contradictory evidence must never conclude —
+          // park and let the next run's state read resolve it. This branches
+          // on the provider's `reason` FIELD, not description prose.
+          resend =
+            res.reason === 'duplicate_receipt' ||
+            (res.description ?? '').includes('Duplicate receipt')
+              ? { outcome: 'transient' }
+              : { outcome: 'definitive-4xx' };
+        } else {
+          resend = { outcome: 'transient' };
+        }
+      } catch {
+        resend = { outcome: 'transient' };
+      }
+    }
+
+    const decision = decideRefundSweep({
+      refundAgeMin: (Date.now() - refund.createdAt.getTime()) / 60_000,
+      concludeMinAgeMin: env.REFUND_CONCLUDE_MIN_AGE_MIN,
+      stateRead,
+      resend,
+    });
+
+    if (decision.action === 'settle-from-state') {
+      await this.prisma.refund.updateMany({
+        where: { id: refund.id, providerRefundId: null },
+        data: { providerRefundId: decision.providerRefundId },
+      });
+      const mapped = mapRazorpayRefundState(decision.status);
+      await this.settle(refund.id, mapped, decision.providerRefundId);
+      return { state: mapped };
+    }
+    if (decision.action === 'conclude-failed') {
+      this.logger.warn(
+        `refund:recover concluding FAILED on positive evidence (empty list + definitive 4xx) refundId=${refund.id}`,
+      );
+      await this.settle(refund.id, 'FAILED');
+      return { state: 'FAILED' };
+    }
+    return { state: 'PENDING' };
   }
 
   /**
@@ -453,13 +606,26 @@ export class RefundsService {
   async recheck(orderId: string) {
     const refund = await this.prisma.refund.findFirst({
       where: { orderId, method: 'GATEWAY', status: 'PENDING' },
-      select: { id: true, merchantRefundId: true },
+      select: {
+        id: true,
+        merchantRefundId: true,
+        providerRefundId: true,
+        createdAt: true,
+        amountMinor: true,
+        payment: { select: { providerPaymentId: true } },
+      },
     });
     if (!refund?.merchantRefundId) {
-      throw new NotFoundException('No pending PhonePe refund to re-check for this order.');
+      throw new NotFoundException('No pending gateway refund to re-check for this order.');
     }
-    const res = await this.phonepe.status(refund.merchantRefundId);
-    await this.settleFromProvider(refund.id, res);
-    return { id: refund.id, state: res.state };
+    const { state } = await this.recoverPendingRefund({
+      id: refund.id,
+      merchantRefundId: refund.merchantRefundId,
+      providerRefundId: refund.providerRefundId,
+      createdAt: refund.createdAt,
+      amountMinor: refund.amountMinor,
+      providerPaymentId: refund.payment?.providerPaymentId ?? null,
+    });
+    return { id: refund.id, state };
   }
 }

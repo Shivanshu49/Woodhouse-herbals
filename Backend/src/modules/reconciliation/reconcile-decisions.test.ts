@@ -239,3 +239,27 @@ test('initiate: a stale row (at/inside the safety margin) ⇒ supersede-then-min
     'supersede-then-mint',
   );
 });
+
+test('refunds: a MATCHED fresh read settles even on a YOUNG refund (age gates only the conclude leg)', () => {
+  const decision = decideRefundSweep({
+    refundAgeMin: 1,
+    concludeMinAgeMin: 15,
+    stateRead: { ok: true, matched: { id: 'rfnd_1', status: 'processed' } },
+    resend: { outcome: 'not-attempted' },
+  });
+  assert.deepEqual(decision, {
+    action: 'settle-from-state',
+    status: 'processed',
+    providerRefundId: 'rfnd_1',
+  });
+});
+
+test('refunds: FULL positive evidence on a YOUNG refund still cannot conclude (age gate)', () => {
+  const decision = decideRefundSweep({
+    refundAgeMin: 1,
+    concludeMinAgeMin: 15,
+    stateRead: { ok: true, matched: null },
+    resend: { outcome: 'definitive-4xx' },
+  });
+  assert.deepEqual(decision, { action: 'wait' });
+});

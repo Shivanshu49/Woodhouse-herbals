@@ -133,12 +133,17 @@ export class RazorpayClient {
     idempotencyKey: string;
     /** Same value as receipt: the payment-scoped reject-not-replay net. */
     receipt: string;
+    /** Explicit paise amount — asserts our full-order expectation instead of
+     *  relying on the omitted-amount default; a drifted expectation is then
+     *  a provider-side arithmetic rejection, not a silent partial refund. */
+    amountMinor: number;
     notes?: Record<string, string>;
   }): Promise<RefundCreateResult> {
     const { httpStatus, json } = await this.request(
       'POST',
       `/v1/payments/${encodeURIComponent(input.paymentId)}/refund`,
       {
+        amount: input.amountMinor,
         receipt: input.receipt,
         ...(input.notes ? { notes: input.notes } : {}),
       },

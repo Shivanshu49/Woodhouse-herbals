@@ -342,3 +342,18 @@ pricing scope; BXGY needs line-level buy/get logic (`buyQty`/`getQty`).
 - **Requires:** its own phase extending `coupon-pricing.ts` + the order-pricing
   shipping wiring, TDD + money-grade review. Then re-admit those kinds to the
   admin DTO's `@IsIn`.
+
+### FF-29 — Payment-scoped refunds (deliberately NOT built)
+The Razorpay double-charge residual race (a superseded rzp order captured
+alongside the live one) leaves a second SUCCESS payment that the in-system
+refund path cannot reach — `refund_one_active_per_order` correctly blocks a
+second non-FAILED refund per order. The persisted `paid_on_non_pending` /
+`captured_after_abandon` anomaly events route the admin to the Razorpay
+dashboard; the books entry lands as `provider_refund_unmatched`.
+- **Revisit ONLY if a double-charge occurs in production more than once.**
+- **Requires:** relaxing `refund_one_active_per_order` — so any design must
+  FIRST replace that guard with an equivalent-or-stronger one (e.g. a
+  payment-scoped partial unique index with proven equivalent coverage under
+  the boot gate + CI behavioral probes), money-grade review. Approved as
+  out-of-scope at CP3 (2026-07-13): the guard protecting against a common
+  catastrophe is not traded for automation of a rare anomaly.

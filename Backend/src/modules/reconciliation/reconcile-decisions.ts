@@ -123,8 +123,8 @@ export type RefundSweepDecision =
  * payment CAS (the adversarial-review double-refund hole).
  */
 export function decideRefundSweep(input: RefundSweepInput): RefundSweepDecision {
-  if (input.refundAgeMin < input.concludeMinAgeMin) return { action: 'wait' };
-
+  // A fresh state read that FOUND the refund settles regardless of age —
+  // settle is CAS-idempotent and real provider state never needs to wait.
   if (input.stateRead.ok && input.stateRead.matched) {
     return {
       action: 'settle-from-state',
@@ -133,6 +133,11 @@ export function decideRefundSweep(input: RefundSweepInput): RefundSweepDecision 
     };
   }
 
+  // A replay/fresh-create from the idempotent re-send is creation proof and
+  // safe to adopt at any age: the replayed status is either current or
+  // EARLIER than current (monotone lifecycle) — an earlier status is
+  // 'pending', which parks PENDING and the next run's state read (now armed
+  // with the persisted providerRefundId) sees the truth.
   if (input.resend.outcome === 'replayed') {
     return {
       action: 'settle-from-state',
@@ -141,8 +146,17 @@ export function decideRefundSweep(input: RefundSweepInput): RefundSweepDecision 
     };
   }
 
-  if (input.stateRead.ok && input.stateRead.matched === null) {
-    if (input.resend.outcome === 'definitive-4xx') return { action: 'conclude-failed' };
+  // ONLY the conclude leg is age-gated (and evidence-gated — §3 item 3):
+  // positive proof of absence = a SUCCESSFUL read demonstrably containing no
+  // match AND a DEFINITIVE 4xx from the re-send. Timeouts/5xx/failed reads
+  // can never combine into a conclusion.
+  if (
+    input.refundAgeMin >= input.concludeMinAgeMin &&
+    input.stateRead.ok &&
+    input.stateRead.matched === null &&
+    input.resend.outcome === 'definitive-4xx'
+  ) {
+    return { action: 'conclude-failed' };
   }
 
   return { action: 'wait' };

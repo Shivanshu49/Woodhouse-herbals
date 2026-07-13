@@ -66,7 +66,7 @@ export function RefundDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>{isCod ? 'Mark refunded (manual)' : 'Refund via PhonePe'}</DialogTitle>
+          <DialogTitle>{isCod ? 'Mark refunded (manual)' : 'Refund via Razorpay'}</DialogTitle>
           <DialogDescription>
             Order {order.number} · {formatInr(order.totalMinor)}
           </DialogDescription>

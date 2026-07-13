@@ -30,7 +30,7 @@ interface InitiateInput {
  * 4–6; nothing in this file moves money state beyond superseding a stale
  * INITIATED row.
  *
- * Security invariants (ported from the PhonePe service + plan §1.1/§1.2):
+ * Security invariants (ported from the previous gateway service + plan §1.1/§1.2):
  * - Amount comes from `Order.totalMinor` server-side, never from the client.
  * - Ownership (Option A): the JWT owner OR the guest whose wh_sid session
  *   matches `order.cartSessionId` — the exact pattern of the public order

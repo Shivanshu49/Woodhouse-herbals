@@ -55,8 +55,15 @@ NestJS modules:
 - `shipments`  — courier / tracking with `ShipmentEvent` timeline; auto-rolls
                  order status PAID → PROCESSING → SHIPPED → DELIVERED
 - `inventory`  — single-funnel `adjust()` with `InventoryMovement` audit log
-- `phonepe`    — raw-body HMAC, server-side amount, idempotent webhook
-                 persisted to `WebhookEvent`
+- `razorpay`   — server-side Order create, Standard Checkout, raw-body
+                 HMAC webhook (persist-then-ack to `WebhookEvent`), verify
+                 fast-path re-fetching the API as authority; one guarded
+                 settle door shared by webhook/verify/cron
+- `refunds`    — full-order refunds via the Razorpay refund API
+                 (X-Refund-Idempotency + receipt), CAS-gated exactly-once
+- `reconciliation` — in-process `@nestjs/schedule` cron: payments sweep
+                 (settle / abandon+restock), refunds sweep, and an
+                 unprocessed-claims re-drive; dead-man timestamp per sweep
 - `reviews`    — moderated, soft-deletable; `verifiedPurchase` derived
                  server-side from order history
 - `search`     — Meilisearch (or Prisma `ILIKE` fallback)
@@ -67,7 +74,7 @@ NestJS modules:
 Cross-cutting:
 - Prisma + PostgreSQL 16; explicit `excludeDeleted` helper for the four
   soft-deletable models (Product, User, Review, Category).
-- Redis + BullMQ for background jobs (emails, search reindex, low-stock alerts).
+- Background reconciliation is an **in-process `@nestjs/schedule` cron** (payment/refund/claim sweeps) — no external job queue. There is no BullMQ worker (an earlier version of this doc claimed "Redis + BullMQ for background jobs"; that was aspirational and never wired). Redis is provisioned for opt-in uses (e.g. a rate-limit store); emails send synchronously via Resend.
 - Resend for transactional email (dev no-op).
 - Meilisearch for autocomplete + faceted search.
 - Cloudflare R2 for assets — presigned-PUT endpoint planned, env wired.
@@ -101,7 +108,7 @@ Keeps the AI layer **optional** — the storefront and API run fully without it.
 7. Wire storefront to API (env-flagged, mock fallback retained)
 8. Auth flow end-to-end (JWT cookies, refresh rotation, email verification)
 9. Cart + checkout flow against backend (Zustand → REST)
-10. PhonePe checkout integration (sandbox → callback → webhook → order paid)
+10. Razorpay checkout integration (server Order → Standard Checkout → webhook → order paid) — backend COMPLETE (migration phases 0-7); storefront checkout is the next build
 11. Skin/hair quiz (decision tree first, no AI)
 12. AI skin analysis endpoint (Claude vision + instructor + image preprocessing)
 13. Quiz/AI results → product recommendations matched against catalog
@@ -109,7 +116,7 @@ Keeps the AI layer **optional** — the storefront and API run fully without it.
     (spec: docs/superpowers/specs/2026-07-03-admin-panel-design.md) — IN PROGRESS
 15. Meilisearch integration for product search/autocomplete
 16. Transactional email via Resend (order confirmation, OTP, password reset)
-17. Production deployment — real PhonePe credentials, custom domain, env wiring
+17. Production deployment — real Razorpay credentials, custom domain, env wiring
 18. Polish pass — accessibility, performance budgets, mobile QA, Lighthouse > 90
 
 ## 6. Brand tokens

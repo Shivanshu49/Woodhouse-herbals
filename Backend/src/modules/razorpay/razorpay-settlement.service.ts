@@ -46,7 +46,7 @@ export class RazorpaySettlementService {
   /**
    * Terminal abandonment (plan §1.4) — the ONLY place a Razorpay order is
    * cancelled + restocked for non-payment. Cron-only caller, but it lives in
-   * THIS service so every money transition is centralised. Ports PhonePe's
+   * THIS service so every money transition is centralised. Ports the prior
    * markFailed semantics with the FF-22 fix (movement reference = order
    * NUMBER, not the order id).
    *
@@ -173,7 +173,7 @@ export class RazorpaySettlementService {
   /**
    * The idempotent success settle. The payment CAS (INITIATED→SUCCESS) is
    * the exactly-once gate; the order CAS (PENDING→PAID) never resurrects an
-   * order that already left PENDING. Ports PhonePe markSuccess semantics
+   * order that already left PENDING. Ports the prior markSuccess semantics
    * with paid_on_non_pending upgraded to a persisted event.
    */
   private async settleSuccess(
@@ -256,7 +256,7 @@ export class RazorpaySettlementService {
 
   /**
    * The captured-settle CAS found the row NOT in INITIATED (CP3 attack #3).
-   * NEVER a silent no-op (the PhonePe `// raced — leave alone` is correct
+   * NEVER a silent no-op (the prior `// raced — leave alone` is correct
    * only between success paths): re-read and distinguish
    *  - FAILED (cron abandonment or initiate supersede) → dedicated CAS
    *    FAILED→SUCCESS + persisted `captured_after_abandon` + best-effort

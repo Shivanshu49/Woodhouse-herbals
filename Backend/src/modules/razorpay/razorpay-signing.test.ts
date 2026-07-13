@@ -1,8 +1,8 @@
 /**
  * Contract tests for Razorpay signature verification (plan §6, Appendix B-2/B-3).
  *
- * Ports the five properties pinned for PhonePe verification 1:1
- * (phonepe.service.test.ts:55-90): byte-exact raw body, tamper reject,
+ * Ports the five properties pinned for the previous gateway's signature
+ * verification 1:1 (now-deleted): byte-exact raw body, tamper reject,
  * re-serialised-JSON reject, empty-signature reject, and length-mismatch
  * returning false instead of timingSafeEqual throwing — plus the webhook
  * secret-rotation fallback (Appendix B-3: retried deliveries created before

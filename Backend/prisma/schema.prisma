@@ -625,11 +625,11 @@ enum PaymentStatus {
   PARTIALLY_REFUNDED
 }
 
-// How the customer pays. PREPAID = online (PhonePe) collected before fulfilment;
+// How the customer pays. PREPAID = online (gateway) collected before fulfilment;
 // COD = cash/UPI on delivery, no online Payment row until (if ever) reconciled.
-// The refund flow branches on this (prepaid → PhonePe refund API; COD → manual
+// The refund flow branches on this (prepaid → gateway refund API; COD → manual
 // mark-refunded with a mandatory UTR reference). Defaults PREPAID — every order
-// to date is online PhonePe; COD checkout sets it explicitly when it ships.
+// to date is online prepaid; COD checkout sets it explicitly when it ships.
 enum PaymentMethod {
   PREPAID
   COD
@@ -640,7 +640,7 @@ model Order {
   number            String             @unique
   user              User?              @relation(fields: [userId], references: [id])
   userId            String?
-  // Cart session id at checkout — used by the PhonePe success handler to
+  // Cart session id at checkout — used by the payment success handler to
   // clear the right cart and by audit logs to correlate the buyer device.
   cartSessionId     String?
   status            OrderStatus        @default(PENDING)
@@ -749,7 +749,7 @@ model Payment {
   // ('razorpay'), so a future gateway swap that forgets it fails loudly at
   // insert instead of silently mislabelling money rows.
   provider       String
-  // Provider ORDER id (rzp order_… / PhonePe merchantTransactionId) —
+  // Provider ORDER id (Razorpay order_…) —
   // globally unique, persisted at initiate, and used as the webhook lookup /
   // idempotency handle.
   providerTxnId  String?       @unique
@@ -810,8 +810,8 @@ enum RefundStatus {
 // How the refund is executed. GATEWAY = online refund via the payment
 // gateway's API (async, webhook + recheck) — WHICH gateway lives on the
 // linked Payment.provider, not here; MANUAL = COD out-of-band transfer
-// recorded with a UTR (one-step). Renamed from PHONEPE in the Razorpay
-// migration (metadata-only ALTER TYPE ... RENAME VALUE; history re-labelled).
+// recorded with a UTR (one-step). Renamed from the legacy gateway value in
+// the Razorpay migration (metadata-only ALTER TYPE ... RENAME VALUE).
 enum RefundMethod {
   GATEWAY
   MANUAL
@@ -850,9 +850,10 @@ model Refund {
   utrReference     String? // bank/UPI UTR — required when method = MANUAL
   reason           String?
   status           RefundStatus @default(PENDING)
-  // The refund's own PhonePe merchantTransactionId (deterministic from id).
+  // The refund's own deterministic id — sent as the Razorpay receipt +
+  // X-Refund-Idempotency key (derived from the row id).
   merchantRefundId String?      @unique
-  providerRefundId String?      @unique // PhonePe refund txn id
+  providerRefundId String?      @unique // gateway refund id (Razorpay rfnd_…)
   rawResponse      Json?
   actor            User?        @relation(fields: [actorId], references: [id], onDelete: SetNull)
   actorId          String?
@@ -1161,13 +1162,13 @@ model HomepageSelection {
 
 model WebhookEvent {
   id             String    @id @default(cuid())
-  provider       String // "phonepe" | "resend" | "shipping" ...
+  provider       String // "razorpay" | "resend" | "shipping" ...
   eventType      String? // e.g. "payment.completed"
   // Idempotency key derived from the provider event id (or a hash of the
   // raw body when no event id is offered). Unique to guarantee at-most-once
   // processing on retries / replays.
   idempotencyKey String    @unique
-  // Verbatim signature header (e.g. PhonePe X-VERIFY). Kept for forensic
+  // Verbatim signature header (e.g. Razorpay X-Razorpay-Signature). Kept for forensic
   // audits — never re-trusted after the initial verification step.
   signature      String?
   payload        Json

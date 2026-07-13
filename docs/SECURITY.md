@@ -27,7 +27,10 @@ This is the operator-facing summary of how the application defends itself. It co
   - `GET /api/orders` lists only the caller's orders.
   - `POST /api/customers/wishlist/:productId` is scoped to `req.user.sub` (bug fix — productId was previously unbound).
   - Reviews are tied to `req.user.sub` server-side; `verifiedPurchase` is derived from order history (cannot be claimed by the client).
-- **PhonePe**: `POST /api/phonepe/initiate` requires auth and validates that the redirect URL belongs to `WEB_ORIGIN`. `POST /api/phonepe/callback` is the webhook — public, but authenticated by HMAC `X-VERIFY` signature.
+- **Razorpay**:
+  - `POST /api/razorpay/initiate` and `POST /api/razorpay/verify` are `@Public()` but **owner-checked** (Option A): the JWT owner, or the guest whose `wh_sid` session cookie matches the order's `cartSessionId` — everyone else is masked as 404. The charge amount is read from `Order.totalMinor` server-side and **never** taken from the client (it does not construct or accept a client redirect URL — the earlier version of this doc claimed it "validates the redirect URL", which was never true).
+  - `POST /api/razorpay/webhook` is public, authenticated by the `X-Razorpay-Signature` header = HMAC-SHA256 over the **raw** request bytes with `RAZORPAY_WEBHOOK_SECRET` (a route-scoped `express.raw` mount preserves the exact bytes; re-serialised JSON fails verification). It is **persist-then-ack**: the event is claimed and 200-acked within Razorpay's 5-second deadline, then settled asynchronously; a crash before settlement leaves the claim for the reconciliation cron.
+  - `/verify` treats the checkout signature as a *hint only* — it re-fetches the payment from the Razorpay API (the authority) before moving any money. All three of webhook, verify, and the cron settle through **one** guarded function (`captured` AND amount matches AND order id matches).
 
 ## 3. Input validation
 
@@ -55,7 +58,9 @@ Per-IP limits via `@nestjs/throttler`:
 | `GET /api/search/suggest` | 60 / minute |
 | `POST /api/cart/items` | 60 / minute |
 | `POST /api/reviews` | 5 / hour / user |
-| `POST /api/phonepe/initiate` | 10 / 10 min |
+| `POST /api/razorpay/initiate` | 10 / 10 min |
+| `POST /api/razorpay/verify` | 30 / min |
+| `POST /api/razorpay/webhook` | 300 / min (signature is the real auth) |
 
 AI service (slowapi):
 
@@ -89,9 +94,9 @@ In parallel, the [SecurityLoggerInterceptor](../Backend/src/common/security/secu
 - `frame-ancestors 'none'` blocks clickjacking.
 - `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin`, `Permissions-Policy: geolocation=(), camera=(), microphone=()`.
 - CORS is a strict allow-list (`WEB_ORIGIN` env, comma-separated). No wildcard.
-- `trust proxy` is set so the rate limiter and audit log see the real client IP behind the LB / Cloudflare.
+- `trust proxy` is set (env-driven `TRUST_PROXY_HOPS`, default 1) so the rate limiter and audit log see the real client IP behind the proxy chain. **Behind Cloudflare → Traefik it must be 2** — verify empirically at cutover (log `req.ip` + the `X-Forwarded-For` chain on a test request); a wrong hop count mis-keys the throttle to a proxy IP.
 - Database is reachable only from the application subnet — do not expose port 5432 publicly. The Prisma DSN should use TLS in production.
-- Redis is private-only (used for BullMQ background jobs).
+- Background reconciliation runs as an in-process `@nestjs/schedule` cron (payments/refunds/unprocessed-claims sweeps) — no external queue. Redis is provisioned but currently used only where the app opts in (e.g. rate-limit store); there is no BullMQ worker.
 - Cloudflare R2 buckets serve only the public CDN URL; signed URLs for private assets.
 
 ## 8. Things still to do (next iteration)

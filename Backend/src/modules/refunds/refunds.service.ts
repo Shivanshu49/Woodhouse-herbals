@@ -12,26 +12,17 @@ import { OrderEventsService } from '../order-events/order-events.service';
 import { OrderEventType } from '../order-events/order-event-types';
 import { InventoryService } from '../inventory/inventory.service';
 import { env } from '../../common/config/env';
-// Type-only: the legacy settleFromProvider stays compiling until the PhonePe
-// module is deleted in Phase 7. The VALUE dependency is gone — this service
-// talks to Razorpay.
-import type { PhonepeRefundResult } from '../phonepe/phonepe-refund.client';
 import { RazorpayClient, type RefundCreateResult } from '../razorpay/razorpay.client';
 import { mapRazorpayRefundState } from '../razorpay/razorpay-states';
 import { decideRefundSweep, type RefundSweepInput } from '../reconciliation/reconcile-decisions';
-import {
-  assertRefundable,
-  deriveMerchantRefundId,
-  mapRefundState,
-  shouldRestock,
-} from './refund-transitions';
+import { assertRefundable, deriveMerchantRefundId, shouldRestock } from './refund-transitions';
 import { ManualRefundDto } from './dto/manual-refund.dto';
 import { RefundOrderDto } from './dto/refund-order.dto';
 
 /**
  * Full-order refunds. Money never moves without a persisted, audited `Refund`
  * row; an order never shows REFUNDED unless the money settled. The COD manual
- * path (this file, Task 5) settles in one transaction; the prepaid PhonePe path
+ * path (this file, Task 5) settles in one transaction; the prepaid gateway path
  * (Tasks 6-7) persists first, then reconciles via callback/recheck.
  */
 @Injectable()
@@ -72,7 +63,7 @@ export class RefundsService {
    * COD manual refund — one transaction, immediately PROCESSED. The admin has
    * already transferred the money out of band; the mandatory `utrReference`
    * proves it. Guards: the order must be in a refundable state AND be COD (no
-   * SUCCESS PhonePe payment — an online-paid order must use the PhonePe path).
+   * SUCCESS gateway payment — an online-paid order must use the gateway path).
    * The partial unique index (one non-FAILED refund per order) makes a
    * double-submit a 409 rather than a double payout.
    */
@@ -93,7 +84,7 @@ export class RefundsService {
     assertRefundable(order.status);
     if (order.payments.length) {
       throw new ConflictException(
-        'This order was paid online — use the PhonePe refund, not the manual (COD) refund.',
+        'This order was paid online — use the gateway refund, not the manual (COD) refund.',
       );
     }
     const restock = this.restockApplies(
@@ -179,9 +170,9 @@ export class RefundsService {
   }
 
   /**
-   * Prepaid (PhonePe) refund initiation. Persists the refund intent atomically
+   * Prepaid (gateway) refund initiation. Persists the refund intent atomically
    * (payment CAS SUCCESS→REFUND_PENDING + Refund row + restock + event) and ONLY
-   * THEN calls PhonePe — outside the transaction, so a slow/failed provider call
+   * THEN calls the gateway — outside the transaction, so a slow/failed provider call
    * can never roll back the persisted, audited intent. A network failure here
    * leaves the refund PENDING for `recheck`; it never guesses success.
    */
@@ -229,7 +220,7 @@ export class RefundsService {
     }
     if (!payment.providerPaymentId) {
       // Razorpay refunds are created against the pay_… id, written only by
-      // the captured-settle path. PhonePe-era SUCCESS rows have none — those
+      // the captured-settle path. Pre-migration SUCCESS rows have none — those
       // are dashboard-refund territory, not this API's.
       throw new ConflictException(
         'The original payment has no provider payment id — cannot refund via the gateway.',
@@ -345,7 +336,7 @@ export class RefundsService {
    * Plan §3 "park PENDING, log, never guess": a provider status we don't model
    * (e.g. the webhook-docs 'reversed') maps to PENDING — but silently parking
    * it forever pins the payment in REFUND_PENDING with no ops signal. Restore
-   * the warn the PhonePe-era settleFromProvider had. ('pending'/'created' are
+   * the warn the pre-migration provider mapping had. ('pending'/'created' are
    * the EXPECTED non-terminal states — no noise for those.)
    */
   private warnUnmodelledRefundStatus(
@@ -517,7 +508,7 @@ export class RefundsService {
 
   /**
    * Idempotent settlement — the SINGLE money-state transition, shared by the
-   * PhonePe callback and `recheck`. Only a PENDING refund transitions; the
+   * gateway webhook and `recheck`. Only a PENDING refund transitions; the
    * `updateMany where status:PENDING` claim makes a callback racing a recheck a
    * safe no-op on whichever loses (claimed.count !== 1 → return). PENDING/unknown
    * states never transition — the order never shows REFUNDED unless money moved.
@@ -613,31 +604,6 @@ export class RefundsService {
       },
       { timeout: env.ADMIN_WRITE_TX_TIMEOUT_MS },
     );
-  }
-
-  /**
-   * Adapt a provider response into a settlement. Unknown/unexpected provider
-   * states map to PENDING (never guessed as SUCCESS/FAILED) and are logged so
-   * ops can see a refund that PhonePe reported in a shape we don't model yet.
-   */
-  async settleFromProvider(
-    refundId: string,
-    res: PhonepeRefundResult,
-  ): Promise<'PROCESSED' | 'FAILED' | 'PENDING'> {
-    const mapped = mapRefundState(res.state, { httpStatus: res.httpStatus, success: res.success });
-    if (mapped === 'FAILED' && res.state !== 'FAILED') {
-      // FAILED via a definitive provider rejection (not a terminal FAILED state) —
-      // e.g. EXCESS_REFUND_AMOUNT / TXN_OLDER_THAN_LIMIT / NOT_FOUND. Log for ops.
-      this.logger.warn(
-        `refund:settle provider rejected — marking FAILED refundId=${refundId} state=${res.state} code=${res.code} http=${res.httpStatus}`,
-      );
-    } else if (mapped === 'PENDING' && res.state !== 'PENDING') {
-      this.logger.warn(
-        `refund:settle unknown provider state — parking PENDING refundId=${refundId} state=${res.state} code=${res.code} http=${res.httpStatus}`,
-      );
-    }
-    await this.settle(refundId, mapped, res.providerRefundId, res.raw);
-    return mapped;
   }
 
   /**

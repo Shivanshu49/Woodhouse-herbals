@@ -56,7 +56,7 @@ export type PaymentSweepDecision =
  *     Auto-capture's automatic_expiry_period voids an uncaptured authorize,
  *     so this state is self-resolving, not a permanent hold;
  *  5. past the TTL with none of the above → abandon (cancel + restock —
- *     PhonePe's markFailed semantics live HERE now);
+ *     the prior gateway's markFailed semantics live HERE now);
  *  6. otherwise wait.
  */
 export function decidePaymentSweep(input: PaymentSweepInput): PaymentSweepDecision {

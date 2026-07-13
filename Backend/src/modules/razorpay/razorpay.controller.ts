@@ -35,7 +35,7 @@ export class RazorpayController {
    * the service accepts the JWT owner OR the guest whose wh_sid session
    * matches the order's cartSessionId, and 404s everyone else. The amount is
    * derived from the order server-side; 10 inits / 10 min keeps card-testing
-   * rings off the endpoint (same budget as the PhonePe era).
+   * rings off the endpoint (same budget as before the gateway swap).
    */
   @Public()
   @Throttle({ default: { ttl: 10 * 60 * 1000, limit: 10 } })

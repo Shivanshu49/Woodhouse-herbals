@@ -7,7 +7,7 @@ import { RefundsModule } from '../refunds/refunds.module';
 
 /**
  * Razorpay gateway module. One-directional import of RefundsModule (the
- * same shape the PhonePe module used) so refund webhooks settle through
+ * same anti-cycle shape used before) so refund webhooks settle through
  * RefundsService — the single refund money path. WebhookEventsService and
  * OrderEventsService arrive via @Global modules.
  */

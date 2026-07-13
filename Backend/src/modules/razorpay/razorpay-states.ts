@@ -38,7 +38,7 @@ export type PaymentEntityAction =
  *   verify, and cron paths — one rule, three callers (plan §1.3/§1.4).
  * - A captured entity with the wrong amount is an ANOMALY HOLD, never an
  *   auto-fail: money may have moved (plan §1.3 — deliberate change from
- *   PhonePe, which cancelled + restocked on mismatch).
+ *   the previous gateway, which cancelled + restocked on mismatch).
  * - 'failed' only annotates; order cancellation is cron-owned abandonment.
  */
 export function decidePaymentEntityAction(

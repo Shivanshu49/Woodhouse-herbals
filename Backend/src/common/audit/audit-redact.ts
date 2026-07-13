@@ -1,5 +1,8 @@
-/** Keys whose VALUES are secrets/live tokens and must never land in the audit log. */
-export const SECRET_KEY = /token|password|secret|inviteurl|reseturl|apikey|credential|x-verify/i;
+/** Keys whose VALUES are secrets/live tokens and must never land in the audit log.
+ *  `signature` is generic on purpose — it covers `x-razorpay-signature`,
+ *  `razorpay_signature`, and any future provider signature header (it also
+ *  subsumes the legacy `x-verify` header, which was signature material). */
+export const SECRET_KEY = /token|password|secret|inviteurl|reseturl|apikey|credential|signature/i;
 
 /** Deep-redact secret-bearing values so the append-only audit log never persists
  *  a live token (e.g. a staff invite's password-reset URL) or credential.

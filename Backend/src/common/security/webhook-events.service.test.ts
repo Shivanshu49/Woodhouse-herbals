@@ -2,7 +2,7 @@
  * Pinning tests for the webhook idempotency store (Razorpay migration Phase 0).
  *
  * WebhookEventsService is the at-most-once backbone shared by every provider
- * webhook — it survives the PhonePe→Razorpay swap unchanged, so its exact
+ * webhook — it survives the payment-gateway swap unchanged, so its exact
  * behavior is pinned here BEFORE any provider code moves. If a later change
  * breaks these, it is breaking settlement idempotency, not "just a test".
  *
@@ -57,7 +57,7 @@ function makeService(overrides: {
 }
 
 const BASE_INPUT = {
-  provider: 'phonepe',
+  provider: 'razorpay',
   eventType: 'payment.completed',
   rawBody: '{"response":"abc"}',
   payload: { state: 'COMPLETED' } as never,
@@ -65,12 +65,12 @@ const BASE_INPUT = {
 
 test('record: fresh event is claimed with shouldProcess=true and the created id', async () => {
   const { svc, calls } = makeService({});
-  const claim = await svc.record({ ...BASE_INPUT, idempotencyKey: 'phonepe:TXN1' });
+  const claim = await svc.record({ ...BASE_INPUT, idempotencyKey: 'razorpay:TXN1' });
   assert.deepEqual(claim, { shouldProcess: true, eventId: 'evt_new' });
   assert.equal(calls.creates.length, 1);
   const data = (calls.creates[0] as { data: Record<string, unknown> }).data;
-  assert.equal(data.idempotencyKey, 'phonepe:TXN1');
-  assert.equal(data.provider, 'phonepe');
+  assert.equal(data.idempotencyKey, 'razorpay:TXN1');
+  assert.equal(data.provider, 'razorpay');
   assert.equal(data.eventType, 'payment.completed');
 });
 

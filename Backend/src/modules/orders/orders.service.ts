@@ -42,7 +42,7 @@ export class OrdersService {
    *   conditional update (`stockQty >= qty`) so concurrent orders for the
    *   same SKU cannot oversell.
    * - The order is created in PENDING. The cart is NOT cleared here —
-   *   PhonePe callback will clear it on PAID, or restore stock on FAILED.
+   *   the gateway webhook will clear it on PAID, or restore stock on FAILED.
    */
   async createFromCart(
     sessionId: string,

@@ -25,7 +25,7 @@ Each app folder is **fully independent** — clone, `cd` in, install, run. There
 | Backend     | NestJS, Prisma, PostgreSQL 16, JWT (httpOnly cookies), Redis + BullMQ  |
 | AI          | FastAPI, Claude vision/text, slowapi rate-limit                        |
 | Search      | Meilisearch 1.10                                                       |
-| Payments    | PhonePe (raw-body HMAC + idempotent webhooks)                          |
+| Payments    | Razorpay (server Order + raw-body HMAC webhook + reconcile cron)       |
 | Email       | Resend (with safe dev no-op fallback)                                  |
 | Storage     | Cloudflare R2                                                          |
 
@@ -86,13 +86,13 @@ Without an Anthropic key, the recommender returns deterministic results so flows
 Beyond the obvious storefront modules (products, cart, orders, search), the API ships:
 
 - **Hardened auth**: refresh-token rotation with reuse detection, email verification, password reset, account lockout, atomic `failedLoginAttempts` increment, audit trail (`AuthEvent`).
-- **PhonePe**: raw-body HMAC verification (no JSON re-serialisation bug), server-side amount lookup, idempotent webhook handling persisted to `WebhookEvent`.
+- **Razorpay**: server-side Order create, raw-body HMAC webhook verification (persist-then-ack), verify fast-path re-fetching the API as authority, one guarded settle door shared by webhook/verify/cron, and an in-process reconciliation cron for lost-webhook recovery + terminal abandonment. Refunds via the Razorpay refund API with X-Refund-Idempotency + receipt.
 - **Coupons**: PERCENT / FLAT with min-cart, max-uses, per-user limit, category restriction, atomic redemption inside the order transaction.
 - **Shipments**: courier + tracking with an immutable `ShipmentEvent` timeline; auto-rolls order status PAID → PROCESSING → SHIPPED → DELIVERED.
 - **Inventory audit**: every stock change funnels through `InventoryService.adjust`, which writes an `InventoryMovement` row in the same transaction (CAS-style conditional update keeps stock ≥ 0).
 - **Soft delete** on Product, User, Review, Category — historical orders survive product deletion; listings filter via `excludeDeleted` helper.
 - **OrderItem snapshots**: `productNameSnapshot`, `productImageSnapshot`, `skuSnapshot` make past orders immutable.
-- **Idempotency keys**: `Idempotency-Key` header on `POST /api/orders`; provider txn id on PhonePe payments.
+- **Idempotency keys**: `Idempotency-Key` header on `POST /api/orders`; the Razorpay order id as the payment's unique `providerTxnId`; per-event webhook claims.
 - **Default-secure**: global `JwtAuthGuard` — every endpoint requires auth unless `@Public()`. Strict CORS, Helmet CSP/HSTS, per-endpoint throttling, structured request/security logging.
 
 See [docs/SECURITY.md](docs/SECURITY.md) for the full threat model and control matrix.
@@ -103,7 +103,7 @@ See [docs/SECURITY.md](docs/SECURITY.md) for the full threat model and control m
 # Backend — pure unit suites (no DB needed)
 cd Backend && npm test
 # 34/34 across: coupon pricing, soft-delete helpers, password policy,
-# token utilities, PhonePe signature verification.
+# token utilities, Razorpay signature verification.
 
 # Frontend — typecheck + production build
 cd Frontend && npm run typecheck && npm run build

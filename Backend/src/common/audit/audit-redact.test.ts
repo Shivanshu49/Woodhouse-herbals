@@ -26,6 +26,19 @@ test('secret-bearing keys are redacted (values, by key name)', () => {
   assert.equal(out.name, 'Asha'); // non-secret preserved
 });
 
+test('signature headers are redacted — the test that was never written for x-verify, now for Razorpay', () => {
+  const out = redactSecrets({
+    'x-razorpay-signature': 'deadbeef0123456789',
+    razorpay_signature: 'abc',
+    'X-Razorpay-Signature': 'CASED', // regex is case-insensitive
+    orderNumber: 'WH-ABC123', // non-secret preserved
+  }) as Record<string, unknown>;
+  assert.equal(out['x-razorpay-signature'], '[redacted]');
+  assert.equal(out.razorpay_signature, '[redacted]');
+  assert.equal(out['X-Razorpay-Signature'], '[redacted]');
+  assert.equal(out.orderNumber, 'WH-ABC123');
+});
+
 test('nested objects + arrays are walked, Dates inside preserved', () => {
   const out = redactSecrets({
     user: { fullName: 'A', token: 't', lastLogin: new Date('2026-02-02T00:00:00.000Z') },

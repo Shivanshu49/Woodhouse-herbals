@@ -2,7 +2,7 @@ import { IsEnum, IsOptional, IsString, MaxLength } from 'class-validator';
 import { RefundDisposition } from '@prisma/client';
 
 /**
- * Prepaid (PhonePe) refund body. No UTR — the money moves through PhonePe's
+ * Prepaid (gateway) refund body. No UTR — the money moves through the gateway's
  * refund API, not an out-of-band transfer. `disposition` drives the restock
  * decision exactly like the COD path.
  */

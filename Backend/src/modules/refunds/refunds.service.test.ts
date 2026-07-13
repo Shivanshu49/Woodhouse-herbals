@@ -25,7 +25,7 @@ beforeEach(() => {
   // or short secrets must not leak in — env.ts computed its prod strictness
   // (minSecret=64) at module load, so the fixture secrets are 64 chars to be
   // valid under EITHER mode, and NODE_ENV is pinned so the prod refine block
-  // (which would demand PhonePe creds and exit(1)) never runs.
+  // (which would demand gateway creds and exit(1)) never runs.
   process.env.NODE_ENV = 'test';
   process.env.DATABASE_URL = 'postgresql://x:x@localhost:5432/x';
   process.env.JWT_ACCESS_SECRET = 'a'.repeat(64);
@@ -360,10 +360,10 @@ test('initiate happy path: pins every money-critical write shape', async () => {
   assert.deepEqual(res, { id: 'refund_1', status: 'PENDING' });
 });
 
-test('initiate: a SUCCESS payment without providerPaymentId (PhonePe-era row) is a 409, provider never called', async () => {
+test('initiate: a SUCCESS payment without providerPaymentId (pre-migration row) is a 409, provider never called', async () => {
   const { svc, calls } = makeService({
     order: prepaidOrder({
-      payments: [{ id: 'pay_1', providerTxnId: 'TXN_PHONEPE', providerPaymentId: null }],
+      payments: [{ id: 'pay_1', providerTxnId: 'TXN_LEGACY', providerPaymentId: null }],
     }),
   });
   await assert.rejects(

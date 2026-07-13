@@ -15,7 +15,7 @@ export type StoreProfilePatch = Partial<Omit<StoreProfile, 'stateCode'>>;
 export interface IntegrationsStatus {
   cloudinary: boolean;
   r2: boolean;
-  phonepe: boolean;
+  razorpay: boolean;
   email: boolean;
 }
 

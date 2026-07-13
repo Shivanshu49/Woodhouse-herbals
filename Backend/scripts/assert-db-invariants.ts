@@ -88,7 +88,7 @@ async function assertRefundMethodLabels(prisma: PrismaClient): Promise<void> {
   if (JSON.stringify(labels) !== JSON.stringify(expected)) {
     fail([
       `RefundMethod enum labels are [${labels.join(', ')}], expected [${expected.join(', ')}] — ` +
-        "the PHONEPE→GATEWAY rename (20260713013000_razorpay_phase1_provider_neutral) is missing " +
+        'the legacy→GATEWAY rename (20260713013000_razorpay_phase1_provider_neutral) is missing ' +
         'or the enum drifted.',
     ]);
   }

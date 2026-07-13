@@ -8,7 +8,7 @@ const TIMEOUT_MS = 15_000;
 
 /**
  * Razorpay S2S client — signed IO only, all settlement decisions live with
- * the callers (mirrors PhonepeRefundClient's contract discipline).
+ * the callers (a signed-IO client; all settlement decisions live upstream).
  *
  * - Basic auth `key_id:key_secret` (Appendix B-1); NO request signing.
  * - Auto-capture via the NESTED payment object — the legacy top-level

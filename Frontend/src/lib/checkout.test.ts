@@ -28,7 +28,10 @@ const DTO: CheckoutAddress = {
 
 test('POST /orders sends ONLY address + couponCode (+ Idempotency-Key) on the wire', async () => {
   const orig = globalThis.fetch;
-  let captured: { body: string; headers: Record<string, string> } | null = null;
+  // Definite-assignment: TS can't see the fetch closure assign this, so a
+  // `| null` here would narrow to `never` after assert; the mock sets it and the
+  // assert below is the runtime guard.
+  let captured!: { body: string; headers: Record<string, string> };
   globalThis.fetch = (async (_url: string, init: RequestInit) => {
     captured = { body: String(init.body), headers: init.headers as Record<string, string> };
     return new Response(
@@ -39,13 +42,13 @@ test('POST /orders sends ONLY address + couponCode (+ Idempotency-Key) on the wi
   try {
     await api.orders.create(DTO, 'a'.repeat(24));
     assert.ok(captured, 'fetch was not called');
-    const body = JSON.parse(captured!.body);
+    const body = JSON.parse(captured.body);
     const allowed = new Set(['fullName', 'phone', 'line1', 'line2', 'city', 'state', 'pincode', 'country', 'couponCode']);
     for (const k of Object.keys(body)) assert.ok(allowed.has(k), `unexpected key on the wire: ${k}`);
     for (const forbidden of ['price', 'total', 'subtotal', 'discount', 'tax', 'items', 'quantity', 'lineTotal', 'amount', 'amountMinor']) {
       assert.ok(!(forbidden in body), `forbidden money/line-item key reached the wire: ${forbidden}`);
     }
-    const h = captured!.headers;
+    const h = captured.headers;
     assert.ok(h['Idempotency-Key'] ?? h['idempotency-key'], 'Idempotency-Key header missing');
   } finally {
     globalThis.fetch = orig;

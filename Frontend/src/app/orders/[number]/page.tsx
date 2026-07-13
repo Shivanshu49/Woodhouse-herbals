@@ -3,6 +3,7 @@
 // Reads the live order (guest-ownable via wh_sid) and polls; never static.
 export const dynamic = 'force-dynamic';
 
+import { useRef } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -14,22 +15,31 @@ import type { Order, OrderStatus } from '@/types/order';
 const inr = (minor: number) =>
   `₹${(minor / 100).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
 
-// Anything past PENDING that isn't a failure counts as a paid/confirmed order.
+// Anything past PENDING that isn't cancelled/refunded counts as paid/confirmed.
 const PAID_STATES: OrderStatus[] = ['PAID', 'PROCESSING', 'SHIPPED', 'DELIVERED'];
-const FAILED_STATES: OrderStatus[] = ['CANCELLED', 'REFUNDED'];
+const POLL_DEADLINE_MS = 120_000;
 
 export default function OrderResultPage() {
   const params = useParams<{ number: string }>();
   const number = String(params.number);
+  const startRef = useRef<number>(0);
+  if (startRef.current === 0) startRef.current = Date.now();
 
   const query = useQuery<Order, ApiError>({
     queryKey: ['order', number],
     queryFn: () => api.orders.get(number),
     retry: false,
-    // Poll while PENDING (the webhook / verify settles it); stop once resolved.
-    refetchInterval: (q) => (q.state.data && q.state.data.status !== 'PENDING' ? false : 2500),
+    refetchInterval: (q) => {
+      const data = q.state.data;
+      if (data && data.status !== 'PENDING') return false; // settled
+      // A genuine not-found (or not-owned) must not be polled forever.
+      if (q.state.error instanceof ApiError && q.state.error.status === 404) return false;
+      if (Date.now() - startRef.current > POLL_DEADLINE_MS) return false; // give up after ~2 min
+      return 2500; // poll while PENDING (verify / webhook settles it)
+    },
   });
 
+  // No data yet — first load in flight.
   if (query.isPending) {
     return (
       <Shell>
@@ -39,7 +49,11 @@ export default function OrderResultPage() {
     );
   }
 
-  if (query.isError) {
+  // Render from data whenever we have it — a TRANSIENT background-poll failure
+  // (react-query keeps the last data) must NOT flash a hard error at a customer
+  // who just paid. Only fall through here when there is genuinely no order.
+  const order = query.data;
+  if (!order) {
     const notFound = query.error instanceof ApiError && query.error.status === 404;
     return (
       <Shell>
@@ -57,9 +71,9 @@ export default function OrderResultPage() {
     );
   }
 
-  const order = query.data;
   const paid = PAID_STATES.includes(order.status);
-  const failed = FAILED_STATES.includes(order.status);
+  const refunded = order.status === 'REFUNDED';
+  const cancelled = order.status === 'CANCELLED';
   const pending = order.status === 'PENDING';
 
   if (pending) {
@@ -72,14 +86,29 @@ export default function OrderResultPage() {
     );
   }
 
-  if (failed) {
+  if (cancelled) {
     return (
       <Shell>
         <AlertTriangle className="mx-auto h-10 w-10 text-blush-600" />
         <h1 className="mt-4 text-display-md">Payment not completed</h1>
-        <p className="mt-2 text-ink-muted">Order {order.number} was {order.status.toLowerCase()}. No payment was captured.</p>
+        <p className="mt-2 text-ink-muted">Order {order.number} was cancelled. No payment was captured.</p>
         <Link href="/cart" className="mt-6 inline-flex items-center gap-2 rounded-full bg-navy-900 text-cream px-6 py-3 text-sm font-medium">
           Back to cart <ArrowRight className="h-4 w-4" />
+        </Link>
+      </Shell>
+    );
+  }
+
+  if (refunded) {
+    return (
+      <Shell>
+        <CheckCircle2 className="mx-auto h-10 w-10 text-brand-600" />
+        <h1 className="mt-4 text-display-md">Order refunded</h1>
+        <p className="mt-2 text-ink-muted">
+          Order {order.number} was refunded — your payment has been returned to your original payment method.
+        </p>
+        <Link href="/shop" className="mt-6 inline-flex items-center gap-2 rounded-full bg-navy-900 text-cream px-6 py-3 text-sm font-medium">
+          Continue shopping <ArrowRight className="h-4 w-4" />
         </Link>
       </Shell>
     );

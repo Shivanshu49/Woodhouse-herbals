@@ -36,8 +36,34 @@ export default function CheckoutPage() {
   const [phase, setPhase] = useState<Phase>({ name: 'review' });
   const [acked, setAcked] = useState(false);
   const attemptIdRef = useRef<string | null>(null);
-  const getAttemptId = () => (attemptIdRef.current ??= crypto.randomUUID());
   const lastDtoRef = useRef<CheckoutAddress | null>(null);
+  const draftRef = useRef<CheckoutAddress | null>(null);
+
+  // Per-checkout-attempt id, persisted for the TAB so a page RELOAD replays the
+  // same Idempotency-Key: an identical resubmit then returns the already-created
+  // order instead of minting a DUPLICATE (which would double-decrement stock and,
+  // since it never reaches /razorpay/initiate, leaves a Payment-less PENDING order
+  // no reconciliation sweep restocks — a phantom stock leak). Cleared on payment
+  // success so the next checkout is a fresh attempt.
+  const getAttemptId = () => {
+    if (attemptIdRef.current) return attemptIdRef.current;
+    let id: string | null = null;
+    try {
+      id = sessionStorage.getItem('wh-checkout-attempt');
+    } catch {
+      /* storage blocked — fall back to in-memory */
+    }
+    if (!id) {
+      id = crypto.randomUUID();
+      try {
+        sessionStorage.setItem('wh-checkout-attempt', id);
+      } catch {
+        /* ignore */
+      }
+    }
+    attemptIdRef.current = id;
+    return id;
+  };
 
   const cartQuery = useQuery({
     queryKey: ['checkout-cart'],
@@ -90,6 +116,11 @@ export default function CheckoutPage() {
             });
           } catch {
             // The webhook is the ground truth; the result page polls it.
+          }
+          try {
+            sessionStorage.removeItem('wh-checkout-attempt'); // attempt done — next checkout is fresh
+          } catch {
+            /* ignore */
           }
           useCartStore.getState().clear();
           router.push(`/orders/${order.number}`);
@@ -202,7 +233,14 @@ export default function CheckoutPage() {
           {phase.name === 'address' && (
             <div className="space-y-4">
               <h2 className="font-display text-xl text-navy-900">Shipping address</h2>
-              <AddressForm submitLabel="Place order" onSubmit={placeOrder} />
+              <AddressForm
+                defaults={draftRef.current ?? undefined}
+                onChange={(dto) => {
+                  draftRef.current = dto;
+                }}
+                submitLabel="Place order"
+                onSubmit={placeOrder}
+              />
               <button onClick={() => setPhase({ name: 'review' })} className="text-sm text-ink-muted hover:text-navy-900">
                 ← Back to review
               </button>

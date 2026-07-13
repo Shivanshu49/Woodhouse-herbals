@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { CheckoutAddress } from '@/types/order';
 
 // Mirror the backend CreateOrderDto rules so we fail fast client-side; the
@@ -45,11 +45,15 @@ export function AddressForm({
   disabled,
   submitLabel,
   onSubmit,
+  onChange,
 }: {
   defaults?: Partial<CheckoutAddress>;
   disabled?: boolean;
   submitLabel: string;
   onSubmit: (dto: CheckoutAddress) => void;
+  /** Reports current field values on every change so the parent can keep a
+   *  draft across unmount (the checkout flow re-mounts this form between steps). */
+  onChange?: (dto: CheckoutAddress) => void;
 }) {
   const [values, setValues] = useState<CheckoutAddress>({
     fullName: defaults?.fullName ?? '',
@@ -63,6 +67,10 @@ export function AddressForm({
     couponCode: defaults?.couponCode ?? '',
   });
   const [errors, setErrors] = useState<Partial<Record<keyof CheckoutAddress, string>>>({});
+
+  useEffect(() => {
+    onChange?.(values);
+  }, [values, onChange]);
 
   const set = (key: keyof CheckoutAddress) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setValues((v) => ({ ...v, [key]: e.target.value }));

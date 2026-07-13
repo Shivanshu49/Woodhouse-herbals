@@ -17,10 +17,10 @@ async function main() {
   await prisma.offerStripItem.deleteMany();
   await prisma.offerStripItem.createMany({
     data: [
-      { headline: 'FLAT 20% OFF on all herbal products — use code GLOW20', code: 'GLOW20', sortOrder: 0 },
-      { headline: 'Free shipping on orders above ₹499', sortOrder: 1 },
-      { headline: 'Cash on delivery available across India', sortOrder: 2 },
-      { headline: 'Made in India · Cruelty-free · Vegan · GMP certified', href: '/about', sortOrder: 3 },
+      { headline: 'AMAZING OFFER · Get 25% off on purchase of ₹499 & above, use code WH25', code: 'WH25', href: '/shop', sortOrder: 0 },
+      { headline: 'Free shipping on orders above ₹499', href: '/shop', sortOrder: 1 },
+      { headline: 'Cash on delivery available across India', href: '/shop', sortOrder: 2 },
+      { headline: 'No Sulphate · No Silicone · No Paraben · Made in India', href: '/about', sortOrder: 3 },
     ],
   });
 

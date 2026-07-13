@@ -1,5 +1,7 @@
+'use client';
+
 import { Leaf, Shield, Sparkles, Heart, BadgeCheck, MapPin, type LucideIcon } from 'lucide-react';
-import { TRUST_PILLARS } from '@/data/site-content';
+import { useHomepage } from '@/hooks/use-homepage';
 
 const ICONS: Record<string, LucideIcon> = {
   leaf:     Leaf,
@@ -17,12 +19,16 @@ const ICONS: Record<string, LucideIcon> = {
  * circle behind the icon to match the assets.
  */
 export function TrustStrip() {
+  const { data } = useHomepage();
+  const pillars = data?.trust ?? [];
+  if (pillars.length === 0) return null;
+
   return (
     <section className="relative py-8 sm:py-14">
       <div className="container-wide">
         <div className="rounded-[2rem] bg-white border border-navy-900/5 shadow-soft px-4 sm:px-8 py-6 sm:py-10">
           <ul className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-y-5 sm:gap-y-7 gap-x-3 sm:gap-x-4">
-            {TRUST_PILLARS.map((t) => {
+            {pillars.map((t) => {
               const Icon = ICONS[t.icon] ?? Leaf;
               return (
                 <li key={t.title} className="flex flex-col items-center text-center gap-2">

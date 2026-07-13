@@ -10,7 +10,10 @@ interface PublicEnv {
 }
 
 function readUrl(name: string, raw: string | undefined, fallback: string): string {
-  const value = raw ?? fallback;
+  // Treat unset OR empty/whitespace as "not provided" and fall back. Docker sets
+  // an unpassed build ARG to "" (not undefined), and `"" ?? fallback` keeps the
+  // "", so an empty NEXT_PUBLIC_* would throw at build AND boot without this.
+  const value = (raw ?? '').trim() || fallback;
   try {
     // eslint-disable-next-line no-new
     new URL(value);

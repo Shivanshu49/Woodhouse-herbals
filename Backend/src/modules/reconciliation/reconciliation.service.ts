@@ -26,10 +26,16 @@ const BATCH_CAP = 50;
  * scaled past ONE replica, wrap each sweep body in a pg_try_advisory_lock to
  * avoid wasted duplicate provider calls. Not built now (staging = 1 replica).
  *
- * Dead-man: each sweep stamps its last-completed timestamp ONLY on a clean
- * finish (the stamp is the LAST statement, after the work) — a crashed sweep
- * never advances it, so "oldest INITIATED age > 2× interval OR last sweep >
- * 30 min ago" is a truthful liveness alert (PRE-LAUNCH).
+ * Dead-man: each sweep stamps `reconcile:<name>:last_completed_at` ONLY on a
+ * clean finish (the stamp is the LAST statement, after the work) — a crashed
+ * sweep never advances it. NOTE (CP5 review): this is a pure LIVENESS signal —
+ * the per-row try/catch below keeps it fresh even when every row fails, so it
+ * proves "the sweep fired", NOT "the sweep made progress". The PRE-LAUNCH
+ * alert must therefore (a) max over ALL THREE keys (payments/refunds/redrive),
+ * and (b) pair liveness with a per-domain BACKLOG signal — oldest INITIATED
+ * payment age (exists), oldest PENDING GATEWAY refund age, and oldest
+ * processed=false razorpay WebhookEvent age. Wholesale row failures are also
+ * loud (per-row logger.error), so log/error-rate monitoring is a parallel net.
  */
 @Injectable()
 export class ReconciliationService {
@@ -50,7 +56,7 @@ export class ReconciliationService {
 
   @Cron(CronExpression.EVERY_5_MINUTES)
   async reconcilePayments(): Promise<void> {
-    await this.runSweep('payments', () => this.sweepPayments());
+    await this.fire('payments', () => this.sweepPayments());
   }
 
   async sweepPayments(): Promise<void> {
@@ -61,6 +67,11 @@ export class ReconciliationService {
         status: 'INITIATED',
         providerTxnId: { not: null },
         createdAt: { lt: minAgeCutoff },
+        // Exclude orders already flagged with an amount-mismatch anomaly: that
+        // is the terminal for a held payment (persisted once, awaiting manual
+        // resolution). Excluding them here means no re-fetch loop AND no
+        // permanently-pinned batch-cap slot (CP5 review).
+        order: { is: { events: { none: { type: 'payment_amount_mismatch' } } } },
       },
       orderBy: { createdAt: 'asc' },
       take: BATCH_CAP,
@@ -118,21 +129,10 @@ export class ReconciliationService {
       return;
     }
 
-    // Anomaly-hold terminal (§1.3): once a payment_amount_mismatch has been
-    // persisted for this order, the payment is flagged for manual resolution —
-    // feed the pure triage `observations = max` so it returns anomaly-terminal
-    // and we stop re-acting. (Flag-once terminal; a fresh mismatch flags via
-    // the settle door below.)
-    const alreadyFlagged = await this.prisma.orderEvent.count({
-      where: { orderId: row.orderId, type: 'payment_amount_mismatch' },
-    });
-
     const decision = decidePaymentSweep({
       paymentAgeMin: (Date.now() - row.createdAt.getTime()) / 60_000,
       minAgeMin: env.RECONCILE_PAYMENT_MIN_AGE_MIN,
       abandonTtlHours: env.PAYMENT_ABANDON_TTL_HOURS,
-      anomalyObservations: alreadyFlagged > 0 ? env.RECONCILE_ANOMALY_MAX_OBSERVATIONS : 0,
-      maxAnomalyObservations: env.RECONCILE_ANOMALY_MAX_OBSERVATIONS,
       expectedAmountMinor: row.amountMinor,
       expectedRzpOrderId: row.providerTxnId,
       attempts,
@@ -142,8 +142,9 @@ export class ReconciliationService {
       case 'settle-success':
       case 'anomaly-hold': {
         // Hand the captured entity to the ONE door — it re-applies the full
-        // guard and either settles (matched) or persists the hold (mismatch).
-        // The sweep NEVER writes SUCCESS itself.
+        // guard and either settles (matched) or persists the hold (mismatch,
+        // flagging the order so the query above excludes it next sweep). The
+        // sweep NEVER writes SUCCESS itself.
         const captured = attempts.find((a) => a.id === decision.providerPaymentId);
         if (captured) await this.settlement.processPaymentEntity(captured);
         return;
@@ -157,11 +158,10 @@ export class ReconciliationService {
         });
         return;
       case 'authorized-stuck':
-      case 'anomaly-terminal':
       case 'wait':
       default:
-        // No money action. authorized-stuck/anomaly-terminal are held for
-        // manual resolution; wait defers to the next sweep.
+        // No money action. authorized-stuck self-resolves (auto-capture voids
+        // an uncaptured authorize); wait defers to the next sweep.
         return;
     }
   }
@@ -170,7 +170,7 @@ export class ReconciliationService {
 
   @Cron(CronExpression.EVERY_10_MINUTES)
   async reconcileRefunds(): Promise<void> {
-    await this.runSweep('refunds', () => this.sweepRefunds());
+    await this.fire('refunds', () => this.sweepRefunds());
   }
 
   async sweepRefunds(): Promise<void> {
@@ -218,7 +218,7 @@ export class ReconciliationService {
 
   @Cron(CronExpression.EVERY_5_MINUTES)
   async redriveUnprocessedClaims(): Promise<void> {
-    await this.runSweep('redrive', () => this.sweepUnprocessedClaims());
+    await this.fire('redrive', () => this.sweepUnprocessedClaims());
   }
 
   /**
@@ -260,13 +260,26 @@ export class ReconciliationService {
   // ── dead-man ────────────────────────────────────────────────────────────
 
   /**
-   * Run a sweep and stamp its last-completed timestamp ONLY on a clean
-   * finish. The stamp is written AFTER the body returns, so a throw skips it —
-   * a dead-man that never lies.
+   * Run a sweep from a @Cron entry point: stamp the dead-man ONLY on a clean
+   * finish (the stamp is AFTER the body, so a throw skips it — a dead-man that
+   * never lies), and NEVER let a sweep failure escape. An unhandled rejection
+   * out of a @Cron method would, under Node's default policy, risk the whole
+   * process; a broken sweep must degrade to a logged, un-stamped no-op — never
+   * take the API down. The skipped stamp is what the liveness alert detects.
    */
-  private async runSweep(name: string, body: () => Promise<void>): Promise<void> {
-    await body();
-    await this.stampCompleted(name);
+  private async fire(name: string, body: () => Promise<void>): Promise<void> {
+    try {
+      await body();
+      await this.stampCompleted(name);
+    } catch (err) {
+      this.logger.error(
+        JSON.stringify({
+          scope: 'razorpay:reconcile:sweep_crashed',
+          sweep: name,
+          err: String(err).slice(0, 200),
+        }),
+      );
+    }
   }
 
   private async stampCompleted(name: string): Promise<void> {

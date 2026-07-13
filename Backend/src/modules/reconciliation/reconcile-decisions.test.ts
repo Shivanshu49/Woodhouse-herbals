@@ -24,8 +24,6 @@ const BASE = {
   paymentAgeMin: 30,
   minAgeMin: 15,
   abandonTtlHours: 24,
-  anomalyObservations: 0,
-  maxAnomalyObservations: 3,
   expectedAmountMinor: 49900,
   expectedRzpOrderId: 'order_A',
 };
@@ -64,14 +62,10 @@ test('payments: the settle guard is IDENTICAL to the webhook path — amount mis
   });
 });
 
-test('payments: the anomaly hold has a TERMINAL — observation cap reached ⇒ stop re-fetching', () => {
-  const decision = decidePaymentSweep({
-    ...BASE,
-    anomalyObservations: 3,
-    attempts: [attempt({ status: 'captured', amount: 100 })],
-  });
-  assert.deepEqual(decision, { action: 'anomaly-terminal', reason: 'amount_mismatch' });
-});
+// (The anomaly-hold terminal is no longer a numeric counter — CP5-REVISED.
+// Once flagged, the cron's findMany excludes the order entirely; that
+// exclusion is pinned in reconciliation.service.test.ts. The pure function
+// therefore only ever emits anomaly-hold for a not-yet-flagged mismatch.)
 
 test('payments: a mismatched captured attempt BLOCKS abandonment even past the TTL', () => {
   const decision = decidePaymentSweep({

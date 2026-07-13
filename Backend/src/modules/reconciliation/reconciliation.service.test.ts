@@ -21,7 +21,6 @@ beforeEach(() => {
   process.env.RECONCILE_PAYMENT_MIN_AGE_MIN = '15';
   process.env.PAYMENT_ABANDON_TTL_HOURS = '24';
   process.env.REFUND_CONCLUDE_MIN_AGE_MIN = '15';
-  process.env.RECONCILE_ANOMALY_MAX_OBSERVATIONS = '3';
   resetEnvCacheForTests();
 });
 
@@ -34,8 +33,9 @@ interface Cfg {
   claimRows?: any[];
   attempts?: any[];
   fetchThrows?: boolean;
-  mismatchEventCount?: number;
   processWebhookThrows?: boolean;
+  /** capture the where-clause the payments sweep queries with */
+  onPaymentFindMany?: (args: any) => void;
 }
 
 function makeService(cfg: Cfg) {
@@ -48,10 +48,14 @@ function makeService(cfg: Cfg) {
     stamps: [] as any[],
   };
   const prisma = {
-    payment: { findMany: async () => cfg.paymentRows ?? [] },
+    payment: {
+      findMany: async (args: any) => {
+        cfg.onPaymentFindMany?.(args);
+        return cfg.paymentRows ?? [];
+      },
+    },
     refund: { findMany: async () => cfg.refundRows ?? [] },
     webhookEvent: { findMany: async () => cfg.claimRows ?? [] },
-    orderEvent: { count: async () => cfg.mismatchEventCount ?? 0 },
     storeSetting: {
       upsert: async (args: any) => {
         calls.stamps.push(args);
@@ -150,23 +154,25 @@ test('abandon: past the TTL with only failed attempts ⇒ settlement.abandonPaym
   });
 });
 
-test('authorized-stuck and anomaly-terminal take NO money action', async () => {
-  const { svc: a, calls: ca } = makeService({
+test('authorized-stuck takes NO money action (auto-capture voids it; abandonment blocked)', async () => {
+  const { svc, calls } = makeService({
     paymentRows: [paymentRow({ createdAt: ANCIENT() })],
     attempts: [{ id: 'pay_x', status: 'authorized', amount: 49900, order_id: 'order_A' }],
   });
-  await a.sweepPayments();
-  assert.equal(ca.abandonPayment.length, 0, 'authorized may still capture — never abandon');
-  assert.equal(ca.processPaymentEntity.length, 0);
+  await svc.sweepPayments();
+  assert.equal(calls.abandonPayment.length, 0, 'authorized may still capture — never abandon');
+  assert.equal(calls.processPaymentEntity.length, 0);
+});
 
-  const { svc: b, calls: cb } = makeService({
-    paymentRows: [paymentRow()],
-    attempts: [{ ...captured, amount: 100 }],
-    mismatchEventCount: 1, // already flagged ⇒ anomaly-terminal
-  });
-  await b.sweepPayments();
-  assert.equal(cb.processPaymentEntity.length, 0, 'a flagged mismatch is not re-acted on');
-  assert.equal(cb.abandonPayment.length, 0);
+test('CP5-FIX: the payments sweep EXCLUDES orders already flagged with a payment_amount_mismatch event', async () => {
+  // The flagged-order exclusion is the anomaly terminal (no re-fetch loop, no
+  // batch-cap starvation). It lives in the query, not a numeric counter.
+  let where: any;
+  const { svc } = makeService({ onPaymentFindMany: (args) => (where = args.where) });
+  await svc.sweepPayments();
+  assert.deepEqual(where.order, { is: { events: { none: { type: 'payment_amount_mismatch' } } } });
+  assert.equal(where.status, 'INITIATED');
+  assert.equal(where.provider, 'razorpay');
 });
 
 test('a provider fetch failure skips the row (never guesses) and does not abort the batch', async () => {
@@ -246,7 +252,7 @@ test('dead-man: a COMPLETED sweep stamps last_completed_at', async () => {
   assert.ok(typeof calls.stamps[0].create.value === 'string');
 });
 
-test('dead-man: a CRASHED sweep NEVER stamps (a dead-man that never lies)', async () => {
+test('dead-man + crash-survival: a CRASHED sweep NEVER stamps AND never throws out of the @Cron entry', async () => {
   const { svc, calls } = makeService({});
   // Force the sweep body to throw by making findMany reject.
   (svc as unknown as { prisma: any }).prisma = {
@@ -256,22 +262,16 @@ test('dead-man: a CRASHED sweep NEVER stamps (a dead-man that never lies)', asyn
       },
     },
   };
-  await assert.rejects(() => svc.reconcilePayments());
+  // The @Cron method must SWALLOW the error (an unhandled rejection out of a
+  // cron callback risks the whole process) — so this resolves, not rejects…
+  await svc.reconcilePayments();
+  // …and the dead-man does NOT lie: no stamp on a crash.
   assert.equal(calls.stamps.length, 0, 'the timestamp must not advance on a crash');
 });
 
 test('batch cap: findMany is asked for at most 50 rows', async () => {
   let takeArg: number | undefined;
-  const { svc } = makeService({});
-  (svc as unknown as { prisma: any }).prisma = {
-    payment: {
-      findMany: async (args: any) => {
-        takeArg = args.take;
-        return [];
-      },
-    },
-    storeSetting: { upsert: async () => ({}) },
-  };
+  const { svc } = makeService({ onPaymentFindMany: (args) => (takeArg = args.take) });
   await svc.sweepPayments();
   assert.equal(takeArg, 50);
 });

@@ -151,7 +151,6 @@ const schema = z.object({
   RECONCILE_PAYMENT_MIN_AGE_MIN: z.coerce.number().int().positive().default(15),
   REFUND_CONCLUDE_MIN_AGE_MIN: z.coerce.number().int().positive().default(15),
   PAYMENT_ABANDON_TTL_HOURS: z.coerce.number().int().positive().default(24),
-  RECONCILE_ANOMALY_MAX_OBSERVATIONS: z.coerce.number().int().positive().default(3),
 
   MEILI_HOST: z.string().url().optional(),
   MEILI_API_KEY: z.string().optional(),

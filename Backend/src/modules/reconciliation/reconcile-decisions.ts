@@ -24,10 +24,6 @@ export interface PaymentSweepInput {
   minAgeMin: number;
   /** PAYMENT_ABANDON_TTL_HOURS. */
   abandonTtlHours: number;
-  /** Prior amount-mismatch observations for this row. */
-  anomalyObservations: number;
-  /** RECONCILE_ANOMALY_MAX_OBSERVATIONS — the hold's terminal. */
-  maxAnomalyObservations: number;
   expectedAmountMinor: number;
   /** Our Payment.providerTxnId (the rzp order id). */
   expectedRzpOrderId: string;
@@ -39,7 +35,6 @@ export type PaymentSweepDecision =
   | { action: 'wait' }
   | { action: 'settle-success'; providerPaymentId: string }
   | { action: 'anomaly-hold'; reason: 'amount_mismatch'; providerPaymentId: string }
-  | { action: 'anomaly-terminal'; reason: 'amount_mismatch' }
   | { action: 'authorized-stuck'; providerPaymentId: string }
   | { action: 'abandon' };
 
@@ -50,11 +45,16 @@ export type PaymentSweepDecision =
  *  1. below min-age → wait (never race fresh webhooks);
  *  2. a captured attempt passing the FULL settle guard (identical to the
  *     webhook/verify guard) → settle;
- *  3. a captured attempt failing the amount guard → anomaly hold with a
- *     terminal after N observations — and it BLOCKS abandonment (money may
- *     have moved; cancel+restock would be wrong);
+ *  3. a captured attempt failing the amount guard → anomaly-hold — the
+ *     mismatch is persisted ONCE (the door dedupes) and BLOCKS abandonment
+ *     (money may have moved; cancel+restock would be wrong). The CRON then
+ *     EXCLUDES the flagged order from future sweeps (see the findMany
+ *     `events: { none }` filter), so there is no re-fetch loop and no
+ *     numeric observation counter — the persisted event IS the terminal;
  *  4. a stuck 'authorized' attempt → no money action, blocks abandonment
- *     (it may still capture; it also blocks new attempts provider-side);
+ *     (it may still capture; it also blocks new attempts provider-side).
+ *     Auto-capture's automatic_expiry_period voids an uncaptured authorize,
+ *     so this state is self-resolving, not a permanent hold;
  *  5. past the TTL with none of the above → abandon (cancel + restock —
  *     PhonePe's markFailed semantics live HERE now);
  *  6. otherwise wait.
@@ -68,9 +68,6 @@ export function decidePaymentSweep(input: PaymentSweepInput): PaymentSweepDecisi
   if (captured) {
     if (captured.amount === input.expectedAmountMinor) {
       return { action: 'settle-success', providerPaymentId: captured.id };
-    }
-    if (input.anomalyObservations >= input.maxAnomalyObservations) {
-      return { action: 'anomaly-terminal', reason: 'amount_mismatch' };
     }
     return {
       action: 'anomaly-hold',

@@ -1,9 +1,10 @@
 import { Inject, Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
-import { OrderStatus, Prisma } from '@prisma/client';
+import { InventoryReason, OrderStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { OrderEventsService } from '../order-events/order-events.service';
 import { OrderEventType } from '../order-events/order-event-types';
 import { RefundsService } from '../refunds/refunds.service';
+import { InventoryService } from '../inventory/inventory.service';
 import { env } from '../../common/config/env';
 import { RazorpayClient } from './razorpay.client';
 import {
@@ -38,8 +39,77 @@ export class RazorpaySettlementService {
     @Inject(PrismaService) private readonly prisma: PrismaService,
     @Inject(OrderEventsService) private readonly events: OrderEventsService,
     @Inject(RefundsService) private readonly refunds: RefundsService,
+    @Inject(InventoryService) private readonly inventory: InventoryService,
     @Inject(RazorpayClient) private readonly client: RazorpayClient,
   ) {}
+
+  /**
+   * Terminal abandonment (plan §1.4) — the ONLY place a Razorpay order is
+   * cancelled + restocked for non-payment. Cron-only caller, but it lives in
+   * THIS service so every money transition is centralised. Ports PhonePe's
+   * markFailed semantics with the FF-22 fix (movement reference = order
+   * NUMBER, not the order id).
+   *
+   * Exactly-once by two CASes, both inside one tx:
+   *  - payment INITIATED→FAILED: if a concurrent capture already won the
+   *    payment CAS (→ SUCCESS), this is count 0 → no order touch, no restock;
+   *  - order PENDING→CANCELLED: if the order already left PENDING (admin
+   *    cancel, or a racing sweep), count 0 → NO restock (never double-credit).
+   * Two racing sweeps: exactly one wins each CAS; the loser no-ops.
+   */
+  async abandonPayment(input: {
+    paymentId: string;
+    orderId: string;
+    orderNumber: string;
+    items: ReadonlyArray<{ productId: string; quantity: number }>;
+  }): Promise<'abandoned' | 'noop'> {
+    let restocked = false;
+    await this.prisma.$transaction(
+      async (tx) => {
+        const failed = await tx.payment.updateMany({
+          where: { id: input.paymentId, status: 'INITIATED' },
+          data: { status: 'FAILED' },
+        });
+        if (failed.count !== 1) return; // a capture won the payment CAS — leave it
+
+        const cancelled = await tx.order.updateMany({
+          where: { id: input.orderId, status: OrderStatus.PENDING },
+          data: { status: OrderStatus.CANCELLED },
+        });
+        if (cancelled.count !== 1) return; // order already terminal — stock already handled
+
+        await this.events.record(
+          {
+            orderId: input.orderId,
+            type: OrderEventType.StatusChanged,
+            fromStatus: OrderStatus.PENDING,
+            toStatus: OrderStatus.CANCELLED,
+            note: 'Payment abandoned — no capture within the reconciliation window.',
+            meta: { via: 'razorpay_reconcile', paymentId: input.paymentId },
+          },
+          tx,
+        );
+        for (const item of input.items) {
+          await this.inventory.adjust({
+            productId: item.productId,
+            delta: item.quantity,
+            reason: InventoryReason.ORDER_CANCELLED,
+            reference: input.orderNumber, // FF-22: order NUMBER, not id
+            tx,
+          });
+        }
+        restocked = true;
+      },
+      { timeout: env.ADMIN_WRITE_TX_TIMEOUT_MS },
+    );
+    if (restocked) {
+      this.logger.warn(
+        JSON.stringify({ scope: 'razorpay:reconcile:abandoned', orderId: input.orderId }),
+      );
+      return 'abandoned';
+    }
+    return 'noop';
+  }
 
   /** Route one parsed webhook to the right entity processor. */
   async processWebhook(parsed: ParsedWebhook): Promise<string> {

@@ -40,6 +40,10 @@ interface Cfg {
   orderRow?: Record<string, unknown> | null;
   fetchedEntity?: Record<string, unknown>;
   fetchThrows?: boolean;
+  /** abandonPayment: INITIATED→FAILED payment CAS result */
+  abandonPaymentCasCount?: number;
+  /** abandonPayment: PENDING→CANCELLED order CAS result */
+  abandonOrderCasCount?: number;
 }
 
 function makeService(cfg: Cfg) {
@@ -50,18 +54,22 @@ function makeService(cfg: Cfg) {
     refundSettles: [] as any[],
     cartLineDeletes: [] as any[],
     fetchPayments: [] as any[],
+    adjusts: [] as any[],
   };
   const tx = {
     payment: {
       updateMany: async (args: any) => {
         calls.paymentUpdateManys.push(args);
-        const isRecovery = args.where.status === 'FAILED';
-        return { count: isRecovery ? (cfg.recoveryCasCount ?? 1) : (cfg.initiatedCasCount ?? 1) };
+        // Distinguish the three payment CASes by their target state:
+        if (args.where.status === 'FAILED') return { count: cfg.recoveryCasCount ?? 1 }; // recovery
+        if (args.data.status === 'FAILED') return { count: cfg.abandonPaymentCasCount ?? 1 }; // abandon
+        return { count: cfg.initiatedCasCount ?? 1 }; // settle INITIATED→SUCCESS
       },
     },
     order: {
       updateMany: async (args: any) => {
         calls.orderUpdateManys.push(args);
+        if (args.data.status === 'CANCELLED') return { count: cfg.abandonOrderCasCount ?? 1 };
         return { count: cfg.orderCasCount ?? 1 };
       },
     },
@@ -112,6 +120,11 @@ function makeService(cfg: Cfg) {
       calls.refundSettles.push(args);
     },
   };
+  const inventory = {
+    adjust: async (input: unknown) => {
+      calls.adjusts.push(input);
+    },
+  };
   const client = {
     fetchPayment: async (id: string) => {
       calls.fetchPayments.push(id);
@@ -123,6 +136,7 @@ function makeService(cfg: Cfg) {
     prisma as never,
     events as never,
     refunds as never,
+    inventory as never,
     client as never,
   );
   return { svc, calls };
@@ -291,6 +305,48 @@ test('ATTACK#5: failed-annotation is CAS-gated on INITIATED and never writes pro
   assert.deepEqual(write.where, { id: 'payrow_1', status: 'INITIATED' });
   assert.equal('providerPaymentId' in write.data, false, 'failed path must never set providerPaymentId');
   assert.equal('status' in write.data, false, 'failed path never changes status — cron owns abandonment');
+});
+
+// ── abandonPayment (Phase 6 — the ONE abandonment door) ─────────────────────
+
+const ABANDON_INPUT = {
+  paymentId: 'payrow_1',
+  orderId: 'order_db_1',
+  orderNumber: 'WH-ABC123',
+  items: [
+    { productId: 'p1', quantity: 2 },
+    { productId: 'p2', quantity: 1 },
+  ],
+};
+
+test('abandonPayment: payment INITIATED→FAILED, order PENDING→CANCELLED, restock with reference = order NUMBER (FF-22)', async () => {
+  const { svc, calls } = makeService({});
+  const outcome = await svc.abandonPayment(ABANDON_INPUT);
+  assert.equal(outcome, 'abandoned');
+  assert.deepEqual(calls.paymentUpdateManys[0].where, { id: 'payrow_1', status: 'INITIATED' });
+  assert.equal(calls.paymentUpdateManys[0].data.status, 'FAILED');
+  assert.deepEqual(calls.orderUpdateManys[0].where, { id: 'order_db_1', status: 'PENDING' });
+  assert.equal(calls.orderUpdateManys[0].data.status, 'CANCELLED');
+  assert.equal(calls.adjusts.length, 2);
+  assert.equal(calls.adjusts[0].reason, 'ORDER_CANCELLED');
+  assert.equal(calls.adjusts[0].reference, 'WH-ABC123', 'FF-22: reference is the order NUMBER, not the id');
+  assert.notEqual(calls.adjusts[0].reference, 'order_db_1');
+});
+
+test('abandonPayment: a capture that won the payment CAS (INITIATED→FAILED count 0) ⇒ noop, order untouched, NO restock', async () => {
+  const { svc, calls } = makeService({ abandonPaymentCasCount: 0 });
+  const outcome = await svc.abandonPayment(ABANDON_INPUT);
+  assert.equal(outcome, 'noop');
+  assert.equal(calls.orderUpdateManys.length, 0, 'never touch the order if the payment was captured');
+  assert.equal(calls.adjusts.length, 0);
+});
+
+test('abandonPayment: an order that already left PENDING (order CAS count 0) ⇒ noop, NO restock (never double-credit)', async () => {
+  const { svc, calls } = makeService({ abandonOrderCasCount: 0 });
+  const outcome = await svc.abandonPayment(ABANDON_INPUT);
+  assert.equal(outcome, 'noop');
+  assert.equal(calls.adjusts.length, 0, 'a racing sweep / admin cancel already handled stock');
+  assert.equal(calls.events.length, 0);
 });
 
 // ── refund routing + tripwire ────────────────────────────────────────────────

@@ -17,6 +17,7 @@ import type {
   ProductDetailResponse,
   SearchSuggestResponse,
 } from '@/types/api';
+import type { Cart } from '@/types/cart';
 import type {
   AddressInput,
   AuthUser,
@@ -59,7 +60,7 @@ async function apiGet<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 async function apiSend<T>(
-  method: 'POST' | 'PATCH' | 'DELETE',
+  method: 'POST' | 'PATCH' | 'PUT' | 'DELETE',
   path: string,
   body?: unknown,
 ): Promise<T> {
@@ -97,6 +98,20 @@ export const api = {
     apiGet<ProductDetailResponse>(`/products/${encodeURIComponent(slug)}`),
   searchSuggest: (q: string) =>
     apiGet<SearchSuggestResponse>(`/search/suggest?q=${encodeURIComponent(q)}`),
+
+  // Guest cart, keyed by the httpOnly `wh_sid` cookie (credentials:'include'
+  // round-trips it). Every method returns the authoritative server cart
+  // (`toResponse` shape) — the client store reconciles to it. `addItem` is
+  // INCREMENT semantics server-side; `setQuantity` is an absolute write and
+  // quantity 0 removes the line.
+  cart: {
+    get: () => apiGet<Cart>('/cart'),
+    addItem: (input: { productId: string; quantity: number }) =>
+      apiSend<Cart>('POST', '/cart/items', input),
+    setQuantity: (productId: string, quantity: number) =>
+      apiSend<Cart>('PUT', `/cart/items/${encodeURIComponent(productId)}`, { quantity }),
+    clear: () => apiSend<Cart>('DELETE', '/cart'),
+  },
 
   auth: {
     register: (data: { email: string; fullName: string; password: string }) =>

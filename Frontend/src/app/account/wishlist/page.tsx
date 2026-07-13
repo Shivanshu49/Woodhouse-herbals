@@ -7,16 +7,28 @@ import { AccountShell } from '@/components/account/AccountShell';
 import { ProductCard } from '@/components/product/ProductCard';
 import { Button } from '@/components/ui/Button';
 import { useWishlistStore } from '@/store/wishlist';
-import { products } from '@/data/products';
+import { useCatalog } from '@/hooks/use-catalog';
 
 function WishlistGrid() {
   // Zustand persist hydrates from localStorage after mount — gate on it to
   // avoid a server/client hydration mismatch.
   const ids = useWishlistStore((s) => s.ids);
+  const { products, isLoading, isError } = useCatalog();
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
-  if (!mounted) return <div className="h-40 rounded-3xl bg-navy-900/5 animate-pulse" />;
+  if (!mounted || isLoading) return <div className="h-40 rounded-3xl bg-navy-900/5 animate-pulse" />;
 
+  if (isError) {
+    return (
+      <div className="rounded-3xl bg-white border border-navy-900/8 p-10 text-center">
+        <p className="font-inter text-[15px] text-ink-muted">
+          We couldn&apos;t load your saved items right now. Please refresh in a moment.
+        </p>
+      </div>
+    );
+  }
+
+  // Saved wishlist ids are live DB product ids; look them up in the live catalog.
   const items = products.filter((p) => ids.includes(p.id));
 
   if (items.length === 0) {

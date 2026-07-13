@@ -1,5 +1,5 @@
 import { Sparkles } from 'lucide-react';
-import { homepage } from '@/data/homepage';
+import { OFFER_STRIP } from '@/data/site-content';
 
 /**
  * The thin offer band that sits above the header.
@@ -8,7 +8,7 @@ import { homepage } from '@/data/homepage';
  * it reads as a promotional ribbon instead of the muted dark bar it used to be.
  */
 export function OfferStrip() {
-  const items = homepage.offerStrip;
+  const items = OFFER_STRIP;
   const loop = [...items, ...items, ...items];
 
   return (

@@ -1,9 +1,13 @@
+'use client';
+
 import { SectionHeader } from '@/components/ui/SectionHeader';
 import { ProductCard } from '@/components/product/ProductCard';
-import { homepage } from '@/data/homepage';
+import { useHomepage } from '@/hooks/use-homepage';
 
 export function NewArrivals() {
-  if (homepage.newArrivals.length === 0) return null;
+  const { data } = useHomepage();
+  const items = data?.newArrivals ?? [];
+  if (items.length === 0) return null;
   return (
     <section className="section bg-brand-500/8">
       <div className="container-wide">
@@ -15,7 +19,7 @@ export function NewArrivals() {
           ctaHref="/shop?sort=new"
         />
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-5 lg:gap-6">
-          {homepage.newArrivals.map((p) => (
+          {items.map((p) => (
             <ProductCard key={p.id} product={p} />
           ))}
         </div>

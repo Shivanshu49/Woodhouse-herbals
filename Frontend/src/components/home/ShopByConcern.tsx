@@ -2,7 +2,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { ArrowRight } from 'lucide-react';
 import { SectionHeader } from '@/components/ui/SectionHeader';
-import { homepage } from '@/data/homepage';
+import { concerns } from '@/data/concerns';
 import { cn } from '@/lib/cn';
 
 /**
@@ -36,7 +36,7 @@ export function ShopByConcern() {
         />
 
         <div className="grid grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4 lg:gap-5">
-          {homepage.concerns.map((c, i) => {
+          {concerns.map((c, i) => {
             const tile = TILE_STYLES[i % TILE_STYLES.length];
             return (
               <Link

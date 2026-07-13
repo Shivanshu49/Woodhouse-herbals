@@ -3,7 +3,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { ShoppingBag, Star } from 'lucide-react';
-import type { BestsellerProduct } from '@/data/bestsellers';
+import type { BestsellerProduct } from '@/lib/bestseller';
 import { useCartStore } from '@/store/cart';
 
 function Stars({ rating }: { rating: number }) {
@@ -57,7 +57,7 @@ export function BestsellerCard({ product }: { product: BestsellerProduct }) {
             {product.name}
           </h3>
           <p className="mt-1 font-inter font-semibold text-brand-forest text-xs sm:text-sm uppercase tracking-wide">
-            {product.type}, {product.size}
+            {product.type}{product.size ? `, ${product.size}` : ''}
           </p>
           <p className="mt-1 font-inter italic text-xs text-brand-forest/70 line-clamp-2">
             {product.ingredientLine}

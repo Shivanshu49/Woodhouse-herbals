@@ -4,7 +4,7 @@ import { useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { ArrowRight, Check, Sparkles } from 'lucide-react';
-import { productSummaries } from '@/data/products';
+import { useCatalog } from '@/hooks/use-catalog';
 import { formatPrice } from '@/lib/format';
 import { cn } from '@/lib/cn';
 import { Chip } from '@/components/ui/Chip';
@@ -41,8 +41,9 @@ export default function SkinAnalysisPage() {
   const [skinType, setSkinType] = useState<string | null>(null);
   const [concerns, setConcerns] = useState<string[]>([]);
   const [routine, setRoutine] = useState<string | null>(null);
+  const { products } = useCatalog();
 
-  const recommendations = productSummaries
+  const recommendations = products
     .filter((p) => concerns.length === 0 || p.concerns.some((c) => concerns.includes(c)))
     .filter((p) => !skinType || p.skinTypes.includes('all') || p.skinTypes.includes(skinType as never))
     .slice(0, routine === 'minimal' ? 2 : routine === 'targeted' ? 3 : 4);

@@ -146,12 +146,22 @@ const config: Config = {
           '0%, 100%': { transform: 'translateY(0)' },
           '50%': { transform: 'translateY(-8px)' },
         },
+        'drawer-in': {
+          '0%': { transform: 'translateX(-100%)' },
+          '100%': { transform: 'translateX(0)' },
+        },
+        'overlay-in': {
+          '0%': { opacity: '0' },
+          '100%': { opacity: '1' },
+        },
       },
       animation: {
         'fade-up': 'fade-up 0.55s ease-out both',
         marquee: 'marquee 36s linear infinite',
         shimmer: 'shimmer 2s ease-in-out infinite',
         'float-slow': 'float-slow 6s ease-in-out infinite',
+        'drawer-in': 'drawer-in 0.28s cubic-bezier(0.16, 1, 0.3, 1) both',
+        'overlay-in': 'overlay-in 0.2s ease-out both',
       },
     },
   },

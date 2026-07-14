@@ -156,6 +156,24 @@ test('throttle: a CONCURRENT burst cannot overshoot — exactly 5 of 10 parallel
   assert.deepEqual(codes, [200, 200, 200, 200, 200, 429, 429, 429, 429, 429]);
 });
 
+test('throttle: a rotating (spoofed) leftmost X-Forwarded-For cannot reset the per-IP budget', async () => {
+  // The trusted rightmost hop is constant; the attacker varies only the
+  // client-controlled leftmost entry to try to land in a fresh bucket.
+  const trusted = '203.0.113.55';
+  for (let i = 0; i < 5; i++) {
+    const res = await POST(
+      request(VALID, { ip: `10.0.0.${i}, ${trusted}`, origin: 'http://localhost:3000' }),
+    );
+    assert.equal(res.status, 200, `accepted submission #${i} (spoofed left) must pass`);
+  }
+  // A 6th with yet another fresh spoofed left is STILL throttled — the bucket
+  // keyed on the trusted rightmost hop, not the rotating fake.
+  const sixth = await POST(
+    request(VALID, { ip: `10.9.9.9, ${trusted}`, origin: 'http://localhost:3000' }),
+  );
+  assert.equal(sixth.status, 429, 'spoofing the leftmost XFF must not grant a fresh bucket');
+});
+
 test('redaction invariant: the log-only fallback emits no PII — only id, time, keyed digest, presence flags', async () => {
   warnMock.mock.resetCalls();
   const pii = {

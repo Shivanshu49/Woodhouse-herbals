@@ -58,10 +58,13 @@ function ctxFromRequest(req: Request): { ip?: string; userAgent?: string; sessio
   };
 }
 
-function extractClientIp(req: Request): string | undefined {
-  // Trust the first IP only from X-Forwarded-For; trust proxy must be set on app.
-  const fwd = req.headers['x-forwarded-for'];
-  if (typeof fwd === 'string' && fwd.length > 0) return fwd.split(',')[0]?.trim();
+export function extractClientIp(req: Request): string | undefined {
+  // Use the framework-resolved req.ip: Express derives it from X-Forwarded-For
+  // while honouring the configured `trust proxy` hop count (TRUST_PROXY_HOPS),
+  // which peels trusted proxies off the RIGHT of the chain. Do NOT read the
+  // leftmost XFF entry directly — it is client-controlled and spoofable, which
+  // would let an attacker forge the IP that keys the login backoff (M1) and
+  // the audit trail. `trust proxy` must match the real chain — see env.ts.
   return req.ip ?? req.socket?.remoteAddress ?? undefined;
 }
 
@@ -72,8 +75,11 @@ export class AuthController {
   // 3 registrations / hour per IP — registrations are rare but bots love them.
   @Public()
   @Throttle({ default: { ttl: 60 * 60 * 1000, limit: 3 } })
+  // 202 Accepted, not 201 Created: the response is identical whether or not the
+  // email was new (a 201-vs-409 split leaked account existence). "We've accepted
+  // your request; check your email."
   @Post('register')
-  @HttpCode(201)
+  @HttpCode(202)
   async register(@Body() dto: RegisterDto, @Req() req: Request) {
     return this.auth.register(dto, ctxFromRequest(req));
   }
@@ -188,7 +194,9 @@ export class AuthController {
     const userId = req.user?.sub;
     await this.auth.logout(raw, userId, ctxFromRequest(req));
     res.clearCookie(ACCESS_COOKIE, cookieOptions());
-    res.clearCookie(REFRESH_COOKIE, cookieOptions());
+    // wh_rt was set with path '/api/auth' — clearCookie must use the SAME path
+    // or the browser keeps the (now revoked) cookie. RFC 6265 matches on path.
+    res.clearCookie(REFRESH_COOKIE, { ...cookieOptions(), path: '/api/auth' });
   }
 
   @Public()
@@ -227,9 +235,10 @@ export class AuthController {
     @Res({ passthrough: true }) res: Response,
   ) {
     await this.auth.changePassword(user.sub, dto, ctxFromRequest(req));
-    // Force the client to re-authenticate by clearing cookies.
+    // Force the client to re-authenticate by clearing cookies. wh_rt must be
+    // cleared at its set path '/api/auth' or the browser retains it.
     res.clearCookie(ACCESS_COOKIE, cookieOptions());
-    res.clearCookie(REFRESH_COOKIE, cookieOptions());
+    res.clearCookie(REFRESH_COOKIE, { ...cookieOptions(), path: '/api/auth' });
     return { ok: true };
   }
 

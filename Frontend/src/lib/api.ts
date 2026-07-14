@@ -141,8 +141,10 @@ export const api = {
   },
 
   auth: {
+    // Returns a generic { ok: true } whether or not the email already exists —
+    // the backend deliberately does not reveal account existence here (202).
     register: (data: { email: string; fullName: string; password: string }) =>
-      apiSend<{ user: Pick<AuthUser, 'id' | 'email' | 'fullName' | 'role'> }>('POST', '/auth/register', data),
+      apiSend<{ ok: true }>('POST', '/auth/register', data),
     login: (data: { email: string; password: string }) =>
       apiSend<{ user: AuthUser }>('POST', '/auth/login', data),
     logout: () => apiSend<void>('POST', '/auth/logout'),

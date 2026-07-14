@@ -1,7 +1,6 @@
 import { Controller, Get } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { Public } from '../decorators/public.decorator';
-import { APP_VERSION } from '../config/env';
 
 @Public()
 @Controller('health')
@@ -10,11 +9,11 @@ export class HealthController {
 
   @Get()
   status() {
+    // Liveness only. Deliberately no version/uptime — this endpoint is public
+    // and unauthenticated, and those are a fingerprinting / deploy-recency leak.
     return {
       status: 'ok',
       service: 'woodhouse-api',
-      version: APP_VERSION,
-      uptimeSeconds: Math.round(process.uptime()),
     };
   }
 

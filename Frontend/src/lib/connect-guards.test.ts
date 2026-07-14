@@ -6,7 +6,7 @@
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createRateLimiter, safeFilename, sniffAttachment, validateSubmission } from './connect-guards';
+import { clientIpFromXff, createRateLimiter, safeFilename, sniffAttachment, validateSubmission } from './connect-guards';
 import { MAX_ATTACHMENT_BYTES, attachmentLooksAllowed } from './connect';
 
 // ---------------------------------------------------------------- sniffing
@@ -217,4 +217,33 @@ test('throttle: a rotating-key flood inside ONE window sheds state at clearAt in
   const rl = createRateLimiter(5, WINDOW, CAPS);
   for (let i = 0; i < 13; i++) rl.tryAcquire(`live-${i}`, 1_000);
   assert.ok(rl.size() < CAPS.sweepAt, `map must be shed under unexpired-key rotation, size=${rl.size()}`);
+});
+
+test('client-ip: with one trusted proxy, the rightmost XFF entry is the client', () => {
+  assert.equal(clientIpFromXff('203.0.113.9', 1, 'fb'), '203.0.113.9');
+  assert.equal(clientIpFromXff('  203.0.113.9  ', 1, 'fb'), '203.0.113.9');
+});
+
+test('client-ip: a spoofed leftmost XFF entry is ignored — the bucket key cannot be rotated', () => {
+  // Attacker prepends a rotating fake; the trusted rightmost hop is constant.
+  assert.equal(clientIpFromXff('1.2.3.4, 203.0.113.9', 1, 'fb'), '203.0.113.9');
+  assert.equal(clientIpFromXff('9.9.9.9, 203.0.113.9', 1, 'fb'), '203.0.113.9');
+  assert.equal(clientIpFromXff('a, b, c, 203.0.113.9', 1, 'fb'), '203.0.113.9');
+});
+
+test('client-ip: two trusted proxies peel two entries off the right', () => {
+  // chain: client, cf_edge  (Traefik appended cf_edge; Cloudflare appended client)
+  assert.equal(clientIpFromXff('198.51.100.7, 172.16.0.1', 2, 'fb'), '198.51.100.7');
+  // spoof: attacker prepends fakes; still resolves to the Cloudflare-observed client
+  assert.equal(clientIpFromXff('1.1.1.1, 198.51.100.7, 172.16.0.1', 2, 'fb'), '198.51.100.7');
+});
+
+test('client-ip: a chain shorter than the trusted hop count fails safe to the fallback', () => {
+  assert.equal(clientIpFromXff('203.0.113.9', 2, 'fb'), 'fb');
+  assert.equal(clientIpFromXff('', 1, 'fb'), 'fb');
+  assert.equal(clientIpFromXff(null, 1, 'fb'), 'fb');
+});
+
+test('client-ip: zero trusted hops treats the whole XFF as untrusted', () => {
+  assert.equal(clientIpFromXff('203.0.113.9', 0, 'fb'), 'fb');
 });

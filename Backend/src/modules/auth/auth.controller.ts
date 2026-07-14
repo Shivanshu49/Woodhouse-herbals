@@ -194,7 +194,9 @@ export class AuthController {
     const userId = req.user?.sub;
     await this.auth.logout(raw, userId, ctxFromRequest(req));
     res.clearCookie(ACCESS_COOKIE, cookieOptions());
-    res.clearCookie(REFRESH_COOKIE, cookieOptions());
+    // wh_rt was set with path '/api/auth' — clearCookie must use the SAME path
+    // or the browser keeps the (now revoked) cookie. RFC 6265 matches on path.
+    res.clearCookie(REFRESH_COOKIE, { ...cookieOptions(), path: '/api/auth' });
   }
 
   @Public()
@@ -233,9 +235,10 @@ export class AuthController {
     @Res({ passthrough: true }) res: Response,
   ) {
     await this.auth.changePassword(user.sub, dto, ctxFromRequest(req));
-    // Force the client to re-authenticate by clearing cookies.
+    // Force the client to re-authenticate by clearing cookies. wh_rt must be
+    // cleared at its set path '/api/auth' or the browser retains it.
     res.clearCookie(ACCESS_COOKIE, cookieOptions());
-    res.clearCookie(REFRESH_COOKIE, cookieOptions());
+    res.clearCookie(REFRESH_COOKIE, { ...cookieOptions(), path: '/api/auth' });
     return { ok: true };
   }
 

@@ -581,6 +581,8 @@ export class AuthService {
     try {
       payload = await this.jwt.verifyAsync<RefreshTokenPayload>(rawRefreshToken, {
         secret: env.JWT_REFRESH_SECRET,
+        // Pin the algorithm — see jwt-auth.guard.ts.
+        algorithms: ['HS256'],
       });
     } catch {
       throw new UnauthorizedException('Invalid refresh token');

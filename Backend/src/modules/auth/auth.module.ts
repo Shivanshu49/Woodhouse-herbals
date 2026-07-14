@@ -12,7 +12,10 @@ import { env } from '../../common/config/env';
     JwtModule.register({
       global: true,
       secret: env.JWT_ACCESS_SECRET,
-      signOptions: { expiresIn: env.JWT_ACCESS_TTL },
+      // Pin HS256 for both signing and the default verify path; every explicit
+      // verifyAsync also pins it (jwt-auth.guard.ts, auth.service.ts refresh).
+      signOptions: { expiresIn: env.JWT_ACCESS_TTL, algorithm: 'HS256' },
+      verifyOptions: { algorithms: ['HS256'] },
     }),
   ],
   controllers: [AuthController],

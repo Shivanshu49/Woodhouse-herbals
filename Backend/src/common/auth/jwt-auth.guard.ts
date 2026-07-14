@@ -40,6 +40,9 @@ export class JwtAuthGuard implements CanActivate {
     try {
       const payload = await this.jwt.verifyAsync<AccessTokenPayload>(token, {
         secret: env.JWT_ACCESS_SECRET,
+        // Pin the accepted algorithm — never let a token dictate its own `alg`
+        // (defends against alg:none and HS/RS confusion if keys ever change).
+        algorithms: ['HS256'],
       });
       if (payload.kind !== 'access') throw new UnauthorizedException('Wrong token type');
       req.user = {

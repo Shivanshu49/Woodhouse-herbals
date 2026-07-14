@@ -1,5 +1,8 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Self-contained production server (.next/standalone/server.js) for a lean
+  // Docker image — see Frontend/Dockerfile + docs/DEPLOY-COOLIFY.md.
+  output: 'standalone',
   reactStrictMode: true,
   images: {
     remotePatterns: [

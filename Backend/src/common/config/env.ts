@@ -63,7 +63,6 @@ const schema = z.object({
   COOKIE_DOMAIN: z.string().optional(),
 
   DATABASE_URL: z.string().url().startsWith('postgres'),
-  REDIS_URL: z.string().url().optional(),
 
   JWT_ACCESS_SECRET: strongSecret('JWT_ACCESS_SECRET'),
   JWT_REFRESH_SECRET: strongSecret('JWT_REFRESH_SECRET'),
@@ -142,9 +141,6 @@ const schema = z.object({
   RECONCILE_PAYMENT_MIN_AGE_MIN: z.coerce.number().int().positive().default(15),
   REFUND_CONCLUDE_MIN_AGE_MIN: z.coerce.number().int().positive().default(15),
   PAYMENT_ABANDON_TTL_HOURS: z.coerce.number().int().positive().default(24),
-
-  MEILI_HOST: z.string().url().optional(),
-  MEILI_API_KEY: z.string().optional(),
 
   R2_ACCOUNT_ID: z.string().optional(),
   R2_ACCESS_KEY_ID: z.string().optional(),

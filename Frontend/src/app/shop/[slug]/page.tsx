@@ -28,6 +28,10 @@ async function fetchProductDetail(slug: string): Promise<ProductDetailResponse |
   const res = await fetch(`${env.apiUrl}/api/products/${encodeURIComponent(slug)}`, {
     cache: 'no-store',
     headers: { Accept: 'application/json' },
+    // Bound the request: a hanging backend must not hang the render — and, at
+    // `next build`, generateMetadata evaluates this once, so an unbounded fetch
+    // to a slow/unreachable API URL would break the production image build.
+    signal: AbortSignal.timeout(8000),
   });
   // A syntactically invalid slug (uppercase, underscore, space, leading/trailing
   // hyphen, >82 chars) is rejected by the backend's SLUG_RE with a 400 BEFORE

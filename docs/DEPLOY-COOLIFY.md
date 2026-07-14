@@ -15,8 +15,9 @@ set to that app's subdirectory** (`Backend`, `Frontend`, `Admin`).
 
 1. **Postgres** — Coolify **managed** Postgres 16. Grab its internal connection
    string; that becomes the Backend's `DATABASE_URL`.
-2. **Backend** — set env (below), set the **pre-deployment command**
-   `npx prisma migrate deploy`, deploy. Note its public URL (`api.…`).
+2. **Backend** — set env (below), deploy. Migrations run automatically:
+   `start:prod` is `prisma migrate deploy && node …` (Coolify 4.1.2 has no
+   pre-deployment command field). Note its public URL (`api.…`).
 3. **Frontend** — set **build args** (esp. `NEXT_PUBLIC_API_URL` = the Backend
    URL) + runtime env, deploy.
 4. **Admin** — same, deploy.
@@ -35,11 +36,15 @@ that **`process.exit(1)` in production** if the money-critical partial unique
 indexes (`refund_one_active_per_order`, `payment_one_initiated_per_order`) are
 absent — and on a fresh Postgres they don't exist until migrations run. So:
 
-- **Set the Coolify _pre-deployment command_ to `npx prisma migrate deploy`.**
-  It runs once per release, against `DATABASE_URL`, **before** the app container
-  starts. If it fails, the deploy fails cleanly instead of crash-looping.
+- **Migrations are baked into the start command** — Coolify 4.1.2 has NO
+  pre-deployment command field (Advanced → Operations only offers Stop Grace
+  Period / Max Restart Count), so the image's CMD is `npm run start:prod` =
+  `prisma migrate deploy && NODE_ENV=production node dist/src/main.js`. A failed
+  migrate exits non-zero and the app never starts; Coolify's restart policy
+  retries (`migrate deploy` is idempotent — an actually-failed migration keeps
+  failing loudly with P3009 until resolved, it is never skipped).
 - The Backend image deliberately keeps the **full `node_modules`** (the Prisma
-  CLI is a devDependency and the pre-deploy runs in this image) — do not add
+  CLI is a devDependency and `start:prod` runs it in this image) — do not add
   `--omit=dev`.
 - `prisma generate` runs automatically during the image build (`postinstall` at
   `npm ci`; the Dockerfile copies `prisma/` before `npm ci` so the schema is
@@ -60,7 +65,9 @@ silent localhost leak.
 
 ### Backend — `api.woodhouseherbals.com` · port **4000** (honors `PORT`)
 - Build: `Backend/Dockerfile`, context `Backend/`. **Build args: none.**
-- **Pre-deployment command:** `npx prisma migrate deploy`
+- **Migrations:** automatic — the container start command runs
+  `prisma migrate deploy` before booting the app (no pre-deploy field in
+  Coolify 4.1.2).
 - **Health check:** `/api/health` — **NOT** `/api/health/ready` (that returns
   HTTP 200 even when the DB is down; the body flips to `degraded` but the status
   code lies, so an HTTP probe on `/ready` would never fail).

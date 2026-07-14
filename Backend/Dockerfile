@@ -1,8 +1,9 @@
 # syntax=docker/dockerfile:1
 # Woodhouse Backend (NestJS + Prisma). Multi-stage.
 # Boot order note: the app runs a boot-time gate that exit(1)s in production if
-# the money-critical partial indexes are absent. Run `npx prisma migrate deploy`
-# as the Coolify PRE-DEPLOYMENT command against this image BEFORE the app starts.
+# the money-critical partial indexes are absent. Coolify 4.1.2 has NO
+# pre-deployment command field, so `start:prod` runs `prisma migrate deploy`
+# before the app — a failed migrate exits non-zero and the app never boots.
 # See docs/DEPLOY-COOLIFY.md.
 
 # ── Build: install deps (postinstall runs `prisma generate`) + nest build ──
@@ -26,8 +27,8 @@ WORKDIR /app
 ENV NODE_ENV=production
 RUN apt-get update && apt-get install -y --no-install-recommends openssl \
   && rm -rf /var/lib/apt/lists/*
-# Keep the FULL node_modules: the Prisma CLI is a devDependency and the Coolify
-# pre-deploy `npx prisma migrate deploy` runs in THIS image — do NOT prune it.
+# Keep the FULL node_modules: the Prisma CLI is a devDependency and
+# `start:prod` runs `prisma migrate deploy` in THIS image — do NOT prune it.
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/prisma ./prisma
@@ -35,4 +36,6 @@ COPY --from=build /app/package.json ./package.json
 EXPOSE 4000
 # Health probe (Coolify): /api/health  — do NOT use /api/health/ready (returns
 # 200 even when the DB is down). See docs/DEPLOY-COOLIFY.md.
-CMD ["node", "dist/src/main.js"]
+# start:prod = `prisma migrate deploy && NODE_ENV=production node dist/src/main.js`
+# — migrations gate the boot; a failed migrate stops the container (fail-loud).
+CMD ["npm", "run", "start:prod"]

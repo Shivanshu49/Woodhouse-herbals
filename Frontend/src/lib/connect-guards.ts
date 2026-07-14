@@ -86,6 +86,38 @@ export function safeFilename(original: string, ext: string): string {
   return `${stem || 'attachment'}.${ext}`;
 }
 
+/**
+ * Resolve the real client IP from an X-Forwarded-For chain WITHOUT trusting
+ * the client-controlled left of it.
+ *
+ * Reverse proxies append the address they received the request from onto the
+ * RIGHT of X-Forwarded-For, so with `trustedHops` proxies in front of the app
+ * the genuine client sits at index (length - trustedHops); everything further
+ * left is attacker-supplied padding. Keying a rate limiter on the LEFTMOST
+ * entry (the old bug) let anyone reset their per-IP budget by rotating a fake
+ * value each request.
+ *
+ * `trustedHops` MUST match the real proxy chain (verify at cutover): one
+ * reverse proxy (Traefik/Coolify) => 1; Cloudflare in front of it => 2. A
+ * mismatch fails safe — the resolver returns `fallback`, collapsing traffic
+ * into a single shared bucket (over-throttling) rather than trusting a
+ * spoofable value.
+ */
+export function clientIpFromXff(
+  xff: string | null | undefined,
+  trustedHops: number,
+  fallback: string,
+): string {
+  if (!Number.isFinite(trustedHops) || trustedHops < 1) return fallback;
+  const chain = (xff ?? '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0);
+  const idx = chain.length - trustedHops;
+  if (idx < 0 || idx >= chain.length) return fallback;
+  return chain[idx] || fallback;
+}
+
 export interface RateLimiter {
   /**
    * Atomically claim one unit of the key's budget. Synchronous check-and-

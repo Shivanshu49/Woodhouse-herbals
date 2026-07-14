@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { ATTACHMENT_SIZE_ERROR, ATTACHMENT_TYPE_ERROR, MAX_ATTACHMENT_BYTES } from '@/lib/connect';
 import {
   type Submission,
+  clientIpFromXff,
   createRateLimiter,
   safeFilename,
   sniffAttachment,
@@ -28,6 +29,13 @@ const CONNECT_FROM = process.env.CONNECT_FROM_EMAIL ?? 'Wood House Herbals <onbo
 // submissions count (recordHit runs after validation): a user retrying past
 // form errors isn't burning their budget on each 400.
 const limiter = createRateLimiter(5, 10 * 60 * 1000);
+
+// Reverse proxies in front of this app that append to X-Forwarded-For. The
+// limiter key is resolved by peeling this many hops off the RIGHT of XFF, so
+// a client-spoofed leftmost entry cannot rotate the bucket. MUST match the
+// real chain (Traefik/Coolify => 1; Cloudflare in front => 2) — verify at
+// cutover; see clientIpFromXff and docs/PRE-LAUNCH.md (TRUST_PROXY_HOPS).
+const TRUSTED_PROXY_HOPS = Number(process.env.TRUSTED_PROXY_HOPS ?? 1);
 
 async function sendViaResend(apiKey: string, s: Submission, filename: string | null): Promise<void> {
   const attachments = s.attachment && filename
@@ -88,7 +96,10 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  const ip = (req.headers.get('x-forwarded-for') ?? '').split(',')[0].trim() || req.ip || 'unknown';
+  // Key the throttle on the trusted, proxy-resolved client IP — NOT the
+  // leftmost X-Forwarded-For entry, which the client controls and could rotate
+  // to reset the bucket every request.
+  const ip = clientIpFromXff(req.headers.get('x-forwarded-for'), TRUSTED_PROXY_HOPS, req.ip ?? 'unknown');
 
   // A missing/garbage Content-Length means a chunked body the size check can't
   // see — req.formData() would buffer it into memory without bound. Browsers

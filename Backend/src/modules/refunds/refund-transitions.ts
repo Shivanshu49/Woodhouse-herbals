@@ -26,46 +26,15 @@ export function assertRefundable(status: OrderStatus): void {
 }
 
 /**
- * Deterministic, alphanumeric, PhonePe-safe refund id (max 38 chars). Because it
- * is derived from the refund row id, a network retry reuses the SAME id, so
- * PhonePe dedupes rather than double-refunding.
+ * Deterministic, alphanumeric, gateway-safe refund id (max 38 chars). Because
+ * it is derived from the refund row id, a retry reuses the SAME id, so it is
+ * stable as both the Razorpay `receipt` and the X-Refund-Idempotency key — the
+ * provider dedupes a retry rather than double-refunding.
+ * (The provider state→RefundStatus mapping lives in
+ * razorpay-states.ts::mapRazorpayRefundState.)
  */
 export function deriveMerchantRefundId(refundId: string): string {
   return `RF${refundId.replace(/[^A-Za-z0-9]/g, '')}`.slice(0, 38);
-}
-
-/** The provider-call outcome beyond `data.state` — undefined for inbound callbacks. */
-export interface ProviderOutcome {
-  /** HTTP status of the S2S call (2xx accepted, 4xx client rejection, 5xx transient). */
-  httpStatus?: number;
-  /** PhonePe top-level `success` flag when present in the body. */
-  success?: boolean;
-}
-
-/**
- * PhonePe refund `data.state` (+ optional S2S outcome) → our RefundStatus token.
- *
- * A definitive REJECTION (HTTP 4xx, or an explicit `success:false` on a non-5xx
- * response, with no terminal `data.state`) means PhonePe did NOT accept the
- * refund — e.g. `EXCESS_REFUND_AMOUNT`, `REFUND_FOR_TXN_OLDER_THAN_LIMIT`,
- * `TRANSACTION_NOT_FOUND`. That maps to FAILED so `settle` releases the payment
- * (REFUND_PENDING→SUCCESS) and a retry can proceed — never a stuck REFUND_PENDING.
- *
- * A 5xx / network / genuinely accepted-pending response stays PENDING: we await a
- * callback or Check-Status and NEVER guess that money moved.
- */
-export function mapRefundState(
-  state: string,
-  outcome?: ProviderOutcome,
-): 'PROCESSED' | 'FAILED' | 'PENDING' {
-  if (state === 'COMPLETED') return 'PROCESSED';
-  if (state === 'FAILED') return 'FAILED';
-  const http = outcome?.httpStatus;
-  if (typeof http === 'number' && http >= 500) return 'PENDING'; // transient — recheck later
-  const clientRejected =
-    (typeof http === 'number' && http >= 400 && http < 500) || outcome?.success === false;
-  if (clientRejected) return 'FAILED'; // definitive rejection — release the payment
-  return 'PENDING';
 }
 
 export function shouldRestock(disposition: RefundDisposition): boolean {

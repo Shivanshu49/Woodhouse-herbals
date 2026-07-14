@@ -22,7 +22,7 @@ import { RefundOrderDto } from './dto/refund-order.dto';
 export class RefundsController {
   constructor(private readonly refunds: RefundsService) {}
 
-  /** Prepaid (PhonePe) refund — async: returns PENDING, settles via callback/recheck. */
+  /** Prepaid (gateway) refund — async: returns PENDING, settles via webhook/recheck. */
   @Roles(UserRole.ADMIN)
   @Throttle({ default: { ttl: 60_000, limit: 20 } })
   @Post(':id/refund')
@@ -46,7 +46,7 @@ export class RefundsController {
     return this.refunds.manual(id, dto, user.sub);
   }
 
-  /** Reconcile the order's active PhonePe refund against Check-Status. */
+  /** Reconcile the order's active gateway refund against the provider. */
   @Roles(UserRole.ADMIN)
   @Throttle({ default: { ttl: 60_000, limit: 30 } })
   @Post(':id/refund/recheck')

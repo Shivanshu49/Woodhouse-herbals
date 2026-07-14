@@ -7,7 +7,7 @@ import type { IntegrationsStatus } from '@/types/settings';
 const PROVIDERS: { key: keyof IntegrationsStatus; name: string; purpose: string }[] = [
   { key: 'cloudinary', name: 'Cloudinary', purpose: 'Product & content image uploads' },
   { key: 'r2', name: 'Cloudflare R2', purpose: 'Invoice PDF storage' },
-  { key: 'phonepe', name: 'PhonePe', purpose: 'Online payments & refunds' },
+  { key: 'razorpay', name: 'Razorpay', purpose: 'Online payments & refunds' },
   { key: 'email', name: 'Email (Resend)', purpose: 'Invites, verification & reset mail' },
 ];
 

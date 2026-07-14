@@ -16,8 +16,8 @@ import { z } from 'zod';
  * Validation refuses to boot in production when:
  *   - a JWT secret is short, missing, or a known placeholder
  *   - access ≡ refresh secret
- *   - PhonePe credentials are missing (silent dev-salt fallback would
- *     trivially defeat HMAC webhook verification in prod)
+ *   - Razorpay credentials (key id/secret + webhook secret) are missing —
+ *     without the webhook secret the HMAC webhook verification is defeated
  *   - DATABASE_URL is missing
  *
  * Dev relaxes these so the app boots from a half-filled .env.example.
@@ -115,13 +115,33 @@ const schema = z.object({
   OTP_MAX_ATTEMPTS: z.coerce.number().int().min(3).max(10).default(5),
   OTP_REQUESTS_PER_WINDOW: z.coerce.number().int().min(1).max(10).default(3),
 
-  // PhonePe — optional in dev so the app boots without payment credentials,
-  // hard-required in prod (enforced in the refine block below). The dev
-  // fallback values live in DEV_FALLBACKS so they are visible in one place.
-  PHONEPE_MERCHANT_ID: z.string().optional(),
-  PHONEPE_SALT_KEY: z.string().optional(),
-  PHONEPE_SALT_INDEX: z.string().default('1'),
-  PHONEPE_BASE_URL: z.string().url().optional(),
+  // Razorpay — NO dev fallbacks by design (test-mode keys are real
+  // credentials; there is no safe committed equivalent). Unset ⇒ the payment
+  // + refund endpoints return 503 (the MSG91/Cloudinary pattern); the three
+  // core keys are hard-required at prod boot (refine block below).
+  // WEBHOOK_SECRET_OLD exists only for the ≤24h rotation window (retried
+  // deliveries stay signed with the old secret) — clear it after.
+  RAZORPAY_KEY_ID: z.string().optional(),
+  RAZORPAY_KEY_SECRET: z.string().optional(),
+  RAZORPAY_WEBHOOK_SECRET: z.string().optional(),
+  RAZORPAY_WEBHOOK_SECRET_OLD: z.string().optional(),
+
+  // Express 'trust proxy' hop count. Default 1 = exactly one trusted proxy.
+  // ⚠ The deploy target is a Hostinger KVM VPS running Coolify (Traefik
+  // ingress) — NOT Railway, which the original analysis assumed. On that
+  // topology there is always ≥1 hop (Traefik), and with Cloudflare in front
+  // the chain is CF → Traefik → app (expected 2). The correct value MUST be
+  // verified empirically at cutover (log req.ip + the X-Forwarded-For chain
+  // on a test request); do not assume it from any prior analysis. Traefik
+  // must also be configured to trust forwarded headers only from Cloudflare
+  // ranges, or a client-forged XFF survives.
+  TRUST_PROXY_HOPS: z.coerce.number().int().min(0).max(4).default(1),
+
+  // Reconciliation cron knobs (consumed in Phase 6; declared with the rest
+  // of the payment config so the §5 env table stays the single source).
+  RECONCILE_PAYMENT_MIN_AGE_MIN: z.coerce.number().int().positive().default(15),
+  REFUND_CONCLUDE_MIN_AGE_MIN: z.coerce.number().int().positive().default(15),
+  PAYMENT_ABANDON_TTL_HOURS: z.coerce.number().int().positive().default(24),
 
   MEILI_HOST: z.string().url().optional(),
   MEILI_API_KEY: z.string().optional(),
@@ -140,20 +160,6 @@ const schema = z.object({
 });
 
 export type AppEnv = z.infer<typeof schema>;
-
-/**
- * Dev-only fallbacks for optional credentials. Visible in ONE place so a
- * reader auditing for "what does this look like with no .env" gets a clear
- * answer. Production paths never read these — see assertion in `loadEnv`.
- */
-export const DEV_FALLBACKS = {
-  PHONEPE_MERCHANT_ID: 'PGTESTPAYUAT',
-  PHONEPE_SALT_KEY: 'dev-salt',
-  PHONEPE_SALT_INDEX: '1',
-  // Legacy Standard Checkout / Hermes sandbox host — used for server→PhonePe
-  // refund + Check-Status calls in dev. Prod supplies the real value.
-  PHONEPE_BASE_URL: 'https://api-preprod.phonepe.com/apis/pg-sandbox',
-} as const;
 
 /** App version — sourced from npm at runtime, with a literal fallback. */
 export const APP_VERSION = process.env.npm_package_version ?? '0.1.0';
@@ -182,9 +188,9 @@ export function loadEnv(): AppEnv {
     if (parsed.data.JWT_ACCESS_SECRET === parsed.data.JWT_REFRESH_SECRET) {
       errors.push('JWT_ACCESS_SECRET and JWT_REFRESH_SECRET must be distinct');
     }
-    if (!parsed.data.PHONEPE_MERCHANT_ID) errors.push('PHONEPE_MERCHANT_ID is required');
-    if (!parsed.data.PHONEPE_SALT_KEY) errors.push('PHONEPE_SALT_KEY is required');
-    if (!parsed.data.PHONEPE_BASE_URL) errors.push('PHONEPE_BASE_URL is required');
+    if (!parsed.data.RAZORPAY_KEY_ID) errors.push('RAZORPAY_KEY_ID is required');
+    if (!parsed.data.RAZORPAY_KEY_SECRET) errors.push('RAZORPAY_KEY_SECRET is required');
+    if (!parsed.data.RAZORPAY_WEBHOOK_SECRET) errors.push('RAZORPAY_WEBHOOK_SECRET is required');
     if (errors.length) {
       // eslint-disable-next-line no-console
       console.error('❌ Production env errors:');

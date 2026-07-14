@@ -123,10 +123,21 @@ jobs:
         run: npx prisma generate
       - name: Prisma migrate deploy
         run: npx prisma migrate deploy
+      # The money-critical partial unique indexes exist only as raw SQL in
+      # their migrations (Prisma 5 can't express them). Assert existence,
+      # shape, AND behavior against the freshly migrated DB so a squashed or
+      # edited migration history fails at PR time, not in production.
+      - name: Assert DB invariants (partial unique indexes)
+        run: npx tsx scripts/assert-db-invariants.ts
       - name: Build
         run: npm run build
       - name: Test (node:test via tsx)
         run: npm test
+      # Boots the REAL app wiring (raw-body mount, parser ordering, guards)
+      # and fails if the razorpay webhook raw mount and controller route
+      # ever diverge — the most fragile coupling in the gateway swap.
+      - name: Integration tests (full app boot)
+        run: npm run test:integration
 
   # ────────────────────────────────────────────────────────────
   # AI service — FastAPI

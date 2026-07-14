@@ -75,8 +75,11 @@ export class AuthController {
   // 3 registrations / hour per IP — registrations are rare but bots love them.
   @Public()
   @Throttle({ default: { ttl: 60 * 60 * 1000, limit: 3 } })
+  // 202 Accepted, not 201 Created: the response is identical whether or not the
+  // email was new (a 201-vs-409 split leaked account existence). "We've accepted
+  // your request; check your email."
   @Post('register')
-  @HttpCode(201)
+  @HttpCode(202)
   async register(@Body() dto: RegisterDto, @Req() req: Request) {
     return this.auth.register(dto, ctxFromRequest(req));
   }

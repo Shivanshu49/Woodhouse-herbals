@@ -31,18 +31,17 @@ export default function SignupPage() {
     setBusy(true);
     try {
       await api.auth.register({ fullName, email, password });
-      // Try to sign straight in. In production the account needs email
-      // verification first (login 403s and we show the "check your inbox"
-      // state); in dev the backend auto-verifies and this succeeds.
+      // Try to sign straight in: in dev the backend auto-verifies so this
+      // succeeds; in production the account needs email verification (login
+      // 403s). If auto-login fails for ANY reason — unverified (403), or the
+      // email already had an account with a different password (401) — fall
+      // back to the SAME neutral "check your inbox" state. Surfacing "invalid
+      // password" here would re-leak that the email already exists (backend M3).
       try {
         await api.auth.login({ email, password });
         await onSignedIn();
-      } catch (err) {
-        if (err instanceof ApiError && err.status === 403) {
-          setNeedsVerification(true);
-        } else {
-          throw err;
-        }
+      } catch {
+        setNeedsVerification(true);
       }
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Something went wrong. Please try again.');

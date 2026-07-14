@@ -91,15 +91,19 @@ export class AuthService {
 
     const existing = await this.prisma.user.findUnique({ where: { email: dto.email } });
     if (existing) {
-      // Generic response: do NOT confirm whether the email is in use to a
-      // stranger. The real owner will discover the existing account on login.
+      // Do NOT reveal that the email is already registered — a distinct 409
+      // (vs the 201 a fresh signup returned) was an account-existence oracle.
+      // Return the SAME generic response as a new signup. Burn an equivalent
+      // bcrypt hash first so this branch takes about as long as the create
+      // path, whose ~200ms hash would otherwise be a timing oracle.
+      await hashPassword(dto.password);
       await this.events.record({
         type: 'REGISTER',
         ip: ctx.ip,
         userAgent: ctx.userAgent,
         meta: { outcome: 'duplicate_email', email: dto.email },
       });
-      throw new ConflictException('If the details are valid, an account will be created.');
+      return { ok: true };
     }
 
     // Without a mail provider the verification link is never delivered, which
@@ -128,8 +132,10 @@ export class AuthService {
       meta: { outcome: 'created' },
     });
 
-    // No tokens issued until email is verified.
-    return { user };
+    // Identical generic response to the duplicate branch — the client shows the
+    // same "check your email" state either way. No tokens until verified, and
+    // no user object (returning the existing owner's details would leak).
+    return { ok: true };
   }
 
   // ──────────────────────────────────────────────────────────────────
@@ -729,7 +735,12 @@ export class AuthService {
       });
       const url = passwordResetUrl(user.role, raw, env.WEB_ORIGIN, env.ADMIN_ORIGIN);
       const msg = this.mail.buildResetEmail(url);
-      await this.mail.send({ to: email, ...msg });
+      // Fire-and-forget: awaiting the provider round-trip here makes the
+      // hit branch measurably slower than the unknown-email branch — a timing
+      // oracle for account existence. Failures are logged, never surfaced.
+      void this.mail
+        .send({ to: email, ...msg })
+        .catch((err) => this.logger.warn(`Password reset email failed to send: ${(err as Error).message}`));
       await this.events.record({
         userId: user.id,
         type: 'PASSWORD_RESET_REQUESTED',
@@ -861,7 +872,12 @@ export class AuthService {
     });
     const url = `${env.WEB_ORIGIN.split(',')[0]}/account/verify?token=${encodeURIComponent(raw)}`;
     const msg = this.mail.buildVerificationEmail(url);
-    await this.mail.send({ to: email, ...msg });
+    // Fire-and-forget: the send only runs when the account exists / is
+    // unverified, so awaiting it would leak that state as response latency
+    // (register, and login of an unverified user). Failures are logged.
+    void this.mail
+      .send({ to: email, ...msg })
+      .catch((err) => this.logger.warn(`Verification email failed to send: ${(err as Error).message}`));
   }
 
   private async issueTokens(

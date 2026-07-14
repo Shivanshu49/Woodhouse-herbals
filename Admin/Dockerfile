@@ -28,6 +28,11 @@ WORKDIR /app
 # HOSTNAME=0.0.0.0 is required: Next standalone binds to process.env.HOSTNAME
 # (Docker sets it to the container id) — without this Traefik can't reach it.
 ENV NODE_ENV=production PORT=3001 HOSTNAME=0.0.0.0 NEXT_TELEMETRY_DISABLED=1
+# curl: Coolify executes its health probe INSIDE the container, and
+# node:20-slim ships neither curl nor wget — without it the probe fails and
+# Coolify rolls back an otherwise healthy deploy.
+RUN apt-get update && apt-get install -y --no-install-recommends curl \
+  && rm -rf /var/lib/apt/lists/*
 COPY --from=build /app/.next/standalone ./
 COPY --from=build /app/.next/static ./.next/static
 COPY --from=build /app/public ./public

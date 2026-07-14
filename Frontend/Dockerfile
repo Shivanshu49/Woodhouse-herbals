@@ -33,6 +33,11 @@ WORKDIR /app
 # process.env.HOSTNAME, which Docker sets to the container id — without this it
 # listens on the wrong interface and Traefik/health checks can't reach it.
 ENV NODE_ENV=production PORT=3000 HOSTNAME=0.0.0.0 NEXT_TELEMETRY_DISABLED=1
+# curl: Coolify executes its health probe INSIDE the container, and
+# node:20-slim ships neither curl nor wget — without it the probe fails and
+# Coolify rolls back an otherwise healthy deploy.
+RUN apt-get update && apt-get install -y --no-install-recommends curl \
+  && rm -rf /var/lib/apt/lists/*
 # `output: standalone` emits a minimal server.js + traced node_modules; it does
 # NOT include .next/static or public, so copy those alongside.
 COPY --from=build /app/.next/standalone ./

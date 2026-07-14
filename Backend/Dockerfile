@@ -25,7 +25,10 @@ RUN npm run build
 FROM node:20-slim AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
-RUN apt-get update && apt-get install -y --no-install-recommends openssl \
+# curl: Coolify executes its health probe INSIDE the container, and
+# node:20-slim ships neither curl nor wget — without it the probe fails and
+# Coolify rolls back an otherwise healthy deploy.
+RUN apt-get update && apt-get install -y --no-install-recommends openssl curl \
   && rm -rf /var/lib/apt/lists/*
 # Keep the FULL node_modules: the Prisma CLI is a devDependency and
 # `start:prod` runs `prisma migrate deploy` in THIS image — do NOT prune it.

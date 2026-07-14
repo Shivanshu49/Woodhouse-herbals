@@ -19,17 +19,16 @@ import {
   X,
   type LucideIcon,
 } from 'lucide-react';
-import { bestsellerProducts } from '@/data/bestsellers';
 import { STORE_CATEGORIES } from '@/data/categories';
 import { concerns } from '@/data/concerns';
-import { homepage } from '@/data/homepage';
+import { useHomepage } from '@/hooks/use-homepage';
 
 /**
  * Mobile navigation drawer — a mini storefront, not a link list (July 2026
- * client round; dotandkey.com mobile menu is the reference). Top-pick
+ * client round; dotandkey.com mobile menu is the reference). Live top-pick
  * bestsellers lead, then icon rows whose green-ringed circles inherit the
  * header's client-approved icon idiom, category/concern accordions on the
- * canonical data sources, and the current offer as the footer.
+ * canonical data sources, and the admin-managed live offer as the footer.
  */
 
 // The client's approved concern-tile tokens, cycled as color plates behind the
@@ -40,6 +39,7 @@ const TILE_PLATES = ['bg-tile-olive', 'bg-tile-peach', 'bg-tile-lemon', 'bg-tile
 type Section = 'category' | 'concern' | null;
 
 export function MobileMenu({ onClose, signedIn }: { onClose: () => void; signedIn: boolean }) {
+  const { data, isError } = useHomepage();
   const [openSection, setOpenSection] = useState<Section>(null);
   const panelRef = useRef<HTMLDivElement>(null);
 
@@ -93,13 +93,9 @@ export function MobileMenu({ onClose, signedIn }: { onClose: () => void; signedI
     return () => mq.removeEventListener('change', onChange);
   }, [onClose]);
 
-  // Main's storefront is still mock-backed, so the drawer reads the same
-  // canonical sources as the homepage carousel/OfferStrip. The keystone
-  // branch's version of this file reads the live useHomepage() payload —
-  // when that branch merges, ITS version of these reads wins.
-  const topPicks = bestsellerProducts.slice(0, 6);
-  const offer = homepage.offerStrip[0];
-  // Free-text href — trust only site-relative paths ('//' would be
+  const topPicks = (data?.bestsellers ?? []).slice(0, 6);
+  const offer = data?.offerStrip?.[0];
+  // Admin free-text href — trust only site-relative paths ('//' would be
   // protocol-relative off-site); anything else falls back to the shop.
   const offerHref = offer && offer.href.startsWith('/') && !offer.href.startsWith('//') ? offer.href : '/shop';
 
@@ -133,34 +129,46 @@ export function MobileMenu({ onClose, signedIn }: { onClose: () => void; signedI
         </div>
 
         <div className="flex-1 overflow-y-auto px-5 pb-6">
-          {topPicks.length > 0 && (
+          {/* Live bestsellers; skeletons while loading, hidden only on an
+              outage with no cached data or an empty payload — a failed
+              background refetch keeps showing the cached picks. */}
+          {!(isError && data === undefined) && (data === undefined || topPicks.length > 0) && (
             <section aria-label="Top picks" className="pt-4">
               <p className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-navy-900">
                 <span className="h-1.5 w-1.5 rounded-full bg-brand-500" aria-hidden="true" />
                 Top picks
               </p>
-              <ul className="-mx-5 mt-3 flex gap-4 overflow-x-auto px-5 pb-1 no-scrollbar snap-x">
-                {topPicks.map((p, i) => (
-                  <li key={p.slug} className="shrink-0 snap-start">
-                    <Link
-                      href={`/shop/${p.slug}`}
-                      onClick={onClose}
-                      className="group flex w-[74px] flex-col items-center gap-1.5"
-                    >
-                      <span
-                        className={`block h-[74px] w-[74px] rounded-full p-[5px] ring-1 ring-navy-900/5 transition-shadow group-hover:shadow-lift ${TILE_PLATES[i % TILE_PLATES.length]}`}
-                      >
-                        <span className="relative block h-full w-full overflow-hidden rounded-full bg-white">
-                          {/* Decorative — the name below labels the link. */}
-                          <Image src={p.image} alt="" fill sizes="74px" className="object-cover" />
+              <ul aria-busy={data === undefined} className="-mx-5 mt-3 flex gap-4 overflow-x-auto px-5 pb-1 no-scrollbar snap-x">
+                {data === undefined
+                  ? Array.from({ length: 4 }, (_, i) => (
+                      <li key={i} className="shrink-0" aria-hidden="true">
+                        <span className="flex w-[74px] flex-col items-center gap-1.5">
+                          <span className="block h-[74px] w-[74px] animate-pulse rounded-full bg-cream-200" />
+                          <span className="block h-[27px] w-14 animate-pulse rounded bg-cream-200" />
                         </span>
-                      </span>
-                      <span className="line-clamp-2 text-center text-[11px] font-semibold leading-tight text-navy-900">
-                        {p.name}
-                      </span>
-                    </Link>
-                  </li>
-                ))}
+                      </li>
+                    ))
+                  : topPicks.map((p, i) => (
+                      <li key={p.id} className="shrink-0 snap-start">
+                        <Link
+                          href={`/shop/${p.slug}`}
+                          onClick={onClose}
+                          className="group flex w-[74px] flex-col items-center gap-1.5"
+                        >
+                          <span
+                            className={`block h-[74px] w-[74px] rounded-full p-[5px] ring-1 ring-navy-900/5 transition-shadow group-hover:shadow-lift ${TILE_PLATES[i % TILE_PLATES.length]}`}
+                          >
+                            <span className="relative block h-full w-full overflow-hidden rounded-full bg-white">
+                              {/* Decorative — the name below labels the link. */}
+                              <Image src={p.thumbnail.url} alt="" fill sizes="74px" className="object-cover" />
+                            </span>
+                          </span>
+                          <span className="line-clamp-2 text-center text-[11px] font-semibold leading-tight text-navy-900">
+                            {p.name}
+                          </span>
+                        </Link>
+                      </li>
+                    ))}
               </ul>
             </section>
           )}

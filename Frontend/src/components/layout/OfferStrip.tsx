@@ -1,14 +1,23 @@
+'use client';
+
 import { Sparkles } from 'lucide-react';
-import { homepage } from '@/data/homepage';
+import { useHomepage } from '@/hooks/use-homepage';
 
 /**
  * The thin offer band that sits above the header.
  *
  * Renders in the brand's vibrant green with cream type and a slow marquee, so
  * it reads as a promotional ribbon instead of the muted dark bar it used to be.
+ *
+ * Copy is admin-managed: it comes from the live `/homepage` payload (`offerStrip`)
+ * so editing the offer strip in Admin changes it here — one source of truth. While
+ * the payload loads (or on an outage) the ribbon simply doesn't render, rather than
+ * flashing stale/mock copy.
  */
 export function OfferStrip() {
-  const items = homepage.offerStrip;
+  const { data } = useHomepage();
+  const items = data?.offerStrip ?? [];
+  if (items.length === 0) return null;
   const loop = [...items, ...items, ...items];
 
   return (

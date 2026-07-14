@@ -98,7 +98,7 @@ export function PaymentCard({ order }: { order: OrderDetail }) {
           <span className="font-medium">{order.paymentMethod}</span>
         </div>
         <div className="flex justify-between">
-          <span className="text-muted-foreground">PhonePe txn</span>
+          <span className="text-muted-foreground">Razorpay txn</span>
           <span className="font-mono text-xs">{txn ?? '—'}</span>
         </div>
         {order.payments.length === 0 ? (

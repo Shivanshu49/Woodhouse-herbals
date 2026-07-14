@@ -1,7 +1,9 @@
+'use client';
+
 import Image from 'next/image';
 import Link from 'next/link';
 import { STORE_CATEGORIES } from '@/data/categories';
-import { products } from '@/data/products';
+import { useCatalog } from '@/hooks/use-catalog';
 
 /**
  * Circular category bar — sits directly under the navbar, mirroring the
@@ -23,21 +25,33 @@ interface Circle {
   comingSoon?: boolean;
 }
 
-const CIRCLES: Circle[] = [
-  { label: 'Shop All', slug: 'shop-all', image: '/categories/shop-all.png', href: '/shop' },
-  ...STORE_CATEGORIES.flatMap(({ label, slug, image, comingSoon }) => {
-    const p = products.find((prod) => prod.category === slug);
-    return p ? [{ label, slug, image: image ?? p.thumbnail.url, href: `/shop?category=${slug}`, comingSoon }] : [];
-  }),
-];
+const SHOP_ALL: Circle = {
+  label: 'Shop All',
+  slug: 'shop-all',
+  image: '/categories/shop-all.png',
+  href: '/shop',
+};
 
 export function CategoryBar() {
+  const { products } = useCatalog();
+
+  // A category renders once it has art — its own pinned `image` or, failing
+  // that, the first live product's thumbnail. Product-derived circles fill in
+  // as the catalog loads (categories with pinned art show immediately).
+  const circles: Circle[] = [
+    SHOP_ALL,
+    ...STORE_CATEGORIES.flatMap(({ label, slug, image, comingSoon }) => {
+      const art = image ?? products.find((p) => p.category === slug)?.thumbnail.url;
+      return art ? [{ label, slug, image: art, href: `/shop?category=${slug}`, comingSoon }] : [];
+    }),
+  ];
+
   return (
     <section aria-label="Shop by category" className="border-b border-navy-900/5 bg-white/70">
       {/* justify-center only from lg — at md the circle row can overflow, and a
           centered overflowing flex row clips its start items unreachably. */}
       <ul className="container-wide flex gap-4 sm:gap-6 lg:justify-center md:gap-8 overflow-x-auto no-scrollbar snap-x snap-mandatory py-3 sm:py-4">
-        {CIRCLES.map((c) => (
+        {circles.map((c) => (
           <li key={c.slug} className="snap-start shrink-0">
             <Link
               href={c.href}

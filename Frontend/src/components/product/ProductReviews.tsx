@@ -55,7 +55,15 @@ export function ProductReviews({ product }: { product: Product }) {
         <div className="lg:col-span-2 space-y-4">
           {reviews.length === 0 ? (
             <div className="rounded-3xl bg-white border border-dashed border-navy-900/15 p-8 text-center shadow-soft">
-              <p className="text-ink-muted">No reviews yet. Be the first to share your experience.</p>
+              {/* The live product carries an aggregate rating + reviewCount, but
+                  individual review rows aren't in the catalog payload yet (a live
+                  reviews endpoint is a fast-follow). Don't claim "no reviews" when
+                  the summary shows a non-zero count — that contradicts itself. */}
+              <p className="text-ink-muted">
+                {product.reviewCount > 0
+                  ? 'Individual reviews are coming soon.'
+                  : 'No reviews yet. Be the first to share your experience.'}
+              </p>
             </div>
           ) : (
             reviews.map((r) => (

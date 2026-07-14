@@ -5,7 +5,7 @@ import Link from 'next/link';
 import useEmblaCarousel from 'embla-carousel-react';
 import { ArrowRight, ChevronLeft, ChevronRight, Gift, Sparkles } from 'lucide-react';
 import { SectionHeader } from '@/components/ui/SectionHeader';
-import { homepage } from '@/data/homepage';
+import { useHomepage } from '@/hooks/use-homepage';
 import { formatPrice, discountPercent } from '@/lib/format';
 import { Badge } from '@/components/ui/Badge';
 import { useCarouselArrows } from '@/hooks/use-carousel-arrows';
@@ -64,6 +64,8 @@ const GIFT_HAMPERS: GiftHamper[] = [
 ];
 
 export function ComboPacks() {
+  const { data } = useHomepage();
+  const comboPacks = data?.comboPacks ?? [];
   const [emblaRef, emblaApi] = useEmblaCarousel({ align: 'start', loop: false });
   const { canPrev, canNext, scrollPrev, scrollNext } = useCarouselArrows(emblaApi);
 
@@ -72,7 +74,7 @@ export function ComboPacks() {
   const arrowClass =
     'absolute top-1/2 -translate-y-1/2 z-10 h-11 w-11 inline-flex items-center justify-center rounded-full bg-white/90 text-navy-900 shadow-lift ring-1 ring-black/5 backdrop-blur-sm transition-opacity hover:bg-white';
 
-  if (homepage.comboPacks.length === 0) return null;
+  if (comboPacks.length === 0) return null;
   return (
     <section aria-label="Combo packs and gift hampers" className="section">
       <div className="container-wide">
@@ -88,7 +90,7 @@ export function ComboPacks() {
           <div className="overflow-hidden" ref={emblaRef}>
             <div className="flex">
               {[
-                ...homepage.comboPacks.map((pack) => ({ kind: 'pack' as const, id: pack.id, pack })),
+                ...comboPacks.map((pack) => ({ kind: 'pack' as const, id: pack.id, pack })),
                 ...GIFT_HAMPERS.map((hamper) => ({ kind: 'hamper' as const, id: hamper.id, hamper })),
               ].map((slide) => {
                 // Strictly #34A99D on every slide (client call): flat fill,

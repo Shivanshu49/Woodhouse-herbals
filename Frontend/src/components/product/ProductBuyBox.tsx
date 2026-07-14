@@ -66,9 +66,10 @@ export function ProductBuyBox({ product }: { product: Product }) {
           </span>
           <button
             type="button"
-            onClick={() => setQty((q) => q + 1)}
-            className="h-12 w-12 grid place-items-center text-navy-900 hover:bg-brand-500/10 rounded-r-full"
+            onClick={() => setQty((q) => Math.min(20, q + 1))}
+            className="h-12 w-12 grid place-items-center text-navy-900 hover:bg-brand-500/10 rounded-r-full disabled:opacity-40"
             aria-label="Increase quantity"
+            disabled={qty >= 20}
           >
             <Plus className="h-4 w-4" />
           </button>

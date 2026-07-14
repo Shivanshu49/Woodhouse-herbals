@@ -40,7 +40,7 @@ export function useRefundOrder(id: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (body: RefundBody) => api.orders.refund(id, body),
-    onSuccess: () => toast.success('PhonePe refund initiated'),
+    onSuccess: () => toast.success('Razorpay refund initiated'),
     onError: (err) => toast.error(toMessage(err)),
     onSettled: () => invalidateOrder(qc, id),
   });

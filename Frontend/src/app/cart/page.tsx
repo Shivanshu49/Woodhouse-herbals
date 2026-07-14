@@ -119,7 +119,7 @@ export default function CartPage() {
           >
             Proceed to checkout <ArrowRight className="h-4 w-4" />
           </Link>
-          <p className="mt-3 text-xs text-ink-muted text-center">Secure checkout via PhonePe · 100% buyer protection</p>
+          <p className="mt-3 text-xs text-ink-muted text-center">Secure checkout · UPI, cards &amp; netbanking via Razorpay</p>
         </aside>
       </div>
     </section>

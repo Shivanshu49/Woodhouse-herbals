@@ -25,7 +25,20 @@ render time and guards against double-stacking).
   backfill the two Tier 1 records (`vitamin-c-niacinamide-serum`,
   `niacinamide-face-wash`) to bare URLs at the same time.
 
-### FF-2 — Reconcile `p_acne_facewash` against `niacinamide-face-wash`
+### FF-2 — Reconcile `p_acne_facewash` against `niacinamide-face-wash` — ✅ RESOLVED (2026-07-13, keystone Phase 1)
+**Resolved by elimination, not merge.** The keystone made the catalog live and
+**deleted `Frontend/src/data/products.ts` (with `bestsellers.ts` and
+`homepage.ts`)**, so the phantom `p_acne_facewash` / `anti-acne-salicylic-face-wash`
+record no longer exists anywhere in the Frontend (`grep` clean). The storefront
+now sources every product — including the real Neem Face Wash
+(`niacinamide-face-wash`) — from the live `GET /api/products*` DB records, so
+there is nothing left to reconcile. The six generic `/shop/${slug}` link sites
+now resolve live slugs; a stale localStorage cart line pointing at the old mock
+slug simply 404s at the PDP (honest not-found), and is cleared by the Phase-3
+one-time cart migration. No merge/repoint needed.
+
+<details><summary>Original entry (for history)</summary>
+
 The Frontend mock's `anti-acne-salicylic-face-wash` (id `p_acne_facewash`) is
 likely a phantom duplicate of the real Neem Face Wash: the physical product is
 "Neem Face Wash — With Niacinamide" (niacinamide is the only on-pack active;
@@ -43,3 +56,5 @@ imagery (`neem-face-wash.png` in its gallery).
   sites follow the record automatically — verify each after the merge. Leave
   `Frontend/src/data/concerns.ts:8` untouched: the Acne concern tile's
   `neem-face-wash.png` reference is independent of the product record.
+
+</details>

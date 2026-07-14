@@ -1,24 +1,54 @@
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { ChevronRight, Home } from 'lucide-react';
-import { findProductBySlug, productSummaries } from '@/data/products';
+import { env } from '@/lib/env';
+import type { ProductDetailResponse } from '@/types/api';
 import { ProductGallery } from '@/components/product/ProductGallery';
 import { ProductBuyBox } from '@/components/product/ProductBuyBox';
 import { ProductDetails } from '@/components/product/ProductDetails';
 import { ProductReviews } from '@/components/product/ProductReviews';
 import { Recommended } from '@/components/product/Recommended';
 
+// Render live per request so a just-published or just-edited SKU (price, stock,
+// gallery) is always correct — no statically generated, stale PDP, and no mock
+// fallback that could surface a phantom product a customer can add to cart.
+export const dynamic = 'force-dynamic';
+
 interface Props {
   params: { slug: string };
 }
 
-export function generateStaticParams() {
-  return productSummaries.map((p) => ({ slug: p.slug }));
+/**
+ * Fetch the live product detail from the backend, server-side. The endpoint is
+ * `@Public` (no cookie needed), so a plain uncached fetch is enough. Returns
+ * null on 404 (caller renders `notFound()`); throws on any other failure so the
+ * route's error boundary shows an honest error — never a fabricated product.
+ */
+async function fetchProductDetail(slug: string): Promise<ProductDetailResponse | null> {
+  const res = await fetch(`${env.apiUrl}/api/products/${encodeURIComponent(slug)}`, {
+    cache: 'no-store',
+    headers: { Accept: 'application/json' },
+  });
+  // A syntactically invalid slug (uppercase, underscore, space, leading/trailing
+  // hyphen, >82 chars) is rejected by the backend's SLUG_RE with a 400 BEFORE
+  // the lookup — it can never be a real product, so treat it as not-found (a
+  // branded 404), not as a 500. See products.controller.ts.
+  if (res.status === 404 || res.status === 400) return null;
+  if (!res.ok) throw new Error(`Failed to load product "${slug}" (${res.status})`);
+  return (await res.json()) as ProductDetailResponse;
 }
 
-export function generateMetadata({ params }: Props) {
-  const product = findProductBySlug(params.slug);
-  if (!product) return { title: 'Product not found' };
+export async function generateMetadata({ params }: Props) {
+  // Tolerant of failures — metadata must never crash the render; the page fetch
+  // below is the source of truth for not-found / error handling.
+  let data: ProductDetailResponse | null = null;
+  try {
+    data = await fetchProductDetail(params.slug);
+  } catch {
+    return { title: 'Wood House Herbals' };
+  }
+  if (!data) return { title: 'Product not found' };
+  const { product } = data;
   return {
     title: product.name,
     description: product.shortDescription,
@@ -30,17 +60,10 @@ export function generateMetadata({ params }: Props) {
   };
 }
 
-export default function ProductPage({ params }: Props) {
-  const product = findProductBySlug(params.slug);
-  if (!product) notFound();
-
-  const recommended = productSummaries
-    .filter(
-      (p) =>
-        p.id !== product.id &&
-        (p.concerns.some((c) => product.concerns.includes(c)) || p.category === product.category),
-    )
-    .slice(0, 4);
+export default async function ProductPage({ params }: Props) {
+  const data = await fetchProductDetail(params.slug);
+  if (!data) notFound();
+  const { product, recommended } = data;
 
   return (
     <article className="container-wide pt-6 pb-20">

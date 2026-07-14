@@ -200,6 +200,14 @@ export class OrdersService {
       }
 
       return created;
+    }, {
+      // Money-path transaction (inventory CAS + order insert + coupon redeem must
+      // be atomic). Prisma's default 5s interactive-transaction timeout is too
+      // tight under real DB round-trip latency — a slow moment would spuriously
+      // roll back a VALID order and 500 a paying customer. Widen the window; the
+      // work is fixed and small, so this only guards against latency, not size.
+      maxWait: 10_000,
+      timeout: 20_000,
     });
 
     return order;

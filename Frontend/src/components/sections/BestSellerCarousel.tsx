@@ -2,12 +2,15 @@
 
 import useEmblaCarousel from 'embla-carousel-react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { bestsellerProducts } from '@/data/bestsellers';
 import { BestsellerCard } from '@/components/ui/BestsellerCard';
 import { useCarouselArrows } from '@/hooks/use-carousel-arrows';
+import { useHomepage } from '@/hooks/use-homepage';
+import { toBestseller } from '@/lib/bestseller';
 import { cn } from '@/lib/cn';
 
 export function BestSellerCarousel() {
+  const { data } = useHomepage();
+  const bestsellers = (data?.bestsellers ?? []).map(toBestseller);
   const [emblaRef, emblaApi] = useEmblaCarousel({
     align: 'start',
     loop: false,
@@ -15,6 +18,10 @@ export function BestSellerCarousel() {
     containScroll: 'trimSnaps',
   });
   const { canPrev, canNext, scrollPrev, scrollNext } = useCarouselArrows(emblaApi);
+
+  // Live homepage payload not ready (loading / outage) — hide the whole
+  // section rather than render an empty carousel or phantom rows.
+  if (bestsellers.length === 0) return null;
 
   // aria-disabled (not the disabled attribute) so a keyboard user's focus
   // isn't dropped to <body> the moment an arrow hides at either end.
@@ -31,7 +38,7 @@ export function BestSellerCarousel() {
         <div className="relative">
           <div className="overflow-hidden -mx-1.5 sm:-mx-3" ref={emblaRef}>
             <div className="flex">
-              {bestsellerProducts.map((product) => (
+              {bestsellers.map((product) => (
                 <div
                   key={product.slug}
                   className="flex-[0_0_50%] md:flex-[0_0_33.333%] lg:flex-[0_0_25%] px-1.5 sm:px-3"

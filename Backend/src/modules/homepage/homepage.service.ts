@@ -43,11 +43,15 @@ export class HomepageService {
       bestsellers: bestsellers.map((p) => this.toSummary(p)),
       newArrivals: newArrivals.map((p) => this.toSummary(p)),
       comboPacks: comboPacks.map((p) => this.toSummary(p)),
+      // The client-approved 6-pillar trust row (mirrors the brand's printed
+      // trust-badge strip). The storefront TrustStrip renders these live.
       trust: [
-        { icon: 'leaf', title: 'Herbal & natural', subtitle: 'Plant-first formulations' },
-        { icon: 'shield', title: 'Dermat-tested', subtitle: 'Safe for daily use' },
-        { icon: 'sparkles', title: 'GMP certified', subtitle: 'Made in our own facility' },
-        { icon: 'heart', title: 'Cruelty-free', subtitle: 'Never tested on animals' },
+        { icon: 'leaf', title: 'All Natural Ingredients', subtitle: 'Plant-first formulations' },
+        { icon: 'heart', title: 'No Animal Testing', subtitle: 'Cruelty-free always' },
+        { icon: 'sparkles', title: 'No Harmful Chemicals', subtitle: 'No Sulphates, No Paraben, No Silicone' },
+        { icon: 'shield', title: 'Dermatologically Tested', subtitle: 'Safe for daily use' },
+        { icon: 'check', title: 'FDA Approved', subtitle: 'GMP-certified facility' },
+        { icon: 'india', title: 'Clinically crafted in Bharat', subtitle: 'Science of fruits and root extracts' },
       ],
     };
   }

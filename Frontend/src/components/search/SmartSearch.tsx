@@ -33,8 +33,8 @@ export function SmartSearch() {
     };
   }, [open, setOpen]);
 
-  // Live catalog from the backend with a mock-data fallback (see useCatalog).
-  const catalog = useCatalog();
+  // Live catalog from the backend (see useCatalog — no mock fallback).
+  const { products: catalog } = useCatalog();
   const q = query.trim().toLowerCase();
   const productResults = useMemo(() => {
     if (!q) return catalog.slice(0, 4);

@@ -27,6 +27,7 @@ import { SmsService } from '../../common/sms/sms.service';
 import { SecurityEventsService } from '../../common/security/security-events.service';
 import { refreshTtlSecondsForRole } from './token-ttl';
 import { passwordResetUrl } from './reset-url';
+import { LoginBackoff } from './login-backoff';
 import type {
   AccessTokenPayload,
   RefreshTokenPayload,
@@ -50,6 +51,9 @@ function maskForAudit(phone: string): string {
   return phone.replace(/(\+\d{2})\d{6}(\d{4})/, '$1******$2');
 }
 
+/** First backoff step once an IP exhausts its free failed-login allowance. */
+const LOGIN_BACKOFF_BASE_MS = 60_000;
+
 @Injectable()
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
@@ -64,6 +68,18 @@ export class AuthService {
 
   // Lazily constructed so the app boots fine without GOOGLE_CLIENT_ID.
   private googleClient?: OAuth2Client;
+
+  // Attacker-scoped login throttle. Replaces the old victim-keyed account
+  // lock, which let anyone lock a known email out of its own account by
+  // guessing passwords. Keyed on the client IP; a correct login clears it.
+  // Config stays env-tunable: AUTH_MAX_FAILED_ATTEMPTS = free allowance,
+  // AUTH_LOCKOUT_MINUTES = cap on the exponential backoff. See login-backoff.ts.
+  private readonly loginBackoff = new LoginBackoff({
+    freeAttempts: env.AUTH_MAX_FAILED_ATTEMPTS,
+    baseDelayMs: LOGIN_BACKOFF_BASE_MS,
+    maxDelayMs: env.AUTH_LOCKOUT_MINUTES * 60 * 1000,
+    idleResetMs: env.AUTH_LOCKOUT_MINUTES * 60 * 1000,
+  });
 
   // ──────────────────────────────────────────────────────────────────
   // Registration
@@ -121,11 +137,33 @@ export class AuthService {
   // ──────────────────────────────────────────────────────────────────
 
   async login(dto: { email: string; password: string }, ctx: RequestContext) {
+    const now = Date.now();
+
+    // Attacker-scoped gate: too many recent failures from THIS client IP are
+    // refused before any account lookup or password work. Keyed on the IP, not
+    // the target account, so it can never lock a real owner out of their own
+    // account (the old account-lock DoS). Applied uniformly whether or not the
+    // email exists, so it is not an account-existence oracle either.
+    const gate = this.loginBackoff.peek(ctx.ip, now);
+    if (gate.blocked) {
+      await this.events.record({
+        type: 'LOGIN_FAILURE',
+        ip: ctx.ip,
+        userAgent: ctx.userAgent,
+        meta: { reason: 'ip_throttled', retryAfterMs: gate.retryAfterMs },
+      });
+      throw new HttpException(
+        'Too many failed attempts. Please wait a moment and try again.',
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
+
     const user = await this.prisma.user.findUnique({ where: { email: dto.email } });
 
     // Even on missing user, run a bcrypt compare to neutralise timing leaks.
     if (!user) {
       await verifyPassword(dto.password, DUMMY_PASSWORD_HASH);
+      this.loginBackoff.registerFailure(ctx.ip, now);
       await this.events.record({
         type: 'LOGIN_FAILURE',
         ip: ctx.ip,
@@ -141,6 +179,7 @@ export class AuthService {
     // bcrypt compare keeps response timing uniform with the wrong-password path.
     if (user.deletedAt) {
       await verifyPassword(dto.password, DUMMY_PASSWORD_HASH);
+      this.loginBackoff.registerFailure(ctx.ip, now);
       await this.events.record({
         userId: user.id,
         type: 'LOGIN_FAILURE',
@@ -151,45 +190,26 @@ export class AuthService {
       throw new UnauthorizedException('Invalid email or password');
     }
 
-    if (user.lockedUntil && user.lockedUntil > new Date()) {
-      await this.events.record({
-        userId: user.id,
-        type: 'LOGIN_FAILURE',
-        ip: ctx.ip,
-        userAgent: ctx.userAgent,
-        meta: { reason: 'locked', lockedUntil: user.lockedUntil.toISOString() },
-      });
-      throw new ForbiddenException('Account temporarily locked. Try again later.');
-    }
-
     // Passwordless accounts (phone-OTP / Google) still burn a bcrypt compare
     // so response timing does not reveal which accounts lack a password.
     const ok = await verifyPassword(dto.password, user.passwordHash ?? DUMMY_PASSWORD_HASH);
     if (!ok) {
-      // Atomic increment — Postgres serialises the update so concurrent
-      // failed attempts cannot all read the same starting value and bypass
-      // the lockout threshold.
+      // Throttle this IP (attacker-scoped — never locks the account itself).
+      this.loginBackoff.registerFailure(ctx.ip, now);
+      // Per-account counter of targeting attempts — an audit signal only, NOT
+      // an access-control lock (that was the removed DoS). Atomic increment so
+      // concurrent failures serialise on the row.
       const updated = await this.prisma.user.update({
         where: { id: user.id },
         data: { failedLoginAttempts: { increment: 1 } },
         select: { failedLoginAttempts: true },
       });
-      const failed = updated.failedLoginAttempts;
-      const shouldLock = failed >= env.AUTH_MAX_FAILED_ATTEMPTS;
-      if (shouldLock) {
-        await this.prisma.user.update({
-          where: { id: user.id },
-          data: {
-            lockedUntil: new Date(Date.now() + env.AUTH_LOCKOUT_MINUTES * 60 * 1000),
-          },
-        });
-      }
       await this.events.record({
         userId: user.id,
-        type: shouldLock ? 'ACCOUNT_LOCKED' : 'LOGIN_FAILURE',
+        type: 'LOGIN_FAILURE',
         ip: ctx.ip,
         userAgent: ctx.userAgent,
-        meta: { reason: 'bad_password', attempts: failed },
+        meta: { reason: 'bad_password', attempts: updated.failedLoginAttempts },
       });
       throw new UnauthorizedException('Invalid email or password');
     }
@@ -199,6 +219,9 @@ export class AuthService {
       throw new ForbiddenException('Please verify your email address. We sent you a fresh link.');
     }
 
+    // Correct credentials: clear this IP's backoff (auto-unlock) and reset the
+    // account's targeting counter (and any legacy lockedUntil older code set).
+    this.loginBackoff.registerSuccess(ctx.ip);
     await this.prisma.user.update({
       where: { id: user.id },
       data: {

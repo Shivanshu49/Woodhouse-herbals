@@ -26,6 +26,7 @@ process.env.RAZORPAY_KEY_ID = 'rzp_test_keyid';
 process.env.RAZORPAY_KEY_SECRET = 'rzp_test_secret';
 process.env.RAZORPAY_WEBHOOK_SECRET = 'whsec_integration';
 process.env.WEB_ORIGIN = 'http://localhost:3000';
+process.env.ADMIN_ORIGIN = 'http://localhost:3001';
 
 import test, { before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -37,6 +38,7 @@ import { configureApp } from './app.setup';
 import { resetEnvCacheForTests } from './common/config/env';
 
 const ORIGIN = 'http://localhost:3000';
+const ADMIN_ORIGIN = 'http://localhost:3001';
 let app: INestApplication;
 
 before(async () => {
@@ -79,4 +81,15 @@ test('a disallowed origin is not granted CORS access', async () => {
 
   // The strict origin callback rejects: no allow-origin header is echoed back.
   assert.notEqual(res.headers['access-control-allow-origin'], 'https://evil.example');
+});
+
+test('CSP connect-src and CORS both include the independently configured admin origin', async () => {
+  const res = await request(app.getHttpServer())
+    .get('/api/health')
+    .set('Origin', ADMIN_ORIGIN);
+
+  assert.equal(res.status, 200);
+  assert.equal(res.headers['access-control-allow-origin'], ADMIN_ORIGIN);
+  const csp = res.headers['content-security-policy'] || '';
+  assert.match(csp, new RegExp(`connect-src[^;]*${ADMIN_ORIGIN.replaceAll('.', '\\.')}`));
 });

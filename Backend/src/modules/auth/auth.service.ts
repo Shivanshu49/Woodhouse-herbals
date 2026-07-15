@@ -205,17 +205,29 @@ export class AuthService {
       // Per-account counter of targeting attempts — an audit signal only, NOT
       // an access-control lock (that was the removed DoS). Atomic increment so
       // concurrent failures serialise on the row.
-      const updated = await this.prisma.user.update({
-        where: { id: user.id },
-        data: { failedLoginAttempts: { increment: 1 } },
-        select: { failedLoginAttempts: true },
-      });
+      let attempts: number | undefined;
+      try {
+        const updated = await this.prisma.user.update({
+          where: { id: user.id },
+          data: { failedLoginAttempts: { increment: 1 } },
+          select: { failedLoginAttempts: true },
+        });
+        attempts = updated.failedLoginAttempts;
+      } catch (err) {
+        // This counter is telemetry, not access control. A schema drift,
+        // transient DB error, or deleted-race must never turn bad credentials
+        // into a 500 and disclose that the account exists.
+        this.logger.error(
+          `Failed to increment login-failure counter for user ${user.id}: ${(err as Error).message}`,
+          err instanceof Error ? err.stack : undefined,
+        );
+      }
       await this.events.record({
         userId: user.id,
         type: 'LOGIN_FAILURE',
         ip: ctx.ip,
         userAgent: ctx.userAgent,
-        meta: { reason: 'bad_password', attempts: updated.failedLoginAttempts },
+        meta: { reason: 'bad_password', ...(attempts === undefined ? {} : { attempts }) },
       });
       throw new UnauthorizedException('Invalid email or password');
     }

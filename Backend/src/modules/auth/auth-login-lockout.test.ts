@@ -70,6 +70,22 @@ function makeService() {
   return { svc, user };
 }
 
+test('a failure-counter database error cannot turn wrong credentials into a 500', async () => {
+  const { svc } = makeService();
+  const prisma = (svc as any).prisma;
+  prisma.user.update = async () => {
+    throw new Error('database counter write failed');
+  };
+
+  await assert.rejects(
+    svc.login(
+      { email: 'victim@example.com', password: 'DefinitelyWrong9!' },
+      { ip: '192.0.2.99' },
+    ),
+    (err: any) => typeof err?.getStatus === 'function' && err.getStatus() === 401,
+  );
+});
+
 test('an attacker cannot lock the victim out: wrong passwords from the attacker IP leave the victim able to log in from their own IP', async () => {
   const { svc } = makeService();
   const attackerIp = '203.0.113.7';

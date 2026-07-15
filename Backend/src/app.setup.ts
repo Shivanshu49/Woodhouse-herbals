@@ -21,6 +21,16 @@ import { SecurityLoggerInterceptor } from './common/security/security-logger.int
  */
 export const RAZORPAY_WEBHOOK_RAW_PATH = '/api/razorpay/webhook';
 
+/** Browser origins allowed to call the API, shared by CSP and CORS. */
+export function configuredAppOrigins(): string[] {
+  return [
+    ...env.WEB_ORIGIN.split(','),
+    ...(env.ADMIN_ORIGIN ? [env.ADMIN_ORIGIN] : []),
+  ]
+    .map((origin) => origin.trim())
+    .filter((origin, index, origins) => origin.length > 0 && origins.indexOf(origin) === index);
+}
+
 /**
  * Full HTTP configuration, extracted from bootstrap so the integration
  * harness boots THE REAL wiring (raw-body mounts, parser ordering, prefix,
@@ -34,6 +44,7 @@ export const RAZORPAY_WEBHOOK_RAW_PATH = '/api/razorpay/webhook';
  */
 export function configureApp(app: INestApplication): void {
   const expressApp = app.getHttpAdapter().getInstance() as express.Application;
+  const appOrigins = configuredAppOrigins();
 
   // ── Request body limits ─────────────────────────────────────────
   // 256 kb covers all current commerce payloads and blocks accidental DoS.
@@ -63,7 +74,7 @@ export function configureApp(app: INestApplication): void {
           imgSrc: ["'self'", 'data:', 'https:'],
           scriptSrc: ["'self'"],
           styleSrc: ["'self'", "'unsafe-inline'"],
-          connectSrc: ["'self'", ...env.WEB_ORIGIN.split(',')],
+          connectSrc: ["'self'", ...appOrigins],
           fontSrc: ["'self'", 'data:'],
           formAction: ["'self'"],
           upgradeInsecureRequests: env.NODE_ENV === 'production' ? [] : null,
@@ -79,7 +90,7 @@ export function configureApp(app: INestApplication): void {
   );
 
   // ── CORS: strict allow-list ─────────────────────────────────────
-  const allowedOrigins = new Set(env.WEB_ORIGIN.split(',').map((o) => o.trim()));
+  const allowedOrigins = new Set(appOrigins);
   app.enableCors({
     origin(origin, cb) {
       if (!origin) return cb(null, true); // same-origin / health probes

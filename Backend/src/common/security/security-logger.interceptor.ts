@@ -52,10 +52,15 @@ export class SecurityLoggerInterceptor implements NestInterceptor {
       userId: req.user?.sub ?? null,
       slow: durationMs > 1500,
       err: err instanceof Error ? err.constructor.name : undefined,
+      errMessage:
+        err instanceof Error && !(err instanceof HttpException) ? err.message.slice(0, 500) : undefined,
     };
 
     if (status >= 500 || (err && !(err instanceof HttpException))) {
-      this.logger.error(JSON.stringify(entry));
+      this.logger.error(
+        JSON.stringify(entry),
+        err instanceof Error && !(err instanceof HttpException) ? err.stack : undefined,
+      );
     } else if (status === 401 || status === 403 || status === 429) {
       this.logger.warn(JSON.stringify(entry));
     } else if (entry.slow || status >= 400) {

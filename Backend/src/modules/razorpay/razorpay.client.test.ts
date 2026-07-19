@@ -14,7 +14,7 @@
 import test, { beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { resetEnvCacheForTests } from '../../common/config/env';
-import { RazorpayClient } from './razorpay.client';
+import { RazorpayClient, RazorpayHttpError } from './razorpay.client';
 
 beforeEach(() => {
   process.env.NODE_ENV = 'test';
@@ -81,11 +81,22 @@ test('createOrder: a non-2xx response throws with the status, never with secrets
   await assert.rejects(
     () => client.createOrder({ amountMinor: 100, receipt: 'r-1234567890' }),
     (e: Error) => {
+      assert.ok(e instanceof RazorpayHttpError);
+      assert.equal(e.httpStatus, 401);
       assert.match(e.message, /401/);
       assert.doesNotMatch(e.message, /rzp_test_secret/);
       return true;
     },
   );
+});
+
+test('createOrder: rejects an amount below Razorpay\'s 100-paise minimum before IO', async () => {
+  const { client, captured } = makeClient([{ status: 200, body: { id: 'order_A' } }]);
+  await assert.rejects(
+    () => client.createOrder({ amountMinor: 99, receipt: 'r-1234567890' }),
+    /at least 100 paise/i,
+  );
+  assert.equal(captured.length, 0);
 });
 
 test('fetchOrderPayments: GET /v1/orders/:id/payments returns the attempt list', async () => {

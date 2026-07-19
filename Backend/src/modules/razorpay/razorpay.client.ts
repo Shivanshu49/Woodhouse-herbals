@@ -25,6 +25,14 @@ const TIMEOUT_MS = 15_000;
 /** DI token for overriding fetch in tests; unset in production. */
 export const RAZORPAY_FETCH = 'RAZORPAY_FETCH';
 
+/** Status-only provider error: safe to classify without retaining Razorpay's response body. */
+export class RazorpayHttpError extends Error {
+  constructor(readonly httpStatus: number, operation: string) {
+    super(`Razorpay ${operation} failed (HTTP ${httpStatus})`);
+    this.name = 'RazorpayHttpError';
+  }
+}
+
 @Injectable()
 export class RazorpayClient {
   private readonly logger = new Logger(RazorpayClient.name);
@@ -83,6 +91,9 @@ export class RazorpayClient {
     receipt: string;
     notes?: Record<string, string>;
   }): Promise<{ id: string; raw: unknown }> {
+    if (!Number.isInteger(input.amountMinor) || input.amountMinor < 100) {
+      throw new Error('Razorpay order amount must be an integer of at least 100 paise');
+    }
     const { httpStatus, json } = await this.request('POST', '/v1/orders', {
       amount: input.amountMinor,
       currency: 'INR',
@@ -95,7 +106,7 @@ export class RazorpayClient {
     });
     const id = (json as { id?: string } | null)?.id;
     if (httpStatus < 200 || httpStatus >= 300 || !id) {
-      throw new Error(`Razorpay order create failed (HTTP ${httpStatus})`);
+      throw new RazorpayHttpError(httpStatus, 'order create');
     }
     return { id, raw: json };
   }

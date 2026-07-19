@@ -1,17 +1,19 @@
 import {
-  BadGatewayException,
+  BadRequestException,
   ConflictException,
   Inject,
   Injectable,
+  InternalServerErrorException,
   Logger,
   NotFoundException,
   ServiceUnavailableException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { OrderStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { env } from '../../common/config/env';
-import { RazorpayClient } from './razorpay.client';
+import { RazorpayClient, RazorpayHttpError } from './razorpay.client';
 import { verifyWebhookSignature } from './razorpay-signing';
 import { deriveOrderReceipt } from './razorpay-receipt';
 import { decideInitiateReuse } from '../reconciliation/reconcile-decisions';
@@ -77,6 +79,9 @@ export class RazorpayService {
     if (order.status !== OrderStatus.PENDING) {
       throw new ConflictException(`Order is already ${order.status.toLowerCase()}`);
     }
+    if (!Number.isInteger(order.totalMinor) || order.totalMinor < 100) {
+      throw new BadRequestException('Online payment amount must be at least 100 paise');
+    }
 
     // ── Reuse-if-fresh / supersede (plan §1.1[2]) ─────────────────────────
     const existing = await this.findInitiatedRow(order.id);
@@ -113,12 +118,19 @@ export class RazorpayService {
       });
       rzpOrderId = created.id;
       raw = created.raw;
-    } catch {
+    } catch (error) {
       // Do NOT log the error object — provider errors can echo request material.
       this.logger.error(
-        JSON.stringify({ scope: 'razorpay:initiate:provider_failed', orderId: order.id }),
+        JSON.stringify({
+          scope: 'razorpay:initiate:provider_failed',
+          orderId: order.id,
+          ...(error instanceof RazorpayHttpError ? { providerStatus: error.httpStatus } : {}),
+        }),
       );
-      throw new BadGatewayException('Payment gateway unavailable — try again');
+      if (error instanceof RazorpayHttpError && error.httpStatus === 401) {
+        throw new UnauthorizedException('Payment gateway authentication failed');
+      }
+      throw new InternalServerErrorException('Payment gateway unavailable — try again');
     }
 
     try {

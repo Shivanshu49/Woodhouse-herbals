@@ -15,7 +15,7 @@ import { AddressForm } from '@/components/checkout/AddressForm';
 import { computeCartDeltas } from '@/lib/checkout-deltas';
 import { classifyOrderError, type RecoveryAction } from '@/lib/checkout-recovery';
 import { checkoutIdempotencyKey } from '@/lib/checkout-idempotency';
-import { openRazorpayCheckout } from '@/lib/razorpay';
+import { openRazorpayCheckout, razorpayFailureMessage } from '@/lib/razorpay';
 import type { CheckoutAddress, Order } from '@/types/order';
 
 const inr = (minor: number) =>
@@ -26,7 +26,7 @@ type Phase =
   | { name: 'address' }
   | { name: 'placing' }
   | { name: 'recovery'; action: RecoveryAction }
-  | { name: 'confirm'; order: Order }
+  | { name: 'confirm'; order: Order; notice?: { kind: 'cancelled' | 'failed'; message: string } }
   | { name: 'paying'; order: Order }
   | { name: 'error'; message: string };
 
@@ -38,6 +38,7 @@ export default function CheckoutPage() {
   const attemptIdRef = useRef<string | null>(null);
   const lastDtoRef = useRef<CheckoutAddress | null>(null);
   const draftRef = useRef<CheckoutAddress | null>(null);
+  const paymentFailureRef = useRef<string | null>(null);
 
   // Per-checkout-attempt id, persisted for the TAB so a page RELOAD replays the
   // same Idempotency-Key: an identical resubmit then returns the already-created
@@ -97,6 +98,7 @@ export default function CheckoutPage() {
 
   async function pay(order: Order) {
     setPhase({ name: 'paying', order });
+    paymentFailureRef.current = null;
     try {
       const init = await api.razorpay.initiate(order.number);
       await openRazorpayCheckout({
@@ -125,7 +127,24 @@ export default function CheckoutPage() {
           useCartStore.getState().clear();
           router.push(`/orders/${order.number}`);
         },
-        onDismiss: () => setPhase({ name: 'confirm', order }),
+        onFailure: (response) => {
+          const message = razorpayFailureMessage(response);
+          paymentFailureRef.current = message;
+          setPhase({ name: 'confirm', order, notice: { kind: 'failed', message } });
+        },
+        onDismiss: () => {
+          const failure = paymentFailureRef.current;
+          setPhase({
+            name: 'confirm',
+            order,
+            notice: failure
+              ? { kind: 'failed', message: failure }
+              : {
+                  kind: 'cancelled',
+                  message: 'Payment window closed. Your order is saved, and you can try again when you’re ready.',
+                },
+          });
+        },
       });
     } catch (err) {
       const status = err instanceof ApiError ? err.status : 0;
@@ -294,6 +313,20 @@ export default function CheckoutPage() {
             <div className="rounded-3xl bg-white border border-navy-900/5 p-8 shadow-soft">
               <h2 className="font-display text-xl text-navy-900">Confirm & pay</h2>
               <p className="mt-1 text-sm text-ink-muted">Order {phase.order.number}</p>
+              {phase.name === 'confirm' && phase.notice && (
+                <div
+                  role={phase.notice.kind === 'failed' ? 'alert' : 'status'}
+                  aria-live="polite"
+                  className={`mt-5 rounded-2xl border px-4 py-3 text-sm ${
+                    phase.notice.kind === 'failed'
+                      ? 'border-blush/30 bg-blush/5 text-blush-600'
+                      : 'border-brand-500/25 bg-brand-500/5 text-navy-900'
+                  }`}
+                >
+                  <AlertTriangle className="mr-2 inline h-4 w-4" aria-hidden="true" />
+                  {phase.notice.message}
+                </div>
+              )}
               <dl className="mt-5 space-y-2 text-sm">
                 <div className="flex justify-between"><dt className="text-ink-muted">Items</dt><dd>{inr(phase.order.subtotalMinor)}</dd></div>
                 {phase.order.discountMinor > 0 && (

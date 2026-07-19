@@ -8,14 +8,17 @@
 import test, { beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  BadRequestException,
   ConflictException,
+  InternalServerErrorException,
   NotFoundException,
   ServiceUnavailableException,
-  BadGatewayException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { createHmac } from 'node:crypto';
 import { OrderStatus, Prisma } from '@prisma/client';
 import { resetEnvCacheForTests } from '../../common/config/env';
+import { RazorpayHttpError } from './razorpay.client';
 import { RazorpayService } from './razorpay.service';
 
 beforeEach(() => {
@@ -42,6 +45,7 @@ interface FakeCfg {
   existingInitiated?: { id: string; providerTxnId: string; createdAt: Date } | null;
   paymentCreateThrows?: unknown;
   clientThrows?: boolean;
+  clientStatus?: number;
 }
 
 function makeService(cfg: FakeCfg) {
@@ -79,7 +83,10 @@ function makeService(cfg: FakeCfg) {
     isConfigured: () => true,
     createOrder: async (input: any) => {
       calls.clientCreates.push(input);
-      if (cfg.clientThrows) throw new Error('Razorpay order create failed (HTTP 502)');
+      if (cfg.clientThrows) {
+        if (cfg.clientStatus) throw new RazorpayHttpError(cfg.clientStatus, 'order create');
+        throw new Error('Razorpay order create failed');
+      }
       return { id: 'order_NEW', raw: { id: 'order_NEW' } };
     },
   };
@@ -141,6 +148,15 @@ test('initiate: an order that already left PENDING is a 409', async () => {
   );
 });
 
+test('initiate: rejects a server-derived total below 100 paise before provider IO', async () => {
+  const { svc, calls } = makeService({ order: { ...ORDER, totalMinor: 99 } });
+  await assert.rejects(
+    () => svc.initiate({ orderNumber: 'WH-ABC123', userId: 'user_1' }),
+    BadRequestException,
+  );
+  assert.equal(calls.clientCreates.length, 0);
+});
+
 test('initiate: MINT — server-side rzp order with amount from Order.totalMinor, receipt ≤40 w/ order-number prefix', async () => {
   const { svc, calls } = makeService({ order: ORDER });
   const res = await svc.initiate({ orderNumber: 'WH-ABC123', userId: 'user_1' });
@@ -200,13 +216,22 @@ test('initiate: the P2002 double-mint race loser re-reads and returns the WINNER
   assert.ok(calls.paymentFindFirsts.length >= 2, 'must re-read after the unique violation');
 });
 
-test('initiate: provider order-create failure maps to 502 (order stays PENDING, retryable)', async () => {
+test('initiate: provider order-create failure maps to 500 (order stays PENDING, retryable)', async () => {
   const { svc, calls } = makeService({ order: ORDER, clientThrows: true });
   await assert.rejects(
     () => svc.initiate({ orderNumber: 'WH-ABC123', userId: 'user_1' }),
-    BadGatewayException,
+    InternalServerErrorException,
   );
   assert.equal(calls.paymentCreates.length, 0, 'no row without an rzp order id');
+});
+
+test('initiate: Razorpay authentication failure maps to 401', async () => {
+  const { svc, calls } = makeService({ order: ORDER, clientThrows: true, clientStatus: 401 });
+  await assert.rejects(
+    () => svc.initiate({ orderNumber: 'WH-ABC123', userId: 'user_1' }),
+    UnauthorizedException,
+  );
+  assert.equal(calls.paymentCreates.length, 0);
 });
 
 // ── webhook verification helper (shell only — no settlement) ────────────────

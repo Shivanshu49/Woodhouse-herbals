@@ -48,6 +48,25 @@ export interface RazorpayHandlerResponse {
   razorpay_signature: string;
 }
 
+export interface RazorpayFailureResponse {
+  error?: {
+    code?: string;
+    description?: string;
+    source?: string;
+    step?: string;
+    reason?: string;
+    metadata?: {
+      order_id?: string;
+      payment_id?: string;
+    };
+  };
+}
+
+/** Keep gateway details out of the UI while still giving the shopper a clear recovery path. */
+export function razorpayFailureMessage(_response: RazorpayFailureResponse): string {
+  return 'Your payment was not completed. No successful payment has been confirmed — please try again or choose another payment method.';
+}
+
 export interface OpenCheckoutOptions {
   keyId: string;
   razorpayOrderId: string;
@@ -56,6 +75,7 @@ export interface OpenCheckoutOptions {
   orderNumber: string;
   prefill?: { name?: string; contact?: string; email?: string };
   onSuccess: (resp: RazorpayHandlerResponse) => void;
+  onFailure: (resp: RazorpayFailureResponse) => void;
   onDismiss: () => void;
 }
 
@@ -75,5 +95,6 @@ export async function openRazorpayCheckout(opts: OpenCheckoutOptions): Promise<v
     handler: (resp: unknown) => opts.onSuccess(resp as RazorpayHandlerResponse),
     modal: { ondismiss: () => opts.onDismiss(), confirm_close: true },
   });
+  rzp.on('payment.failed', (resp) => opts.onFailure(resp as RazorpayFailureResponse));
   rzp.open();
 }

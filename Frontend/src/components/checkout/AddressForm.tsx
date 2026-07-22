@@ -43,17 +43,23 @@ const FIELDS: { key: keyof CheckoutAddress; label: string; placeholder: string; 
 export function AddressForm({
   defaults,
   disabled,
+  addressFieldsDisabled,
   submitLabel,
   onSubmit,
   onChange,
+  onEdit,
 }: {
   defaults?: Partial<CheckoutAddress>;
   disabled?: boolean;
+  /** Saved-address selections are fixed snapshots; manual mode enables them. */
+  addressFieldsDisabled?: boolean;
   submitLabel: string;
   onSubmit: (dto: CheckoutAddress) => void;
   /** Reports current field values on every change so the parent can keep a
    *  draft across unmount (the checkout flow re-mounts this form between steps). */
   onChange?: (dto: CheckoutAddress) => void;
+  /** Reports direct customer edits separately from synchronization on mount. */
+  onEdit?: (field: keyof CheckoutAddress) => void;
 }) {
   const [values, setValues] = useState<CheckoutAddress>({
     fullName: defaults?.fullName ?? '',
@@ -72,8 +78,16 @@ export function AddressForm({
     onChange?.(values);
   }, [values, onChange]);
 
-  const set = (key: keyof CheckoutAddress) => (e: React.ChangeEvent<HTMLInputElement>) =>
+  const set = (key: keyof CheckoutAddress) => (e: React.ChangeEvent<HTMLInputElement>) => {
+    onEdit?.(key);
     setValues((v) => ({ ...v, [key]: e.target.value }));
+    setErrors((current) => {
+      if (!current[key]) return current;
+      const next = { ...current };
+      delete next[key];
+      return next;
+    });
+  };
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -111,13 +125,13 @@ export function AddressForm({
               value={(values[f.key] as string) ?? ''}
               onChange={set(f.key)}
               placeholder={f.placeholder}
-              disabled={disabled}
+              disabled={disabled || addressFieldsDisabled}
               aria-invalid={Boolean(errors[f.key])}
               aria-describedby={errors[f.key] ? `${f.key}-err` : undefined}
               className="w-full rounded-2xl border border-navy-900/15 bg-white px-4 py-3 text-sm text-navy-900 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 disabled:opacity-60"
             />
             {errors[f.key] && (
-              <p id={`${f.key}-err`} className="mt-1 text-xs text-blush-600">
+              <p id={`${f.key}-err`} role="alert" className="mt-1 text-xs text-blush-600">
                 {errors[f.key]}
               </p>
             )}
@@ -135,10 +149,11 @@ export function AddressForm({
             placeholder="WH25"
             disabled={disabled}
             aria-invalid={Boolean(errors.couponCode)}
+            aria-describedby={errors.couponCode ? 'couponCode-err couponCode-hint' : 'couponCode-hint'}
             className="w-full rounded-2xl border border-navy-900/15 bg-white px-4 py-3 text-sm uppercase text-navy-900 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 disabled:opacity-60"
           />
-          {errors.couponCode && <p className="mt-1 text-xs text-blush-600">{errors.couponCode}</p>}
-          <p className="mt-1 text-xs text-ink-muted">Applied and confirmed on the next step — the final total is shown before you pay.</p>
+          {errors.couponCode && <p id="couponCode-err" role="alert" className="mt-1 text-xs text-blush-600">{errors.couponCode}</p>}
+          <p id="couponCode-hint" className="mt-1 text-xs text-ink-muted">Applied and confirmed on the next step — the final total is shown before you pay.</p>
         </div>
       </div>
 

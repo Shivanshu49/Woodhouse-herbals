@@ -3,7 +3,7 @@
 // Needs the live server cart + guest session cookie; never statically rendered.
 export const dynamic = 'force-dynamic';
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -12,11 +12,15 @@ import { ShieldCheck, ArrowRight, AlertTriangle, Loader2, ShoppingBag } from 'lu
 import { api, ApiError } from '@/lib/api';
 import { useCartStore } from '@/store/cart';
 import { AddressForm } from '@/components/checkout/AddressForm';
+import { SavedAddressSelector, type SavedAddressStatus } from '@/components/checkout/SavedAddressSelector';
+import { useProfile } from '@/hooks/use-auth';
 import { computeCartDeltas } from '@/lib/checkout-deltas';
 import { classifyOrderError, type RecoveryAction } from '@/lib/checkout-recovery';
 import { checkoutIdempotencyKey } from '@/lib/checkout-idempotency';
 import { openRazorpayCheckout, razorpayFailureMessage } from '@/lib/razorpay';
+import { emptyCheckoutAddress, preferredSavedAddress, savedAddressToCheckout } from '@/lib/saved-addresses';
 import type { CheckoutAddress, Order } from '@/types/order';
+import type { CustomerAddress } from '@/types/auth';
 
 const inr = (minor: number) =>
   `₹${(minor / 100).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
@@ -35,6 +39,9 @@ export default function CheckoutPage() {
   const clientLines = useCartStore((s) => s.lines);
   const [phase, setPhase] = useState<Phase>({ name: 'review' });
   const [acked, setAcked] = useState(false);
+  const [addressChoice, setAddressChoice] = useState<string | 'manual' | null>(null);
+  const addressChoiceInitializedRef = useRef(false);
+  const addressChoiceTouchedRef = useRef(false);
   const attemptIdRef = useRef<string | null>(null);
   const lastDtoRef = useRef<CheckoutAddress | null>(null);
   const draftRef = useRef<CheckoutAddress | null>(null);
@@ -72,6 +79,101 @@ export default function CheckoutPage() {
     retry: false,
     refetchOnWindowFocus: false,
   });
+
+  // Authentication/profile discovery is shared with the header, and the
+  // profile already contains the address book. Account address mutations
+  // invalidate this query, so using it here avoids a duplicate /customers/me
+  // request while still reflecting address-book edits.
+  const profileQuery = useProfile();
+  const savedAddresses = profileQuery.data?.addresses ?? [];
+  const requestedAddressChoice = addressChoice ?? 'manual';
+  const selectedSavedAddress = savedAddresses.find((address) => address.id === requestedAddressChoice);
+  const savedAddressStatus: SavedAddressStatus =
+    profileQuery.isPending ||
+    (profileQuery.isFetching && !profileQuery.data)
+      ? 'loading'
+      : profileQuery.isError
+        ? 'error'
+        : !profileQuery.data
+          ? 'signed-out'
+          : savedAddresses.length === 0
+            ? 'empty'
+            : 'ready';
+  const selectedAddressMissing =
+    addressChoice !== null &&
+    addressChoice !== 'manual' &&
+    savedAddressStatus !== 'loading' &&
+    savedAddressStatus !== 'error' &&
+    !selectedSavedAddress;
+  const selectedAddressChoice = selectedAddressMissing ? 'manual' : requestedAddressChoice;
+
+  // Commit the preferred address only once, after the initial profile/address
+  // lookup settles. A customer who starts typing or explicitly chooses manual
+  // checkout while that request is in flight must never have their work replaced.
+  useEffect(() => {
+    if (
+      addressChoiceInitializedRef.current ||
+      addressChoiceTouchedRef.current ||
+      savedAddressStatus === 'loading'
+    ) {
+      return;
+    }
+
+    addressChoiceInitializedRef.current = true;
+    const preferredAddress = preferredSavedAddress(savedAddresses);
+    if (savedAddressStatus === 'ready' && preferredAddress) {
+      setAddressChoice(preferredAddress.id);
+      draftRef.current = savedAddressToCheckout(preferredAddress, draftRef.current?.couponCode);
+      return;
+    }
+
+    setAddressChoice('manual');
+    draftRef.current ??= emptyCheckoutAddress();
+  }, [savedAddresses, savedAddressStatus]);
+
+  // If a selected address is removed from the address book during a refetch,
+  // do not leave its old snapshot silently editable as though it were manual.
+  useEffect(() => {
+    if (!selectedAddressMissing) return;
+    setAddressChoice('manual');
+    draftRef.current = emptyCheckoutAddress(draftRef.current?.couponCode);
+  }, [selectedAddressMissing]);
+
+  const selectSavedAddress = (address: CustomerAddress) => {
+    addressChoiceTouchedRef.current = true;
+    setAddressChoice(address.id);
+    draftRef.current = savedAddressToCheckout(address, draftRef.current?.couponCode);
+  };
+
+  const useDifferentAddress = () => {
+    addressChoiceTouchedRef.current = true;
+    setAddressChoice('manual');
+    draftRef.current = emptyCheckoutAddress(draftRef.current?.couponCode);
+  };
+
+  const commitManualChoice = () => {
+    addressChoiceTouchedRef.current = true;
+    if (addressChoice !== 'manual') setAddressChoice('manual');
+  };
+
+  // An address can be edited during a profile refetch without changing its id.
+  // Include all shipping fields in the key so the read-only snapshot remounts
+  // with the new values instead of retaining stale local form state.
+  const addressFormKey = selectedSavedAddress
+    ? JSON.stringify([
+        selectedSavedAddress.id,
+        selectedSavedAddress.fullName,
+        selectedSavedAddress.phone,
+        selectedSavedAddress.line1,
+        selectedSavedAddress.line2,
+        selectedSavedAddress.city,
+        selectedSavedAddress.state,
+        selectedSavedAddress.pincode,
+        selectedSavedAddress.country,
+      ])
+    : selectedAddressMissing
+      ? `removed-${addressChoice}`
+      : 'manual';
 
   const serverCart = cartQuery.data;
   const deltas = serverCart ? computeCartDeltas(clientLines, serverCart.lines) : [];
@@ -252,8 +354,31 @@ export default function CheckoutPage() {
           {phase.name === 'address' && (
             <div className="space-y-4">
               <h2 className="font-display text-xl text-navy-900">Shipping address</h2>
+              <SavedAddressSelector
+                status={savedAddressStatus}
+                addresses={savedAddresses}
+                selected={selectedAddressChoice}
+                onSelect={selectSavedAddress}
+                onUseDifferent={useDifferentAddress}
+                onManualIntent={commitManualChoice}
+                onRetry={() => profileQuery.refetch()}
+              />
               <AddressForm
-                defaults={draftRef.current ?? undefined}
+                key={addressFormKey}
+                defaults={
+                  selectedSavedAddress
+                    ? savedAddressToCheckout(selectedSavedAddress, draftRef.current?.couponCode)
+                    : selectedAddressMissing
+                      ? emptyCheckoutAddress(draftRef.current?.couponCode)
+                      : draftRef.current ?? emptyCheckoutAddress()
+                }
+                addressFieldsDisabled={Boolean(selectedSavedAddress)}
+                onEdit={(field) => {
+                  // Coupon entry is independent of the address choice and must
+                  // not opt the customer out of an incoming default address.
+                  if (field === 'couponCode') return;
+                  commitManualChoice();
+                }}
                 onChange={(dto) => {
                   draftRef.current = dto;
                 }}

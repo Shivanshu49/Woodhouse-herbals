@@ -10,7 +10,9 @@ import { api } from './api';
 import { checkoutIdempotencyKey } from './checkout-idempotency';
 import { classifyOrderError } from './checkout-recovery';
 import { computeCartDeltas } from './checkout-deltas';
+import { emptyCheckoutAddress, preferredSavedAddress, savedAddressToCheckout } from './saved-addresses';
 import type { CheckoutAddress } from '../types/order';
+import type { CustomerAddress } from '../types/auth';
 import type { CartLine } from '../types';
 
 const DTO: CheckoutAddress = {
@@ -24,9 +26,82 @@ const DTO: CheckoutAddress = {
   couponCode: 'WH25',
 };
 
+const SAVED_ADDRESSES: CustomerAddress[] = [
+  {
+    id: 'address-secondary',
+    fullName: 'Asha Rao',
+    phone: '9876543210',
+    line1: '9 Lake Road',
+    line2: null,
+    city: 'Bengaluru',
+    state: 'Karnataka',
+    pincode: '560001',
+    country: 'IN',
+    isDefault: false,
+  },
+  {
+    id: 'address-default',
+    fullName: 'Priya Sharma',
+    phone: '9988776655',
+    line1: '12 MG Road',
+    line2: 'Near Central Park',
+    city: 'Mumbai',
+    state: 'Maharashtra',
+    pincode: '400001',
+    country: 'IN',
+    isDefault: true,
+  },
+];
+
+test('saved addresses preselect the default and map every shipping field', () => {
+  const preferred = preferredSavedAddress(SAVED_ADDRESSES);
+  assert.equal(preferred?.id, 'address-default');
+  assert.deepEqual(savedAddressToCheckout(preferred!, 'WH25'), {
+    fullName: 'Priya Sharma',
+    phone: '9988776655',
+    line1: '12 MG Road',
+    line2: 'Near Central Park',
+    city: 'Mumbai',
+    state: 'Maharashtra',
+    pincode: '400001',
+    country: 'IN',
+    couponCode: 'WH25',
+  });
+});
+
+test('manual address selection clears shipping fields without dropping the coupon', () => {
+  assert.deepEqual(emptyCheckoutAddress('WH25'), {
+    fullName: '',
+    phone: '',
+    line1: '',
+    line2: '',
+    city: '',
+    state: '',
+    pincode: '',
+    country: 'IN',
+    couponCode: 'WH25',
+  });
+});
+
+test('switching saved addresses replaces every shipping field, including an absent line 2', () => {
+  const next = savedAddressToCheckout(SAVED_ADDRESSES[0], 'WH25');
+  assert.deepEqual(next, {
+    fullName: 'Asha Rao',
+    phone: '9876543210',
+    line1: '9 Lake Road',
+    line2: '',
+    city: 'Bengaluru',
+    state: 'Karnataka',
+    pincode: '560001',
+    country: 'IN',
+    couponCode: 'WH25',
+  });
+  assert.notEqual(next.line2, SAVED_ADDRESSES[1].line2, 'previous line 2 must not survive');
+});
+
 // ---------------------------------------------- Phase 5: the wire invariant
 
-test('POST /orders sends ONLY address + couponCode (+ Idempotency-Key) on the wire', async () => {
+test('POST /orders sends populated saved-address fields without addressId', async () => {
   const orig = globalThis.fetch;
   // Definite-assignment: TS can't see the fetch closure assign this, so a
   // `| null` here would narrow to `never` after assert; the mock sets it and the
@@ -40,9 +115,12 @@ test('POST /orders sends ONLY address + couponCode (+ Idempotency-Key) on the wi
     );
   }) as typeof fetch;
   try {
-    await api.orders.create(DTO, 'a'.repeat(24));
+    const savedDto = savedAddressToCheckout(SAVED_ADDRESSES[1], 'WH25');
+    await api.orders.create(savedDto, 'a'.repeat(24));
     assert.ok(captured, 'fetch was not called');
     const body = JSON.parse(captured.body);
+    assert.deepEqual(body, savedDto);
+    assert.ok(!('addressId' in body), 'unsupported addressId reached the wire');
     const allowed = new Set(['fullName', 'phone', 'line1', 'line2', 'city', 'state', 'pincode', 'country', 'couponCode']);
     for (const k of Object.keys(body)) assert.ok(allowed.has(k), `unexpected key on the wire: ${k}`);
     for (const forbidden of ['price', 'total', 'subtotal', 'discount', 'tax', 'items', 'quantity', 'lineTotal', 'amount', 'amountMinor']) {

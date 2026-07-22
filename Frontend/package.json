@@ -12,6 +12,7 @@
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
     "test": "sh -c 'files=$(find src -name \"*.test.ts\" -type f | sort); [ -n \"$files\" ] || { echo \"npm test: no *.test.ts files found under src/\" >&2; exit 1; }; exec node --import tsx --test --test-reporter=spec $files'",
+    "test:e2e": "playwright test",
     "fetch:reels": "node scripts/fetch-reels.mjs"
   },
   "dependencies": {
@@ -26,6 +27,7 @@
     "zustand": "^4.5.4"
   },
   "devDependencies": {
+    "@playwright/test": "^1.61.1",
     "@types/node": "^20.14.10",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",

@@ -201,6 +201,7 @@ export default function LoginPage() {
         >
           <Input
             type="email"
+            aria-label="Email address"
             autoComplete="email"
             placeholder="Email address"
             value={email}
@@ -209,6 +210,7 @@ export default function LoginPage() {
           />
           <Input
             type="password"
+            aria-label="Password"
             autoComplete="current-password"
             placeholder="Password"
             value={password}

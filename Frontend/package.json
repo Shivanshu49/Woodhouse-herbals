@@ -13,6 +13,7 @@
     "typecheck": "tsc --noEmit",
     "test": "sh -c 'files=$(find src -name \"*.test.ts\" -type f | sort); [ -n \"$files\" ] || { echo \"npm test: no *.test.ts files found under src/\" >&2; exit 1; }; exec node --import tsx --test --test-reporter=spec $files'",
     "test:e2e": "playwright test",
+    "test:e2e:live": "playwright test --config=playwright.live.config.ts",
     "fetch:reels": "node scripts/fetch-reels.mjs"
   },
   "dependencies": {

@@ -56,8 +56,8 @@ export function AccountShell({
         </h1>
 
         <div className="mt-8 grid gap-8 lg:grid-cols-[220px_1fr]">
-          <aside>
-            <nav className="flex lg:flex-col gap-2 overflow-x-auto pb-2 lg:pb-0" aria-label="Account">
+          <aside className="min-w-0">
+            <nav className="flex flex-wrap lg:flex-col gap-2" aria-label="Account">
               {NAV.map(({ href, label, Icon }) => (
                 <Link
                   key={href}
